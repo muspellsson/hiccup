@@ -96,7 +96,7 @@ evalw (Word s)      = interp s
 evalw (NoSub s)     = return s
 evalw (Subcommand c) = runCommand c
 
-ptrace = True -- IGNORE
+ptrace = False -- IGNORE
 
 runCommand :: [TclWord] -> TclM RetVal
 runCommand [Subcommand s] = runCommand s
@@ -180,7 +180,7 @@ procError [s] = throwError (EDie (B.unpack s))
 
 parseInt si = maybe (throwError (EDie ("Bad int: " ++ show si))) (return . fst) (B.readInt si)
 
-procUpLevel [p]    = (io . B.putStrLn) p >> uplevel 1 (procEval [p]) 
+procUpLevel [p]    = uplevel 1 (procEval [p]) 
 procUpLevel (si:p) = parseInt si >>= \i -> uplevel i (procEval p)
 
 uplevel i p = do 

@@ -150,8 +150,8 @@ assertStrEq "one two three four" $somestr
 proc foreach {vname lst what} {
   set i 0
   while {< $i [llength $lst]} {
-    uplevel "puts \$$vname"
     uplevel "set $vname [lindex $lst $i]"
+    uplevel "set vthing \$$vname"
     uplevel $what
     incr i
   }
@@ -159,12 +159,13 @@ proc foreach {vname lst what} {
 
 set numbers {1 2 3 4 5}
 set result 0
+set vthing "bean"
 foreach number $numbers {
-  puts "We're at $number."
   set result [+ $number $result]
 }
 
 assertEq 15 $result
+assertEq 5 $vthing
 
 puts ""
 puts "Done. Passed $assertcount checks."

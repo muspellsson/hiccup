@@ -22,9 +22,10 @@ safeHead s = guard (not (B.null s)) >> return (B.head s)
 
 getInterp str = do 
    loc <- B.findIndex (\x -> x == '$' || x == '[') str
+   let locval = B.index str loc
    if escaped loc str 
      then do (p,v,r) <- getInterp (B.drop (loc+1) str)
-             return (B.append (B.take (loc+1) str) p, v, r)
+             return (B.append (B.take (loc-1) str) (B.cons locval p), v, r)
      else let (pre,aft) = B.splitAt loc str in
           case B.index str loc of
            '$' -> do (s, rest) <- getword aft
@@ -114,13 +115,13 @@ testGetInterp3 = "Escaped ["   ~: Nothing ~=? getInterp (bp "a \\[sub] thing.")
 testGetInterp4 = "Escaped []"   ~: Nothing ~=? getInterp (bp "a \\[sub\\] thing.")
 testGetInterp5 = "Escaped [] crazy"   ~: 
    Just (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ~=? getInterp (bp "a [sub \"quail [puts 1]\"] thing.")
+testGetInterp6 = "unescaped $ works" ~: Just (bp "a $", mkwd "$variable", bp "")  ~=? getInterp (bp "a \\$$variable")
 
-testEscVar = "Escaped var"   ~: Just ([mkwd "puts", mkwd "$number"], bp "") ~=? parseArgs (bp "puts \\$number")
 
 nestedTests= TestList [testNested, testNested2, testNested3]
 
 
-getInterpTests = TestList [ testGetInterp, testGetInterp2, testGetInterp3, testGetInterp4, testGetInterp5 ]
+getInterpTests = TestList [ testGetInterp, testGetInterp2, testGetInterp3, testGetInterp4, testGetInterp5, testGetInterp6 ]
 
 
 tests = TestList [ nestedTests, testEscaped, testEscaped2, testEscaped3, testEscaped4, testParseStr, testParseStrLeft, 
