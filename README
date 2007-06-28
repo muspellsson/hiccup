@@ -1,0 +1,6 @@
+To get things a-going', do:
+  runhaskell Setup.lhs configure
+  runhaskell Setup.lhs build
+
+
+I don't really recommend installing. Not too useful, and I've never tried it.

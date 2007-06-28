@@ -6,6 +6,7 @@ License-file:        LICENSE
 Author:              Kyle Consalus
 Maintainer:          consalus+hiccup@google.com
 Build-Depends:       base, HUnit, mtl
+extra-source-files:  BSParse.hs README
 
 Executable:          hiccup
 Main-is:             Main.hs
