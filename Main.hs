@@ -68,7 +68,7 @@ getParsed str = case runParse str of
 
 doCond str = case getParsed str of
               [x]    -> runCommand x >>= return . isTrue
-              _      -> throwError . EDie $ "Too many statements in conditional"
+              _      -> tclErr "Too many statements in conditional"
  where isTrue = (/= B.pack "0") . trim
 
 trim = B.reverse . dropWhite . B.reverse . dropWhite
@@ -106,15 +106,15 @@ runCommand args = do
  (name:evArgs) <- mapM evalw args
  when ptrace $ io . print $ (name,args) -- IGNORE
  proc <- getProc name
- maybe (throwError (EDie ("invalid command name: " ++ show name))) ($! evArgs) proc
+ maybe (tclErr ("invalid command name: " ++ show name)) ($! evArgs) proc
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet [s1,s2] = set s1 s2 >> return s2
-procSet _       = throwError . EDie $ "set: Wrong arg count"
+procSet _       = tclErr $ "set: Wrong arg count"
 
 procPuts s@(sh:st) = (io . mapM_ puts) txt >> ret
  where (puts,txt) = if sh == B.pack "-nonewline" then (B.putStr,st) else (B.putStrLn,s)
-procPuts x         = throwError . EDie $ "Bad args to puts: " ++ show x
+procPuts x         = tclErr $ "Bad args to puts: " ++ show x
 
 procGets [] = io B.getLine >>= return
 procGets  _ = error "gets: Wrong arg count"
@@ -123,10 +123,10 @@ procEq [a,b] = return . B.pack $ if a == b then "1" else "0"
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (parseInt s1) (parseInt s2) >>= return . B.pack . show
-procMath op _       = throwError . EDie $ "math: Wrong arg count"
+procMath op _       = tclErr "math: Wrong arg count"
 
 procEval [s] = doTcl s
-procEval x   = throwError . EDie $ "Bad eval args: " ++ show x
+procEval x   = tclErr $ "Bad eval args: " ++ show x
 
 procExit [] = io (exitWith ExitSuccess)
 
@@ -140,11 +140,13 @@ procString (f:s:args)
  | f == B.pack "index" = case args of 
                           [i] -> do ind <- parseInt i
                                     if ind >= B.length s || ind < 0 then ret else return $ B.singleton (B.index s ind)
-                          _   -> throwError . EDie $ "Bad args to string index."
- | otherwise            = throwError . EDie $ "Can't do string action: " ++ show f
+                          _   -> tclErr $ "Bad args to string index."
+ | otherwise            = tclErr $ "Can't do string action: " ++ show f
+
+tclErr = throwError . EDie
 
 procInfo [x] = if x == B.pack "commands" then get >>= procList . Map.keys . procs . head
-                                         else throwError . EDie $ "Unknown info command: " ++ show x
+                                         else tclErr $ "Unknown info command: " ++ show x
 
 procAppend (v:vx) = do val <- varGet v 
                        procSet [v,B.concat (val:vx)]
@@ -159,7 +161,7 @@ procLindex [l,i] = do let items = map getDat . head . getParsed $ l
        getDat x          = error $ "getDat doesn't understand: " ++ show x
 
 procLlength [lst] = return . B.pack . show . length . head . getParsed $ lst
-procLlength x = throwError . EDie $ "Bad args to llength: " ++ show x
+procLlength x = tclErr $ "Bad args to llength: " ++ show x
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -168,7 +170,7 @@ procIf (cond:yes:rest) = do
           [s,blk] -> if s == B.pack "else" then doTcl blk else error "Invalid If"
           (s:r)   -> if s == B.pack "elseif" then procIf r else error "Invalid If"
           []      -> ret
-procIf x = throwError . EDie $ "Not enough arguments to If."
+procIf x = tclErr "Not enough arguments to If."
 
 procWhile [cond,body] = loop `catchError` herr
  where pbody = getParsed body 
@@ -181,9 +183,9 @@ procWhile [cond,body] = loop `catchError` herr
 
 procReturn [s] = throwError (ERet s)
 procRetv c [] = throwError c
-procError [s] = throwError (EDie (B.unpack s))
+procError [s] = tclErr (B.unpack s)
 
-parseInt si = maybe (throwError (EDie ("Bad int: " ++ show si))) (return . fst) (B.readInt si)
+parseInt si = maybe (tclErr ("Bad int: " ++ show si)) (return . fst) (B.readInt si)
 
 procUpLevel [p]    = uplevel 1 (procEval [p]) 
 procUpLevel (si:p) = parseInt si >>= \i -> uplevel i (procEval p)
@@ -211,7 +213,7 @@ procProc [name,args,body] = do
   regProc name (procRunner params pbody)
  where to_s (Word b) = b
 
-procProc x = throwError . EDie $ "proc: Wrong arg count (" ++ show (length x) ++ ")"
+procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ ")"
 
 
 procRunner :: [BString] -> [[TclWord]] -> [BString] -> TclM RetVal
@@ -225,7 +227,9 @@ procRunner pl body args = withScope $ do mapM_ (uncurry set) (zip pl args)
 
 varGet name = do env <- liftM head get
                  case upped name env of
-                   Nothing -> maybe (throwError (EDie ("can't read \"$" ++ B.unpack name ++ "\": no such variable"))) return (Map.lookup name (vars env))
+                   Nothing -> maybe (tclErr ("can't read \"$" ++ B.unpack name ++ "\": no such variable")) 
+                                    return 
+                                    (Map.lookup name (vars env))
                    Just (i,n) -> uplevel i (varGet n) 
                    
 
