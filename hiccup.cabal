@@ -1,0 +1,12 @@
+Name:                hiccup
+Version:             0.1
+Description:         A simplistic interpreter for a subset of tcl 
+License:             GPL
+License-file:        LICENSE
+Author:              Kyle Consalus
+Maintainer:          consalus+hiccup@google.com
+Build-Depends:       base, HUnit, mtl
+
+Executable:          hiccup
+Main-is:             Main.hs
+ghc-options:         -O2 -fglasgow-exts -fbang-patterns -funbox-strict-fields
