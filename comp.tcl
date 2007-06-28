@@ -167,5 +167,13 @@ foreach number $numbers {
 assertEq 15 $result
 assertEq 5 $vthing
 
+assertStrEq "wombat" [string tolower "WOMBAT"]
+assertStrEq "CALCULUS" [string toupper "calculus"]
+assertStrEq "hello" [string trim "  hello  "]
+
+foreach name {Abby Carl Julia Leonard} {
+  puts "Hi, $name!"
+}
+
 puts ""
 puts "Done. Passed $assertcount checks."

@@ -4,6 +4,7 @@ import Control.Arrow
 import System.IO
 import Control.Monad.Error
 import System.Exit
+import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
 import System.Environment
 import Data.Maybe
@@ -69,7 +70,8 @@ doCond str = case getParsed str of
               [x]    -> runCommand x >>= return . isTrue
               _      -> throwError . EDie $ "Too many statements in conditional"
  where isTrue = (/= B.pack "0") . trim
-       trim   = B.reverse . dropWhite . B.reverse . dropWhite
+
+trim = B.reverse . dropWhite . B.reverse . dropWhite
 
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
@@ -131,6 +133,9 @@ procExit [] = io (exitWith ExitSuccess)
 procCatch [s] = doTcl s `catchError` (const . return . B.pack) "0"
 
 procString (f:s:args) 
+ | f == B.pack "trim" = return (trim s)
+ | f == B.pack "tolower" = return (B.map toLower s)
+ | f == B.pack "toupper" = return (B.map toUpper s)
  | f == B.pack "length" = return . B.pack . show . B.length $ s 
  | f == B.pack "index" = case args of 
                           [i] -> do ind <- parseInt i
