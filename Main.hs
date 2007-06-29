@@ -63,7 +63,7 @@ doTcl = runCmds . getParsed
 runCmds = liftM last . mapM runCommand
 
 getParsed str = case runParse str of 
-                 Nothing -> error "parse error" 
+                 Nothing -> error $ "parse error: " ++ (B.unpack str) 
                  Just (v,r) -> filter (not . null) v
 
 doCond str = case getParsed str of
@@ -160,7 +160,9 @@ procLindex [l,i] = do let items = map getDat . head . getParsed $ l
        getDat (NoSub s)  = s
        getDat x          = error $ "getDat doesn't understand: " ++ show x
 
-procLlength [lst] = return . B.pack . show . length . head . getParsed $ lst
+procLlength [lst] 
+  | B.null lst = return (B.pack "0")
+  | otherwise = return . B.pack . show . length . head . getParsed $ lst
 procLlength x = tclErr $ "Bad args to llength: " ++ show x
 
 procIf (cond:yes:rest) = do
@@ -213,7 +215,7 @@ procProc [name,args,body] = do
   regProc name (procRunner params pbody)
  where to_s (Word b) = b
 
-procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ ")"
+procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show x
 
 
 procRunner :: [BString] -> [[TclWord]] -> [BString] -> TclM RetVal

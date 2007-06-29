@@ -58,7 +58,7 @@ dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 wordChar ' ' = False
 wordChar c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
-  (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*=/:^$%^&<>"))
+  (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*=/:^$%!^&<>"))
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
  where (w,n) = B.span wordChar s

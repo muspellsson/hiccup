@@ -171,9 +171,17 @@ assertStrEq "wombat" [string tolower "WOMBAT"]
 assertStrEq "CALCULUS" [string toupper "calculus"]
 assertStrEq "hello" [string trim "  hello  "]
 
-foreach name {Abby Carl Julia Leonard} {
-  puts "Hi, $name!"
+proc expr { a1 args } { 
+  if { != [llength $args] 0 } {  
+    eval "[lindex $args 0] $a1 [lindex $args 1]"
+  } else {
+    eval "expr $a1"
+  }
 }
+
+assertEq 8 [expr 4 + 4]
+assertEq 8 [expr {4 + 4}]
+
 
 puts ""
 puts "Done. Passed $assertcount checks."
