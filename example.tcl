@@ -32,3 +32,17 @@ while {<= 2 $fcount} {
 }
 puts "\nDone."
 
+proc foreach {vname lst what} {
+  set i 0
+  while {< $i [llength $lst]} {
+    uplevel "set $vname [lindex $lst $i]"
+    uplevel $what
+    incr i
+  }
+}
+
+
+foreach name {Spain China Russia Argentina} {
+  puts "I've never been to $name."
+}
+
