@@ -109,10 +109,16 @@ mkwd = Word . bp
 testParseStr = "Escaped works" ~: Just (mklit "Oh \"yeah\" baby.", B.empty) ~=? parseStr (bp "\"Oh \\\"yeah\\\" baby.\"")
 testParseStrLeft = "Parse Str with leftover" ~: Just (mklit "Hey there.", bp " 44") ~=? parseStr (bp "\"Hey there.\" 44")
 
-testGetInterp =  "Escaped $ works"   ~: Nothing ~=? getInterp (bp "a \\$variable")
+ngetInterpTests = TestList [
+    "Escaped $ works" ~: noInterp "a \\$variable",
+    "Escaped ["   ~: noInterp "a \\[sub] thing.",
+    "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
+    "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
+    "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!"
+  ]
+ where noInterp str = Nothing ~=? getInterp (bp str)
+
 testGetInterp2 = "unescaped $ works" ~: Just (bp "a ", mkwd "$variable", bp "")  ~=? getInterp (bp "a $variable")
-testGetInterp3 = "Escaped ["   ~: Nothing ~=? getInterp (bp "a \\[sub] thing.")
-testGetInterp4 = "Escaped []"   ~: Nothing ~=? getInterp (bp "a \\[sub\\] thing.")
 testGetInterp5 = "Escaped [] crazy"   ~: 
    Just (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ~=? getInterp (bp "a [sub \"quail [puts 1]\"] thing.")
 testGetInterp6 = "unescaped $ works" ~: Just (bp "a $", mkwd "$variable", bp "")  ~=? getInterp (bp "a \\$$variable")
@@ -120,8 +126,7 @@ testGetInterp6 = "unescaped $ works" ~: Just (bp "a $", mkwd "$variable", bp "")
 
 nestedTests= TestList [testNested, testNested2, testNested3]
 
-
-getInterpTests = TestList [ testGetInterp, testGetInterp2, testGetInterp3, testGetInterp4, testGetInterp5, testGetInterp6 ]
+getInterpTests = TestList [ testGetInterp2, testGetInterp5, testGetInterp6, ngetInterpTests ]
 
 
 tests = TestList [ nestedTests, testEscaped, testEscaped2, testEscaped3, testEscaped4, testParseStr, testParseStrLeft, 
