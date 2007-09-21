@@ -28,8 +28,8 @@ getInterp str = do
              return (B.append (B.take (loc-1) str) (B.cons locval p), v, r)
      else let (pre,aft) = B.splitAt loc str in
           case B.index str loc of
-           '$' -> do (s, rest) <- getword aft
-                     return (pre, s,rest)
+           '$' -> do (s, rest) <- getvar (B.tail aft)
+                     return (pre, s, rest)
            '[' -> do (s, rest) <- parseSub aft
                      return (pre, s, rest)
 
@@ -44,6 +44,7 @@ multi p s = do (w,r) <- p s
                case multi p r of
                 Nothing -> return ([w],r)
                 Just (wx,r2) -> return $! (w:wx,r2)
+{-# INLINE multi #-}
 
 parseSub s = do guard (B.head s == '[') 
                 (p,r) <- parseArgs (B.tail s)
@@ -58,9 +59,12 @@ dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 wordChar ' ' = False
 wordChar c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
-  (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*=/:^$%!^&<>"))
+  (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*_=/:^%!^&<>"))
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
+ where (w,n) = B.span (\x -> wordChar x || x == '$') s
+
+getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
 
 parseStr s = do loc <- B.elemIndex '"' str
@@ -98,10 +102,14 @@ testNested = "Fail nested" ~: Nothing ~=? nested (bp "  {       the end")
 testNested2 = "Pass nested" ~: Just (NoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}")
 testNested3 = "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
 
-testEscaped = (escaped 1 (B.pack "\\\"")) ~? "pre-slashed quote should be escaped"
-testEscaped2 = TestCase $ assertBool "non-slashed quote not escaped"  (not (escaped 1 (B.pack " \"")))
-testEscaped3 = TestCase $ assertBool "pre-slashed quote should be escaped" (escaped 2 (B.pack " \\\""))
-testEscaped4 = TestCase $ assertBool "non-slashed quote not escaped"  (not (escaped 2 (B.pack "  \"")))
+testEscaped = TestList [
+        (escaped 1 (B.pack "\\\"")) ~? "pre-slashed quote should be escaped",
+        checkFalse "non-slashed quote not escaped"  (escaped 1 (B.pack " \"")),
+        checkFalse "non-slashed quote not escaped"  (escaped 1 (B.pack " \"")),
+        (escaped 2 (B.pack " \\\"")) ~? "pre-slashed quote should be escaped",
+        checkFalse "non-slashed quote not escaped"  (escaped 2 (B.pack "  \""))
+  ]
+ where checkFalse str val = TestCase $ assertBool str (not val)
 
 bp = B.pack
 mklit = Word . bp 
@@ -109,28 +117,36 @@ mkwd = Word . bp
 testParseStr = "Escaped works" ~: Just (mklit "Oh \"yeah\" baby.", B.empty) ~=? parseStr (bp "\"Oh \\\"yeah\\\" baby.\"")
 testParseStrLeft = "Parse Str with leftover" ~: Just (mklit "Hey there.", bp " 44") ~=? parseStr (bp "\"Hey there.\" 44")
 
-ngetInterpTests = TestList [
+getInterpTests = TestList [
     "Escaped $ works" ~: noInterp "a \\$variable",
+    "unescaped $ works" ~: 
+          (bp "a ", mkwd "variable", bp "")  ?=? "a $variable",
+    "adjacent interp works" ~: 
+          (bp "", mkwd "var", bp "$bar$car")  ?=? "$var$bar$car",
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
-    "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!"
+    "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
+    "unescaped $ after esc works" ~: 
+          (bp "a $", mkwd "variable", bp "") ?=? "a \\$$variable",
+    "Escaped [] crazy" ~:
+       (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
+       
   ]
  where noInterp str = Nothing ~=? getInterp (bp str)
+       (?=?) res str = Just res ~=? getInterp (bp str)
 
-testGetInterp2 = "unescaped $ works" ~: Just (bp "a ", mkwd "$variable", bp "")  ~=? getInterp (bp "a $variable")
-testGetInterp5 = "Escaped [] crazy"   ~: 
-   Just (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ~=? getInterp (bp "a [sub \"quail [puts 1]\"] thing.")
-testGetInterp6 = "unescaped $ works" ~: Just (bp "a $", mkwd "$variable", bp "")  ~=? getInterp (bp "a \\$$variable")
+getWordTests = TestList [
+     "Simple" ~: badword "",
+     "Simple2" ~: (mkwd "$whoa", bp "") ?=? "$whoa"
+  ]
+ where badword str = Nothing ~=? getword (bp str)
+       (?=?) res str = Just res ~=? getword(bp str)
 
+nestedTests = TestList [testNested, testNested2, testNested3]
 
-nestedTests= TestList [testNested, testNested2, testNested3]
-
-getInterpTests = TestList [ testGetInterp2, testGetInterp5, testGetInterp6, ngetInterpTests ]
-
-
-tests = TestList [ nestedTests, testEscaped, testEscaped2, testEscaped3, testEscaped4, testParseStr, testParseStrLeft, 
-                   getInterpTests ]
+tests = TestList [ nestedTests, testEscaped, testParseStr, testParseStrLeft, 
+                   getInterpTests, getWordTests ]
 
 runUnit = runTestTT tests
 

@@ -145,6 +145,8 @@ assertStrEq "h" $fst
 set somestr "one"
 append somestr " two" " three" " four"
 assertStrEq "one two three four" $somestr
+append avar a b c
+assertStrEq "abc" $avar
 
 
 proc foreach {vname lst what} {
@@ -167,6 +169,23 @@ foreach number $numbers {
 assertEq 15 $result
 assertEq 5 $vthing
 
+set misc { 1 2 3 4 5 6 }
+proc join { lsx mid } {
+  set res ""
+  set first_time 1
+  foreach ind $lsx {
+    if { [== $first_time 1] } {
+      set res $ind
+      set first_time 0
+    } else {
+      set res "$res$mid$ind"
+    }
+  }
+  return $res
+}
+
+assertStrEq "1+2+3+4+5+6" [join $misc +]
+
 assertStrEq "wombat" [string tolower "WOMBAT"]
 assertStrEq "CALCULUS" [string toupper "calculus"]
 assertStrEq "hello" [string trim "  hello  "]
@@ -182,6 +201,23 @@ proc expr { a1 args } {
 assertEq 8 [expr 4 + 4]
 assertEq 8 [expr {4 + 4}]
 
+set babytime 444
+assertEq 444 [set babytime]
+
+assertEq 1 [catch { puts "$thisdoesntexist" }]
+assertEq 0 [catch { [+ 1 1] }]
+
+set whagganog ""
+proc testglobal {bah} {
+  global whagganog
+  append whagganog $bah
+  return $whagganog
+}
+
+assertStrEq 1 [testglobal 1]
+assertStrEq 12 [testglobal 2]
+
+# assertStrEq "whee $ stuff" "whee \$ stuff"
 
 puts ""
 puts "Done. Passed $assertcount checks."

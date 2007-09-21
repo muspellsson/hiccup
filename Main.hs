@@ -33,7 +33,7 @@ procMap = Map.fromList . map (B.pack *** id) $
   ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
   ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
   ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),
-  ("string", procString), ("append", procAppend), ("info", procInfo)]
+  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal)]
    ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("==",toI (==)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
@@ -82,7 +82,8 @@ withScope f = do
   return ret
 
 set :: BString -> BString -> TclM ()
-set str v = do env <- liftM head get
+set str v = do when (B.null str) $ tclErr "Empty varname to set!" 
+               env <- liftM head get
                case upped str env of
                  Just (i,s) -> uplevel i (set s v)
                  Nothing -> do es <- liftM tail get
@@ -110,7 +111,8 @@ runCommand args = do
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet [s1,s2] = set s1 s2 >> return s2
-procSet _       = tclErr $ "set: Wrong arg count"
+procSet [s1] = varGet s1
+procSet _    = tclErr $ "set: Wrong arg count"
 
 procPuts s@(sh:st) = (io . mapM_ puts) txt >> ret
  where (puts,txt) = if sh == B.pack "-nonewline" then (B.putStr,st) else (B.putStrLn,s)
@@ -130,7 +132,9 @@ procEval x   = tclErr $ "Bad eval args: " ++ show x
 
 procExit [] = io (exitWith ExitSuccess)
 
-procCatch [s] = doTcl s `catchError` (const . return . B.pack) "0"
+procCatch [s] = (doTcl s >> procReturn [B.pack "0"]) `catchError` (return . B.singleton . catchRes)
+ where catchRes (EDie s) = '1'
+       catchRes _        = '0'
 
 procString (f:s:args) 
  | f == B.pack "trim" = return (trim s)
@@ -148,7 +152,7 @@ tclErr = throwError . EDie
 procInfo [x] = if x == B.pack "commands" then get >>= procList . Map.keys . procs . head
                                          else tclErr $ "Unknown info command: " ++ show x
 
-procAppend (v:vx) = do val <- varGet v 
+procAppend (v:vx) = do val <- varGet v `catchError` \_ -> return B.empty
                        procSet [v,B.concat (val:vx)]
 
 procList = return . B.concat . intersperse (B.singleton ' ') . map escape
@@ -202,6 +206,11 @@ uplevel i p = do
 procUpVar [s,d]    = upvar 1 s d
 procUpVar [si,s,d] = parseInt si >>= \i -> upvar i s d
 
+procGlobal lst@(_:_) = mapM_ inner lst >> ret
+ where inner g = do lst <- get
+                    let len = length lst - 1
+                    upvar len g g
+
 upvar n s d = do (e:es) <- get 
                  put ((e { upMap = Map.insert s (n,d) (upMap e) }):es)
                  ret
@@ -239,8 +248,8 @@ interp :: BString -> TclM RetVal
 interp str = case getInterp str of
                    Nothing -> return str
                    Just x -> handle x
- where f (Word match) = varGet (B.tail match)
+ where f (Word match) = varGet match
        f x            = runCommand [x]
        handle (b,m,a) = do pre <- liftM (B.append b) (f m)
                            post <- interp a
-                           return (B.append pre post)
+                           return $! (B.append pre post)
