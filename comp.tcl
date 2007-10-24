@@ -90,6 +90,8 @@ assertEq $count 0
 set bean [list 1 2 3 4 5 {6 7 8}]
 
 assertEq [llength $bean] 6
+assertEq [lindex $bean 3] 4
+assertEq [lindex $bean 5] {6 7 8}
 
 
 if { eq "one" "two" } {

@@ -57,7 +57,7 @@ eatcomment = return . (,) [] . B.tail . B.dropWhile (/= '\n')
 dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 
 wordChar ' ' = False
-wordChar c = let ci = ord c in
+wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
   (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*_=/:^%!^&<>"))
 
@@ -124,6 +124,7 @@ getInterpTests = TestList [
     "adjacent interp works" ~: 
           (bp "", mkwd "var", bp "$bar$car")  ?=? "$var$bar$car",
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
+    "Trailing bang" ~: (bp "", mkwd "var", bp "!" ) ?=? "$var!",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
     "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
