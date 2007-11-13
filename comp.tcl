@@ -219,6 +219,9 @@ proc testglobal {bah} {
 assertStrEq 1 [testglobal 1]
 assertStrEq 12 [testglobal 2]
 
+set { shh.. ?} 425
+assertStrEq " 425 " " ${ shh.. ?} "
+
 # assertStrEq "whee $ stuff" "whee \$ stuff"
 
 puts ""

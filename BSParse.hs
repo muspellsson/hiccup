@@ -28,7 +28,7 @@ getInterp str = do
              return (B.append (B.take (loc-1) str) (B.cons locval p), v, r)
      else let (pre,aft) = B.splitAt loc str in
           case B.index str loc of
-           '$' -> do (s, rest) <- getvar (B.tail aft)
+           '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
                      return (pre, s, rest)
            '[' -> do (s, rest) <- parseSub aft
                      return (pre, s, rest)
@@ -61,11 +61,19 @@ wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
   (ord '0' <= ci  && ci <= ord '9') || (c == '_')
 
+orElse a b = \v -> (a v) `mplus` (b v)
+
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
  where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+-*_=/:^%!^&<>"))) s
 
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
+
+brackVar x = do safeHead x
+                guard (B.head x == '{')
+                let (b,a) = B.span (/='}') (B.tail x)
+                safeHead a
+                return (Word b,(B.tail a))
 
 parseStr s = do loc <- B.elemIndex '"' str
                 let (w,r) = B.splitAt loc str 
@@ -98,9 +106,6 @@ nested s = do ind <- match 0 0
 
 -- # TESTS # --
 
-testNested = "Fail nested" ~: Nothing ~=? nested (bp "  {       the end")
-testNested2 = "Pass nested" ~: Just (NoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}")
-testNested3 = "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
 
 testEscaped = TestList [
         (escaped 1 (B.pack "\\\"")) ~? "pre-slashed quote should be escaped",
@@ -123,8 +128,20 @@ parseStrTests = TestList [
  where (?=?) res str = Just res ~=? parseStr (bp str)
        badParse str = Nothing ~=? parseStr (bp str)
 
+brackVarTests = TestList [
+      "Simple" ~: (mklit "data", B.empty) ?=? "{data}",
+      "With spaces" ~: (mklit " a b c d ", bp " ") ?=? "{ a b c d } ",
+      "bad parse" ~: badParse "{ oh no",
+      "bad parse" ~: badParse "pancake"
+   ]
+ where (?=?) res str = Just res ~=? brackVar (bp str)
+       badParse str = Nothing ~=? brackVar (bp str)
+
 getInterpTests = TestList [
     "Escaped $ works" ~: noInterp "a \\$variable",
+    "Bracket interp 1" ~: (bp "", mkwd "booga", bp "") ?=? "${booga}",
+    "Bracket interp 2" ~: (bp "", mkwd "oh yeah!", bp "") ?=? "${oh yeah!}",
+    "Bracket interp 3" ~: (bp " ", mkwd " !?! ", bp " ") ?=? " ${ !?! } ",
     "unescaped $ works" ~: 
           (bp "a ", mkwd "variable", bp "")  ?=? "a $variable",
     "adjacent interp works" ~: 
@@ -138,7 +155,6 @@ getInterpTests = TestList [
           (bp "a $", mkwd "variable", bp "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
        (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
-       
   ]
  where noInterp str = Nothing ~=? getInterp (bp str)
        (?=?) res str = Just res ~=? getInterp (bp str)
@@ -151,11 +167,16 @@ getWordTests = TestList [
  where badword str = Nothing ~=? getword (bp str)
        (?=?) res str = Just res ~=? getword(bp str)
 
-nestedTests = TestList [testNested, testNested2, testNested3]
+nestedTests = TestList [
+  "Fail nested" ~: Nothing ~=? nested (bp "  {       the end"),
+  "Pass nested" ~: Just (NoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}"),
+  "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
+ ]
 
-tests = TestList [ nestedTests, testEscaped, 
+tests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests ]
 
 runUnit = runTestTT tests
+
 
 -- # ENDTESTS # --
