@@ -149,8 +149,11 @@ procString (f:s:args)
 
 tclErr = throwError . EDie
 
-procInfo [x] = if x == B.pack "commands" then get >>= procList . Map.keys . procs . head
-                                         else tclErr $ "Unknown info command: " ++ show x
+procInfo [x] = if x == B.pack "commands" 
+                 then get >>= procList . Map.keys . procs . head
+                 else if x == B.pack "vars" 
+                        then get >>= procList . Map.keys . vars . head
+                        else tclErr $ "Unknown info command: " ++ show x
 
 procAppend (v:vx) = do val <- varGet v `catchError` \_ -> return B.empty
                        procSet [v,B.concat (val:vx)]
