@@ -59,10 +59,10 @@ dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 wordChar ' ' = False
 wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
-  (ord '0' <= ci  && ci <= ord '9') || (c `B.elem` (B.pack "+-*_=/:^%!^&<>"))
+  (ord '0' <= ci  && ci <= ord '9') || (c == '_')
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
- where (w,n) = B.span (\x -> wordChar x || x == '$') s
+ where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+-*_=/:^%!^&<>"))) s
 
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
@@ -114,8 +114,14 @@ testEscaped = TestList [
 bp = B.pack
 mklit = Word . bp 
 mkwd = Word . bp
-testParseStr = "Escaped works" ~: Just (mklit "Oh \"yeah\" baby.", B.empty) ~=? parseStr (bp "\"Oh \\\"yeah\\\" baby.\"")
-testParseStrLeft = "Parse Str with leftover" ~: Just (mklit "Hey there.", bp " 44") ~=? parseStr (bp "\"Hey there.\" 44")
+
+parseStrTests = TestList [
+      "Escaped works" ~: (mklit "Oh \"yeah\" baby.", B.empty) ?=? "\"Oh \\\"yeah\\\" baby.\"", 
+      "Parse Str with leftover" ~: (mklit "Hey there.", bp " 44") ?=? "\"Hey there.\" 44",
+      "bad parse1" ~: badParse "What's new?"
+   ]
+ where (?=?) res str = Just res ~=? parseStr (bp str)
+       badParse str = Nothing ~=? parseStr (bp str)
 
 getInterpTests = TestList [
     "Escaped $ works" ~: noInterp "a \\$variable",
@@ -139,15 +145,16 @@ getInterpTests = TestList [
 
 getWordTests = TestList [
      "Simple" ~: badword "",
-     "Simple2" ~: (mkwd "$whoa", bp "") ?=? "$whoa"
+     "Simple2" ~: (mkwd "$whoa", bp "") ?=? "$whoa",
+     "Simple with bang" ~: (mkwd "whoa!", bp " ") ?=? "whoa! "
   ]
  where badword str = Nothing ~=? getword (bp str)
        (?=?) res str = Just res ~=? getword(bp str)
 
 nestedTests = TestList [testNested, testNested2, testNested3]
 
-tests = TestList [ nestedTests, testEscaped, testParseStr, testParseStrLeft, 
-                   getInterpTests, getWordTests ]
+tests = TestList [ nestedTests, testEscaped, 
+                   parseStrTests, getInterpTests, getWordTests ]
 
 runUnit = runTestTT tests
 
