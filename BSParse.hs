@@ -6,7 +6,7 @@ import Control.Monad
 import Data.Char
 import Test.HUnit  -- IGNORE
 
-data TclWord = Word B.ByteString | Subcommand [TclWord] | NoSub B.ByteString deriving (Show,Eq)
+data TclWord = Word !B.ByteString | Subcommand [TclWord] | NoSub !B.ByteString deriving (Show,Eq)
 
 dispatch str = do h <- safeHead str
                   case h of
@@ -88,7 +88,6 @@ parseStr s = do loc <- B.elemIndex '"' str
                                            return (Word (B.append nw w1), v)
                                    else return (Word w, B.tail r)
  where str = B.tail s
-
 
 escapeStr = optim
  where escape' !esc !lx = 
