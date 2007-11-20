@@ -254,5 +254,5 @@ interp str = case wrapInterp str of
  where f (Word match) = varGet match
        f x            = runCommand [x]
        handle (b,m,a) = do mid <- f m
-                           let front = if B.null b then mid else B.append b mid
+                           let front = B.append b mid
                            interp a >>= return . B.append front
