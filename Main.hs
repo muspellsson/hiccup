@@ -161,11 +161,12 @@ procAppend (v:vx) = do val <- varGet v `catchError` \_ -> return B.empty
 procList = return . B.concat . intersperse (B.singleton ' ') . map escape
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
-procLindex [l,i] = do let items = map getDat . head . getParsed $ l
+procLindex [l,i] = do let items = map to_s . head . getParsed $ l
                       return . (!!) items =<< (parseInt i)
- where getDat (Word s)   = s
-       getDat (NoSub s)  = s
-       getDat x          = error $ "getDat doesn't understand: " ++ show x
+
+to_s (Word s)  = s
+to_s (NoSub s) = s
+to_s x         = error $ "to_s doesn't understand: " ++ show x
 
 procLlength [lst] 
   | B.null lst = return (B.pack "0")
@@ -225,7 +226,6 @@ procProc [name,args,body] = do
                  Just (r,_) -> map to_s r
   let pbody = getParsed body
   regProc name (procRunner params pbody)
- where to_s (Word b) = b
 
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show x
 
@@ -253,6 +253,6 @@ interp str = case wrapInterp str of
                    Right x -> handle x
  where f (Word match) = varGet match
        f x            = runCommand [x]
-       handle (b,m,a) = do pre <- liftM (B.append b) (f m)
-                           post <- interp a
-                           return $! (B.append pre post)
+       handle (b,m,a) = do mid <- f m
+                           let front = if B.null b then mid else B.append b mid
+                           interp a >>= return . B.append front
