@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
-module BSParse (parseArgs,runParse,getInterp,TclWord(..),dropWhite) where
+
+module BSParse (parseArgs,runParse,wrapInterp,TclWord(..),dropWhite) where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad
 import Data.Char
@@ -19,19 +20,24 @@ runParse = multi (mainparse . dropWhite)
 
 safeHead s = guard (not (B.null s)) >> return (B.head s)
 
+wrapInterp str = case getInterp str of
+                   Nothing -> Left $ escapeStr str
+                   Just (pr,s,r) -> Right (escapeStr pr, s, r)
 
 getInterp str = do 
    loc <- B.findIndex (\x -> x == '$' || x == '[') str
    let locval = B.index str loc
-   if escaped loc str 
-     then do (p,v,r) <- getInterp (B.drop (loc+1) str)
-             return (B.append (B.take (loc-1) str) (B.cons locval p), v, r)
+   if escaped loc str
+     then dorestfrom loc locval
      else let (pre,aft) = B.splitAt loc str in
-          case B.index str loc of
-           '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
-                     return (pre, s, rest)
-           '[' -> do (s, rest) <- parseSub aft
-                     return (pre, s, rest)
+          let res = case locval of
+                     '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
+                               return (pre, s, rest)
+                     '[' -> do (s, rest) <- parseSub aft
+                               return (pre, s, rest)
+          in res `mplus` dorestfrom loc locval
+ where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
+                                return (B.append (B.take loc str) (B.cons lval p), v, r)
 
 mainparse str = do h <- safeHead str
                    case h of 
@@ -69,8 +75,8 @@ getword s = if B.null w then fail "can't parse word" else return (Word w,n)
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
 
-brackVar x = do safeHead x
-                guard (B.head x == '{')
+brackVar x = do hv <- safeHead x
+                guard (hv == '{')
                 let (b,a) = B.span (/='}') (B.tail x)
                 safeHead a
                 return (Word b,(B.tail a))
@@ -79,15 +85,24 @@ parseStr s = do loc <- B.elemIndex '"' str
                 let (w,r) = B.splitAt loc str 
                 if escaped loc str then do (Word w1, v) <- parseStr r
                                            let nw =  B.snoc (B.take (B.length w - 1) w) '"'
-                                           return (ueword (B.append nw w1), v)
-                                   else return (ueword w, B.tail r)
+                                           return (Word (B.append nw w1), v)
+                                   else return (Word w, B.tail r)
  where str = B.tail s
-       ueword = Word . strSub (B.pack "\\t", B.singleton '\t') . strSub (B.pack "\\n",B.singleton '\n')
 
-strSub (from,to) s = B.concat $ reverse $ breakUp s nls
- where nls = reverse $ B.findSubstrings from s
-       breakUp x [] = [x]
-       breakUp x (i:xs) = let (a,b) = B.splitAt i x in (B.drop (B.length from) b):to:breakUp a xs
+
+escapeStr = optim
+ where escape' !esc !lx = 
+          if B.null lx then lx
+                       else let (x,xs) = (B.head lx, B.tail lx)
+                            in case (x, esc) of
+                                 ('\\', False) -> escape' True xs 
+                                 ('\\', True) -> B.cons x (optim xs)
+                                 (_,False)   -> B.cons x (optim xs)
+                                 (_,True)    -> B.cons (escapeChar x) (optim xs)
+       optim s = let (c,r) = B.span (/= '\\') s in B.append c (escape' False r)
+       escapeChar 'n' = '\n'
+       escapeChar 't' = '\t'
+       escapeChar  c  = c
 
 escaped v s = escaped' v
  where escaped' !i = if (i <= 0) then False else (B.index s (i-1) == '\\') && not (escaped' (i-1))
@@ -106,7 +121,6 @@ nested s = do ind <- match 0 0
 
 -- # TESTS # --
 
-
 testEscaped = TestList [
         (escaped 1 (B.pack "\\\"")) ~? "pre-slashed quote should be escaped",
         checkFalse "non-slashed quote not escaped"  (escaped 1 (B.pack " \"")),
@@ -123,6 +137,7 @@ mkwd = Word . bp
 parseStrTests = TestList [
       "Escaped works" ~: (mklit "Oh \"yeah\" baby.", B.empty) ?=? "\"Oh \\\"yeah\\\" baby.\"", 
       "Parse Str with leftover" ~: (mklit "Hey there.", bp " 44") ?=? "\"Hey there.\" 44",
+      "Parse Str with dolla" ~: (mklit "How about \\$44?", B.empty) ?=? "\"How about \\$44?\"",
       "bad parse1" ~: badParse "What's new?"
    ]
  where (?=?) res str = Just res ~=? parseStr (bp str)
@@ -144,20 +159,34 @@ getInterpTests = TestList [
     "Bracket interp 3" ~: (bp " ", mkwd " !?! ", bp " ") ?=? " ${ !?! } ",
     "unescaped $ works" ~: 
           (bp "a ", mkwd "variable", bp "")  ?=? "a $variable",
+    "escaped $ works" ~: 
+          (bp "a \\$ ", mkwd "variable", bp "")  ?=? "a \\$ $variable",
+    "escaped $ works 2" ~: 
+          noInterp  "you deserve \\$44.",
     "adjacent interp works" ~: 
           (bp "", mkwd "var", bp "$bar$car")  ?=? "$var$bar$car",
+    "interp after escaped dolla" ~: 
+          (bp "a \\$", mkwd "name", bp " guy")  ?=? "a \\$$name guy",
+    "interp after dolla" ~: 
+          (bp "you have $", mkwd "dollars", bp "")  ?=? "you have $$dollars",
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
     "Trailing bang" ~: (bp "", mkwd "var", bp "!" ) ?=? "$var!",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
     "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
     "unescaped $ after esc works" ~: 
-          (bp "a $", mkwd "variable", bp "") ?=? "a \\$$variable",
+          (bp "a \\$", mkwd "variable", bp "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
        (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
   ]
  where noInterp str = Nothing ~=? getInterp (bp str)
        (?=?) res str = Just res ~=? getInterp (bp str)
+
+wrapInterpTests = TestList [
+    "simple escape" ~: "oh $ yeah" ?!= "oh \\$ yeah"
+  ]
+ where (?=?) res str = Right res ~=? wrapInterp (bp str)
+       (?!=) res str = Left (bp res) ~=? wrapInterp (bp str)
 
 getWordTests = TestList [
      "Simple" ~: badword "",
@@ -174,7 +203,7 @@ nestedTests = TestList [
  ]
 
 tests = TestList [ nestedTests, testEscaped, brackVarTests,
-                   parseStrTests, getInterpTests, getWordTests ]
+                   parseStrTests, getInterpTests, getWordTests, wrapInterpTests ]
 
 runUnit = runTestTT tests
 

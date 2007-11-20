@@ -248,9 +248,9 @@ varGet name = do env <- liftM head get
                    
 
 interp :: BString -> TclM RetVal
-interp str = case getInterp str of
-                   Nothing -> return str
-                   Just x -> handle x
+interp str = case wrapInterp str of
+                   Left s -> return s
+                   Right x -> handle x
  where f (Word match) = varGet match
        f x            = runCommand [x]
        handle (b,m,a) = do pre <- liftM (B.append b) (f m)

@@ -222,7 +222,10 @@ assertStrEq 12 [testglobal 2]
 set { shh.. ?} 425
 assertStrEq " 425 " " ${ shh.. ?} "
 
-# assertStrEq "whee $ stuff" "whee \$ stuff"
+assertStrEq "whee $ stuff" "whee \$ stuff"
+
+assertStrEq "whee \$ stuff" "whee \$ stuff"
+assertStrEq "whee \$\" stuff" "whee $\" stuff"
 
 puts ""
 puts "Done. Passed $assertcount checks."
