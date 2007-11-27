@@ -2,12 +2,12 @@
 # I think it's neat.
 
 proc incr v {
-  upvar 1 loc $v
+  upvar 1 $v loc
   set loc [+ $loc 1]
 }
 
 proc decr v {
-  upvar loc $v
+  upvar $v loc
   set loc [- $loc 1]
 }
 

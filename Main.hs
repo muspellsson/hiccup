@@ -13,7 +13,7 @@ import BSParse
 
 type BString = B.ByteString
 
-data Err = ERet BString | EBreak | EContinue | EDie String deriving (Show,Eq)
+data Err = ERet !BString | EBreak | EContinue | EDie String deriving (Show,Eq)
 
 instance Error Err where
  noMsg    = EDie "An error occurred."
@@ -108,7 +108,7 @@ runCommand :: [TclWord] -> TclM RetVal
 runCommand [Subcommand s] = runCommand s
 runCommand args = do 
  (name:evArgs) <- mapM evalw args
- when ptrace $ io . print $ (name,args) -- IGNORE
+ --when ptrace $ io . print $ (name,args) -- IGNORE
  proc <- getProc name
  maybe (tclErr ("invalid command name: " ++ show name)) ($! evArgs) proc
 
@@ -210,15 +210,15 @@ uplevel i p = do
   get >>= put . (curr ++)
   return res
 
-procUpVar [s,d]    = upvar 1 s d
-procUpVar [si,s,d] = parseInt si >>= \i -> upvar i s d
+procUpVar [d,s]    = upvar 1 d s
+procUpVar [si,d,s] = parseInt si >>= \i -> upvar i d s
 
 procGlobal lst@(_:_) = mapM_ inner lst >> ret
  where inner g = do lst <- get
                     let len = length lst - 1
                     upvar len g g
 
-upvar n s d = do (e:es) <- get 
+upvar n d s = do (e:es) <- get 
                  put ((e { upMap = Map.insert s (n,d) (upMap e) }):es)
                  ret
 

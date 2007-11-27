@@ -21,7 +21,7 @@ runParse = multi (mainparse . dropWhite)
 safeHead s = guard (not (B.null s)) >> return (B.head s)
 
 wrapInterp str = case getInterp str of
-                   Nothing -> Left $ escapeStr str
+                   Nothing -> Left $! escapeStr str
                    Just (pr,s,r) -> Right (escapeStr pr, s, r)
 
 getInterp str = do 
