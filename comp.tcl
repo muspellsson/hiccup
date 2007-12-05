@@ -39,11 +39,6 @@ proc uptest {var v} {
   set loc $v
 }
 
-#proc incr v {
-#  upvar $v loc
-#  set loc [+ $loc 1]
-#}
-
 set x 4
 uptest x 3
 assertEq $x 3
@@ -68,11 +63,6 @@ if {== 3 4} {
 } else {
  assertEq 1 1
 }
-
-#proc decr v {
-#  upvar $v loc
-#  set loc [- $loc 1]
-#}
 
 set count 0
 
@@ -151,17 +141,6 @@ append somestr " two" " three" " four"
 assertStrEq "one two three four" $somestr
 append avar a b c
 assertStrEq "abc" $avar
-
-
-#proc foreach {vname lst what} {
-#  set i 0
-#  while {< $i [llength $lst]} {
-#    uplevel "set $vname {[lindex $lst $i]}"
-#    uplevel "set vthing \$$vname"
-#    uplevel $what
-#    incr i
-#  }
-#}
 
 set numbers {1 2 3 4 5}
 set result 0
