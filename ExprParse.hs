@@ -10,13 +10,14 @@ lexer = P.makeTokenParser emptyDef
 
 integer = P.natural lexer
 symbol  = P.symbol lexer
+identifier  = P.identifier lexer
 stringLit = P.stringLiteral lexer
 
 data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
-data TExp = TInt !Integer | TOp Op TExp TExp | TStr String deriving (Show,Eq)
+data TExp = TInt !Integer | TOp Op TExp TExp | TVar String | TStr String deriving (Show,Eq)
 
 asBool (TInt i) = return (i /= 0)
 asBool (TStr s) = return  $ s `elem` ["1", "true", "yes", "on"]
@@ -102,13 +103,18 @@ factor = do char '('
             x <- pexpr
             char ')'
             return x
-         <|> myint <|> mystr <|> factor <?> "term"
+         <|> myint <|> mystr <|> myvar <|> factor <?> "term"
             
 myint = do i <- (integer <?> "integer")
            return $ TInt i
 mystr = do s <- stringLit
            return $ TStr s
         <?> "string"
+
+myvar = do char '$' 
+           s <- identifier
+           return $ TVar s
+        <?> "variable"
 
 
 --- Unit Testing ---
@@ -132,9 +138,19 @@ stringTests = TestList [
     ,"string3" ~: (TStr "44") ?=? (mystr, "\"44\"") 
  ]
 
+varTests = TestList [
+    "var1" ~: (TVar "boo") ??= "$boo" 
+    ,"var2" ~: (TVar "keebler") ??= "$keebler" 
+    ,"var3" ~: bad "$" 
+  ]
+ where bad v = ptest Nothing (myvar,v)
+       a ??= v = ptest (Just a) (myvar,v)
+ 
+
 exprTests = TestList 
     [ "expr1" ~: (TInt 3) ?=? (pexpr, "3")
      ,"expr2" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "3+1")
+     ,"var+var" ~: ((TVar "a") + (TVar "b")) ?=? (pexpr, "$a+$b")
      ,"expr2 in paren" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "(3+1)")
      ,"expr2 in paren 2" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "((3)+1)")
      ,"expr3" ~: ((TInt 2) + (TInt 5) * (TInt 5)) ?=? (pexpr, "2+5*5")
@@ -143,6 +159,7 @@ exprTests = TestList
      ,"gt" ~: ((TInt 5) .> (TInt 5)) ?=? (pexpr, "5 > 5")
      ,"gte" ~: ((TInt 6) .>= (TInt 5)) ?=? (pexpr, "6 >= 5")
      ,"string eq" ~: ((TStr "X") `eq` (TStr "Y")) ?=? (pexpr, "\"X\" eq \"Y\"")
+     ,"string eq var" ~: ((TVar "X") `eq` (TStr "Y")) ?=? (pexpr, "$X eq \"Y\"")
      ,"string ne" ~: ((TStr "X") `ne` (TStr "Y")) ?=? (pexpr, " \"X\" ne \"Y\"")
  ]
 
@@ -159,6 +176,6 @@ evalTests = TestList
     ]
  where eql a b = (runExpr a) ~=? Just b
 
-parseTests = TestList [ aNumberTests, stringTests, exprTests, evalTests ]
+parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests ]
 
 runUnit = runTestTT parseTests
