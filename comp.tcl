@@ -154,7 +154,7 @@ assertStrEq "abc" $avar
 proc foreach {vname lst what} {
   set i 0
   while {< $i [llength $lst]} {
-    uplevel "set $vname [lindex $lst $i]"
+    uplevel "set $vname {[lindex $lst $i]}"
     uplevel "set vthing \$$vname"
     uplevel $what
     incr i
@@ -170,6 +170,13 @@ foreach number $numbers {
 
 assertEq 15 $result
 assertEq 5 $vthing
+
+set fer "old"
+foreach feitem {"a b" "c d"} {
+  set fer $feitem
+}
+
+assertStrEq "c d" $fer
 
 set misc { 1 2 3 4 5 6 }
 proc join { lsx mid } {
