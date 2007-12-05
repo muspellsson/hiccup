@@ -33,7 +33,7 @@ procMap = Map.fromList . map (B.pack *** id) $
   ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
   ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
   ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),
-  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal)]
+  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource)]
    ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("==",toI (==)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
@@ -132,6 +132,8 @@ procMath op _       = tclErr "math: Wrong arg count"
 
 procEval [s] = doTcl s
 procEval x   = tclErr $ "Bad eval args: " ++ show x
+
+procSource [s] = io (B.readFile (B.unpack s)) >>= doTcl
 
 procExit [] = io (exitWith ExitSuccess)
 

@@ -5,6 +5,8 @@ proc die s {
   exit
 }
 
+source include.tcl
+
 proc assertEq {a b} {
   if {== $a $b} {
     puts -nonewline "."
@@ -37,10 +39,10 @@ proc uptest {var v} {
   set loc $v
 }
 
-proc incr v {
-  upvar $v loc
-  set loc [+ $loc 1]
-}
+#proc incr v {
+#  upvar $v loc
+#  set loc [+ $loc 1]
+#}
 
 set x 4
 uptest x 3
@@ -67,10 +69,10 @@ if {== 3 4} {
  assertEq 1 1
 }
 
-proc decr v {
-  upvar $v loc
-  set loc [- $loc 1]
-}
+#proc decr v {
+#  upvar $v loc
+#  set loc [- $loc 1]
+#}
 
 set count 0
 
@@ -151,15 +153,15 @@ append avar a b c
 assertStrEq "abc" $avar
 
 
-proc foreach {vname lst what} {
-  set i 0
-  while {< $i [llength $lst]} {
-    uplevel "set $vname {[lindex $lst $i]}"
-    uplevel "set vthing \$$vname"
-    uplevel $what
-    incr i
-  }
-}
+#proc foreach {vname lst what} {
+#  set i 0
+#  while {< $i [llength $lst]} {
+#    uplevel "set $vname {[lindex $lst $i]}"
+#    uplevel "set vthing \$$vname"
+#    uplevel $what
+#    incr i
+#  }
+#}
 
 set numbers {1 2 3 4 5}
 set result 0
