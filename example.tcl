@@ -17,8 +17,8 @@ proc memfib x {
   while { <= $ctr $x } {
     set v1 [lindex $loc [- $ctr 1]]
     set v2 [lindex $loc [- $ctr 2]]
-    set sum [+ $v1 $v2]
-    set loc "$loc $sum"
+    set {the sum} [+ $v1 $v2]
+    set loc "$loc ${the sum}"
     incr ctr
   }
   return [lindex $loc $x]
@@ -42,7 +42,7 @@ proc foreach {vname lst what} {
 }
 
 
-foreach name {Spain China Russia Argentina} {
+foreach name {Spain China Russia Argentina "North Dakota"} {
   puts "I've never been to $name."
 }
 

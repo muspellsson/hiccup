@@ -51,11 +51,12 @@ main = do args <- getArgs
              [f] -> B.readFile f >>= run . doTcl
  where run p = evalStateT (runErrorT (p `catchError` perr >> ret)) [baseEnv] >> return ()
        perr (EDie s) = io (hPutStrLn stderr s) >> ret
+       display s = unless (B.null s) (io (B.putStrLn s)) 
        repl = do io (putStr "hiccup> ") 
-                 eof <- (io isEOF)
+                 eof <- io isEOF
                  if eof then ret
                   else do ln <- procGets []
-                          if (not . B.null) ln then doTcl ln `catchError` perr >> repl else ret
+                          if (not . B.null) ln then (doTcl ln `catchError` perr) >>= display >> repl else ret
 
 ret = return B.empty
 

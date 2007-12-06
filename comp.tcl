@@ -144,13 +144,11 @@ assertStrEq "abc" $avar
 
 set numbers {1 2 3 4 5}
 set result 0
-set vthing "bean"
 foreach number $numbers {
   set result [+ $number $result]
 }
 
 assertEq 15 $result
-assertEq 5 $vthing
 
 set fer "old"
 foreach feitem {"a b" "c d"} {

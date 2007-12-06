@@ -39,6 +39,8 @@ getInterp str = do
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
+orElse a b = \v -> (a v) `mplus` (b v)
+
 mainparse str = do h <- safeHead str
                    case h of 
                     ';'  -> return ([], B.tail str) 
@@ -66,8 +68,6 @@ wordChar ' ' = False
 wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
   (ord '0' <= ci  && ci <= ord '9') || (c == '_')
-
-orElse a b = \v -> (a v) `mplus` (b v)
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
  where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*_=/:^%!^&<>"))) s
