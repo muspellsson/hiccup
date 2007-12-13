@@ -14,9 +14,7 @@ class ITObj o where
 instance ITObj BS.ByteString where
   asStr = BS.unpack
   asBool = (`elem` bsTrueValues)
-  asInt = parseInt
-
-parseInt bsi = maybe (fail ("Bad int: " ++ show bsi)) (return . fst) (BS.readInt bsi)
+  asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
 
 asBStr :: (ITObj o) => o -> BS.ByteString
 asBStr = BS.pack . asStr
