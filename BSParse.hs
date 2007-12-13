@@ -70,7 +70,7 @@ wordChar !c = let ci = ord c in
   (ord '0' <= ci  && ci <= ord '9') || (c == '_')
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
- where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*_=/:^%!^&<>"))) s
+ where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*=/:^%!&<>"))) s
 
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
