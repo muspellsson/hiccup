@@ -5,6 +5,9 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Expr
 import Test.HUnit
 
+import qualified TclObj as T
+import qualified Data.Map as M
+
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser emptyDef
 
@@ -17,25 +20,27 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
-data TExp = TInt !Integer | TOp Op TExp TExp | TVar String | TStr String deriving (Show,Eq)
+data TExp = TOp Op TExp TExp | TVar String | TVal T.TclObj deriving (Show,Eq)
 
-asBool (TInt i) = return (i /= 0)
-asBool (TStr s) = return  $ s `elem` ["1", "true", "yes", "on"]
-asBool _ = fail "Can't convert to bool"
+asBool lu v = 
+ case v of
+   TVal v -> return (T.asBool v)
+   TVar v -> asBool lu (tStr v)
+   _      -> fail "cannot convert to bool"
 
-asStr (TInt i) = return (show i)
-asStr (TStr s) = return s
-asStr _ = fail "Can't convert to string"
+asStr lu v = case v of
+         (TVal v) -> return (T.asStr v)
+         (TVar s) -> lu s
+         _        -> fail "Can't convert to string"
 
 
---exprAsBool s = undefined
-exprAsBool s = do v <- expr s
-                  v2 <- runExpr v
-                  asBool v2
+exprAsBool lu s = do v <- expr s
+                     v2 <- runExpr lu v
+                     asBool lu v2
 
-exprAsStr s = do v <- expr s
-                 v2 <- runExpr v
-                 asStr v2
+exprAsStr lu s = do v <- expr s
+                    v2 <- runExpr lu v
+                    asStr lu v2
    
 
 expr s = case parse pexpr "" s of
@@ -49,7 +54,7 @@ instance Num TExp where
   abs = undefined
   signum = undefined
   negate = undefined
-  fromInteger i = TInt i
+  fromInteger i =  TVal (T.TclInt (fromIntegral i))
 
 (.<) = TOp OpLt
 (.<=) = TOp OpLte
@@ -59,31 +64,45 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-getInt (TInt i) = return i
-getInt _        = fail "type error"
+getInt :: (Monad m) => (String -> m String) -> TExp -> m Int
+getInt lu x = 
+ case x of
+    TVal i -> T.asInt i
+    TVar s -> do val <- lu s
+                 return (read val)
+    _      -> fail "type error"
 
-intapply f x y = do i1 <- getInt =<< runExpr x  
-                    i2 <- getInt =<< runExpr y 
-                    return $ TInt (f i1 i2)
+intapply :: (Monad m) => (String -> m String) -> (Int -> Int -> Int) -> TExp -> TExp -> m TExp
+intapply lu f x y = do
+  i1 <- getInt lu =<< runExpr lu x  
+  i2 <- getInt lu =<< runExpr lu y 
+  return $ tInt (f i1 i2)
 
-strapply f x y = do i1 <- asStr =<< runExpr x  
-                    i2 <- asStr =<< runExpr y 
-                    return $ TInt (f i1 i2)
+strapply lu f x y = do 
+ i1 <- asStr lu =<< runExpr lu x  
+ i2 <- asStr lu =<< runExpr lu y 
+ return $ tInt (f i1 i2)
 
 toI v = \a b -> if v a b then 1 else 0 
-runExpr (TOp OpPlus a b) = intapply (+) a b
-runExpr (TOp OpTimes a b) = intapply (*) a b
-runExpr (TOp OpMinus a b) = intapply (-) a b
-runExpr (TOp OpDiv a b) = intapply div a b
-runExpr (TOp OpEql a b) = intapply (toI (==)) a b
-runExpr (TOp OpNeql a b) = intapply (toI (/=)) a b
-runExpr (TOp OpLt a b) = intapply (toI (<)) a b
-runExpr (TOp OpGt a b) = intapply (toI (>)) a b
-runExpr (TOp OpLte a b) = intapply (toI (<=)) a b
-runExpr (TOp OpGte a b) = intapply (toI (>=)) a b
-runExpr (TOp OpStrEq a b) = strapply (toI (==)) a b
-runExpr (TOp OpStrNe a b) = strapply (toI (/=)) a b
-runExpr v = return v
+
+runExpr :: (Monad m) => (String -> m String) -> TExp -> m TExp
+runExpr lu expr =
+  case expr of
+    (TOp OpPlus a b) -> intap (+) a b
+    (TOp OpTimes a b) -> intap (*) a b
+    (TOp OpMinus a b) -> intap (-) a b
+    (TOp OpDiv a b) -> intap div a b
+    (TOp OpEql a b) -> intap (toI (==)) a b
+    (TOp OpNeql a b) -> intap (toI (/=)) a b
+    (TOp OpLt a b) -> intap (toI (<)) a b
+    (TOp OpGt a b) -> intap (toI (>)) a b
+    (TOp OpLte a b) -> intap (toI (<=)) a b
+    (TOp OpGte a b) -> intap (toI (>=)) a b
+    (TOp OpStrEq a b) -> strap (toI (==)) a b
+    (TOp OpStrNe a b) -> strap (toI (/=)) a b
+    _                 -> return expr
+ where intap = intapply lu
+       strap = strapply lu
  
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor
@@ -106,9 +125,9 @@ factor = do char '('
          <|> myint <|> mystr <|> myvar <|> factor <?> "term"
             
 myint = do i <- (integer <?> "integer")
-           return $ TInt i
+           return $ tInt (fromIntegral i)
 mystr = do s <- stringLit
-           return $ TStr s
+           return $ tStr s
         <?> "string"
 
 myvar = do char '$' 
@@ -128,14 +147,14 @@ a ?=? x = ptest (Just a) x
 isBad x = ptest Nothing x
 
 aNumberTests = TestList
-     ["ANumber1" ~: (TInt 3) ?=? (myint, "3"),
-      --"ANumber2" ~: (TInt (-1)) ?=? (myint, "-1"),
+     ["ANumber1" ~: (tInt 3) ?=? (myint, "3"),
+      --"ANumber2" ~: (tInt (-1)) ?=? (myint, "-1"),
       "ANumber3" ~: isBad (myint, "Button")]
 
 stringTests = TestList [
-    "string1" ~: (TStr "boo") ?=? (mystr, "\"boo\"") 
-    ,"string2" ~: (TStr "") ?=? (mystr, "\"\"") 
-    ,"string3" ~: (TStr "44") ?=? (mystr, "\"44\"") 
+    "string1" ~: (tStr "boo") ?=? (mystr, "\"boo\"") 
+    ,"string2" ~: (tStr "") ?=? (mystr, "\"\"") 
+    ,"string3" ~: (tStr "44") ?=? (mystr, "\"44\"") 
  ]
 
 varTests = TestList [
@@ -146,36 +165,47 @@ varTests = TestList [
  where bad v = ptest Nothing (myvar,v)
        a ??= v = ptest (Just a) (myvar,v)
  
+tInt i = TVal (T.TclInt i)
+tStr s = TVal (T.TclStr s)
 
 exprTests = TestList 
-    [ "expr1" ~: (TInt 3) ?=? (pexpr, "3")
-     ,"expr2" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "3+1")
+    [ "expr1" ~: (tInt 3) ?=? (pexpr, "3")
+     ,"expr2" ~: ((tInt 3) + (tInt 1)) ?=? (pexpr, "3+1")
      ,"var+var" ~: ((TVar "a") + (TVar "b")) ?=? (pexpr, "$a+$b")
-     ,"expr2 in paren" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "(3+1)")
-     ,"expr2 in paren 2" ~: ((TInt 3) + (TInt 1)) ?=? (pexpr, "((3)+1)")
-     ,"expr3" ~: ((TInt 2) + (TInt 5) * (TInt 5)) ?=? (pexpr, "2+5*5")
-     ,"lt" ~: ((TInt 2) .< (TInt 5)) ?=? (pexpr, "2 < 5")
-     ,"lte" ~: ((TInt 2) .<= (TInt 5)) ?=? (pexpr, "2 <= 5")
-     ,"gt" ~: ((TInt 5) .> (TInt 5)) ?=? (pexpr, "5 > 5")
-     ,"gte" ~: ((TInt 6) .>= (TInt 5)) ?=? (pexpr, "6 >= 5")
-     ,"string eq" ~: ((TStr "X") `eq` (TStr "Y")) ?=? (pexpr, "\"X\" eq \"Y\"")
-     ,"string eq var" ~: ((TVar "X") `eq` (TStr "Y")) ?=? (pexpr, "$X eq \"Y\"")
-     ,"string ne" ~: ((TStr "X") `ne` (TStr "Y")) ?=? (pexpr, " \"X\" ne \"Y\"")
+     ,"expr2 in paren" ~: ((tInt 3) + (tInt 1)) ?=? (pexpr, "(3+1)")
+     ,"expr2 in paren 2" ~: ((tInt 3) + (tInt 1)) ?=? (pexpr, "((3)+1)")
+     ,"expr3" ~: ((tInt 2) + (tInt 5) * (tInt 5)) ?=? (pexpr, "2+5*5")
+     ,"lt" ~: ((tInt 2) .< (tInt 5)) ?=? (pexpr, "2 < 5")
+     ,"lte" ~: ((tInt 2) .<= (tInt 5)) ?=? (pexpr, "2 <= 5")
+     ,"gt" ~: ((tInt 5) .> (tInt 5)) ?=? (pexpr, "5 > 5")
+     ,"gte" ~: ((tInt 6) .>= (tInt 5)) ?=? (pexpr, "6 >= 5")
+     ,"string eq" ~: ((tStr "X") `eq` (tStr "Y")) ?=? (pexpr, "\"X\" eq \"Y\"")
+     ,"string eq var" ~: ((TVar "X") `eq` (tStr "Y")) ?=? (pexpr, "$X eq \"Y\"")
+     ,"string ne" ~: ((tStr "X") `ne` (tStr "Y")) ?=? (pexpr, " \"X\" ne \"Y\"")
  ]
 
 evalTests = TestList
     [ 
-      (TInt 3) `eql` (TInt 3),
-      ((TInt 5) + (TInt 5)) `eql` (TInt 10),
-      (((TInt 8) - (TInt 5)) + (TInt 5)) `eql` (TInt 8),
-      (((TInt 8) - (TInt 5)) .> (TInt 5)) `eql` (TInt 0),
-      ((TInt 5) .>= (TInt 5)) `eql` (TInt 1),
-      ((TInt 5) .<= (TInt 5)) `eql` (TInt 1),
-      ((TInt 6) .<= (TInt 5)) `eql` (TInt 0),
-      (((TInt 8) - (TInt 5)) .< (TInt 5)) `eql` (TInt 1)
+      (tInt 3) `eql` (tInt 3),
+      ((tInt 5) + (tInt 5)) `eql` (tInt 10),
+      (((tInt 8) - (tInt 5)) + (tInt 5)) `eql` (tInt 8),
+      (((tInt 8) - (tInt 5)) .> (tInt 5)) `eql` (tInt 0),
+      ((tInt 5) .>= (tInt 5)) `eql` (tInt 1),
+      ((tInt 5) .<= (tInt 5)) `eql` (tInt 1),
+      ((tInt 6) .<= (tInt 5)) `eql` (tInt 0),
+      (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` (tInt 1)
     ]
- where eql a b = (runExpr a) ~=? Just b
+ where eql a b = (runExpr return a) ~=? Just b
 
-parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests ]
+varEvalTests = TestList
+    [ 
+      ((TVar "num") + (tInt 3)) `eql` (tInt 7),
+      ((TVar "boo") `eq` (tStr "bean")) `eql` (tInt 1)
+    ]
+ where eql a b = (runExpr lu a) ~=? Just b
+       table = M.fromList [("boo", "bean"), ("num", "4")]
+       lu v = M.lookup v table
+
+parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 
 runUnit = runTestTT parseTests
