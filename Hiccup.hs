@@ -1,3 +1,4 @@
+module Main where
 import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
