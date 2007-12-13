@@ -54,7 +54,7 @@ instance Num TExp where
   abs = undefined
   signum = undefined
   negate = undefined
-  fromInteger i =  TVal (T.TclInt (fromIntegral i))
+  fromInteger i =  TVal (T.mkTclInt (fromIntegral i))
 
 (.<) = TOp OpLt
 (.<=) = TOp OpLte
@@ -165,7 +165,7 @@ varTests = TestList [
  where bad v = ptest Nothing (myvar,v)
        a ??= v = ptest (Just a) (myvar,v)
  
-tInt i = TVal (T.TclInt i)
+tInt i = TVal (T.mkTclInt i)
 tStr s = TVal (T.TclStr s)
 
 exprTests = TestList 
