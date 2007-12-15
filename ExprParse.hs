@@ -166,7 +166,7 @@ varTests = TestList [
        a ??= v = ptest (Just a) (myvar,v)
  
 tInt i = TVal (T.mkTclInt i)
-tStr s = TVal (T.TclStr s)
+tStr s = TVal (T.mkTclStr s)
 
 exprTests = TestList 
     [ "expr1" ~: (tInt 3) ?=? (pexpr, "3")

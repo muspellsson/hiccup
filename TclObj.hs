@@ -4,8 +4,9 @@ import qualified Data.ByteString.Char8 as BS
 
 type Str = String
 
-data TclObj = TclStr Str | TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) deriving (Show,Eq)
+data TclObj = TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) deriving (Show,Eq)
 
+mkTclStr s = mkTclBStr (BS.pack s)
 mkTclBStr s = TclBStr s mayint 
   where mayint = case BS.readInt s of
                    Nothing -> Nothing
@@ -21,29 +22,24 @@ class ITObj o where
 
 instance ITObj BS.ByteString where
   asStr = BS.unpack
-  asBool = (`elem` bsTrueValues)
+  asBool = (`elem` trueValues)
   asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
   asBStr = id
 
 instance ITObj TclObj where
-  asStr (TclStr s) = s
   asStr (TclInt i b) = BS.unpack b
   asStr (TclBStr bs _) = asStr bs
 
-  asBool (TclStr s) = s `elem` trueValues
   asBool (TclInt i _) = i /= 0
   asBool (TclBStr bs _) = asBool bs
 
-  asInt (TclStr s) = return (read s)
   asInt (TclInt i _) = return i
   asInt (TclBStr v (Just i)) = return i
   asInt (TclBStr v Nothing) = fail $ "Bad int: " ++ show v
   
   asBStr (TclBStr s _) = s
   asBStr (TclInt _ b) = b
-  asBStr v = BS.pack (asStr v) 
   
 
-trueValues = ["1", "true", "yes", "on"]
-bsTrueValues = map BS.pack trueValues
+trueValues = map BS.pack ["1", "true", "yes", "on"]
 
