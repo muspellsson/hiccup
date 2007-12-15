@@ -1,10 +1,11 @@
-module Main where
+module Hiccup where
 import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
 import System.IO
 import Control.Monad.Error
 import System.Exit
+import Data.IORef
 import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
 import System.Environment
@@ -15,7 +16,7 @@ import qualified TclObj as T
 
 type BString = B.ByteString
 
-data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Show,Eq)
+data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Eq,Show)
 
 instance Error Err where
  noMsg    = EDie "An error occurred."
@@ -46,19 +47,24 @@ toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
 
-main = do args <- getArgs 
-          hSetBuffering stdout NoBuffering
-          case args of
-             [] -> run repl
-             [f] -> B.readFile f >>= run . doTcl
- where run p = evalStateT (runErrorT (p `catchError` perr >> ret)) [baseEnv] >> return ()
-       perr (EDie s) = io (hPutStrLn stderr s) >> ret
-       display s = unless (B.null s) (io (B.putStrLn s)) 
-       repl = do io (putStr "hiccup> ") 
-                 eof <- io isEOF
-                 if eof then ret
-                  else do ln <- liftM T.asBStr (procGets [])
-                          if (not . B.null) ln then ((doTcl ln `catchError` perr) >>= display . T.asBStr) >> repl else ret
+newtype Interpreter = Interpreter (IORef [TclEnv])
+mkInterp :: IO Interpreter
+mkInterp = newIORef [baseEnv] >>= return . Interpreter
+
+runInterp :: Interpreter -> BString -> IO (Either BString BString)
+runInterp (Interpreter i) s = do
+                 bEnv <- readIORef i
+                 (r,i') <- runStateT (runErrorT ((doTcl s))) bEnv 
+                 writeIORef i i'
+                 return (fixErr r)
+  where perr (EDie s) = B.pack s
+        perr (ERet v) = T.asBStr v
+        perr EBreak   = B.pack $ "invoked \"break\" outside of a loop"
+        perr EContinue   = B.pack $ "invoked \"continue\" outside of a loop"
+        fixErr (Left x) = Left (perr x)
+        fixErr (Right v) = Right (T.asBStr v)
+
+runTcl v = mkInterp >>= (`runInterp` v)
 
 ret = return (T.mkTclBStr B.empty)
 
@@ -116,7 +122,7 @@ runCommand args = do
  -- (e:_) <- get 
  -- when ptrace $ io (print (name,args) >> print (vars e)) -- IGNORE
  proc <- getProc (T.asBStr name)
- maybe (tclErr ("invalid command name: " ++ show name)) ($! evArgs) proc
+ maybe (tclErr ("invalid command name: " ++ (T.asStr name))) ($! evArgs) proc
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet [s1,s2] = set (T.asBStr s1) s2 >> return s2
@@ -128,13 +134,15 @@ procPuts s@(sh:st) = (io . mapM_ puts) (map T.asBStr txt) >> ret
 procPuts x         = tclErr $ "Bad args to puts: " ++ show x
 
 procGets [] = io B.getLine >>= treturn
-procGets  _ = error "gets: Wrong arg count"
+procGets  _ = tclErr "gets: Wrong arg count"
 
 procEq [a,b] = return $ if a == b then (T.mkTclInt 1) else (T.mkTclInt 0)
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
 procMath op _       = tclErr "math: Wrong arg count"
+
+tclEval s = procEval [T.mkTclBStr (B.pack s)] >>= return . T.asBStr
 
 procEval [s] = doTcl (T.asBStr s)
 procEval x   = tclErr $ "Bad eval args: " ++ show x
@@ -197,8 +205,8 @@ procIf (cond:yes:rest) = do
   condVal <- doCond cond
   if condVal then doTcl (T.asBStr yes)
     else case rest of
-          [s,blk] -> if s .== "else" then doTcl (T.asBStr blk) else error "Invalid If"
-          (s:r)   -> if s .== "elseif" then procIf r else error "Invalid If"
+          [s,blk] -> if s .== "else" then doTcl (T.asBStr blk) else tclErr "Invalid If"
+          (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
 procIf x = tclErr "Not enough arguments to If."
 
@@ -255,7 +263,7 @@ procRunner pl body args = withScope $ do mapM_ (uncurry set) (zip pl args)
                                                set (B.pack "args") val
                                          (runCmds body) `catchError` herr
  where herr (ERet s) = return s
-       herr x        = error (show x)
+       herr x        = tclErr (show x)
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- liftM head get
