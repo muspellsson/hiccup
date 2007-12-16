@@ -14,6 +14,8 @@ mkTclBStr s = TclBStr s mayint
                   
 mkTclInt i = TclInt i (BS.pack (show i))
 
+empty = TclBStr BS.empty Nothing
+
 class ITObj o where
   asStr :: o -> Str
   asBool :: o -> Bool

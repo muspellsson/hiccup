@@ -66,7 +66,7 @@ runInterp (Interpreter i) s = do
 
 runTcl v = mkInterp >>= (`runInterp` v)
 
-ret = return (T.mkTclBStr B.empty)
+ret = return T.empty
 
 doTcl :: BString -> ErrorT Err (StateT [TclEnv] IO) RetVal
 doTcl = runCmds . getParsed
@@ -83,7 +83,6 @@ getParsed str = case runParse (T.asBStr str) of
 doCond str = case getParsed str of
               [x]    -> runCommand x >>= return . T.asBool
               _      -> tclErr "Too many statements in conditional"
- --where isTrue = (/= B.singleton '0') . trim . T.asBStr
 
 trim = B.reverse . dropWhite . B.reverse . dropWhite
 
@@ -136,9 +135,12 @@ procPuts x         = tclErr $ "Bad args to puts: " ++ show x
 procGets args = case args of
           [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
           [ch,vname] -> do h <- getChan (T.asBStr ch) >>= checkReadable
-                           s <- io (B.hGetLine h)
-                           set (T.asBStr vname) (T.mkTclBStr s)
-                           return $ T.mkTclInt (B.length s)
+                           eof <- io (hIsEOF h)
+                           if eof
+                             then set (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
+                             else do s <- io (B.hGetLine h)
+                                     set (T.asBStr vname) (T.mkTclBStr s)
+                                     return $ T.mkTclInt (B.length s)
           _  -> tclErr "gets: Wrong arg count"
 
 checkReadable c = do r <- (io (hIsReadable c))
