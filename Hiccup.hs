@@ -133,8 +133,21 @@ procPuts s@(sh:st) = (io . mapM_ puts) (map T.asBStr txt) >> ret
  where (puts,txt) = if sh .== "-nonewline" then (B.putStr,st) else (B.putStrLn,s)
 procPuts x         = tclErr $ "Bad args to puts: " ++ show x
 
-procGets [] = io B.getLine >>= treturn
-procGets  _ = tclErr "gets: Wrong arg count"
+procGets args = case args of
+          [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
+          [ch,vname] -> do h <- getChan (T.asBStr ch) >>= checkReadable
+                           s <- io (B.hGetLine h)
+                           set (T.asBStr vname) (T.mkTclBStr s)
+                           return $ T.mkTclInt (B.length s)
+          _  -> tclErr "gets: Wrong arg count"
+
+checkReadable c = do r <- (io (hIsReadable c))
+                     if r then return c else (tclErr $ "channel wasn't opened for reading")
+
+getChan :: BString -> TclM Handle
+getChan c = maybe (tclErr ("cannot find channel named " ++ show c)) return (lookup c chans)
+ where chans :: [(BString,Handle)]
+       chans = zip (map B.pack ["stdin", "stdout", "stderr"]) [stdin, stdout, stderr]
 
 procEq [a,b] = return $ if a == b then (T.mkTclInt 1) else (T.mkTclInt 0)
 
