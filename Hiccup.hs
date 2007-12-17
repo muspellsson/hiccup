@@ -36,7 +36,7 @@ procMap = Map.fromList . map (B.pack *** id) $
   ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
   ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
   ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),
-  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource)]
+  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource), ("incr", procIncr)]
    ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("==",toI (==)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
@@ -80,11 +80,13 @@ getParsed str = case runParse (T.asBStr str) of
 (.==) bs str = (T.asBStr bs) == B.pack str
 {-# INLINE (.==) #-}
 
+doCond :: T.TclObj -> TclM Bool
 doCond str = case getParsed str of
-              [x]    -> runCommand x >>= return . T.asBool
-              _      -> tclErr "Too many statements in conditional"
+              [x]      -> runCommand x >>= return . T.asBool
+              _       -> tclErr "Too many statements in conditional"
 
-trim = B.reverse . dropWhite . B.reverse . dropWhite
+trim :: T.TclObj -> BString
+trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
 
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
@@ -176,7 +178,7 @@ onObj f o = (f (T.asBStr o))
 
 procString :: TclProc
 procString (f:s:args) 
- | f .== "trim" = retmod trim s
+ | f .== "trim" = treturn (trim s)
  | f .== "tolower" = retmod (B.map toLower) s
  | f .== "toupper" = retmod (B.map toUpper) s
  | f .== "length" = return $ T.mkTclInt (B.length `onObj` s)
@@ -211,6 +213,16 @@ to_s (Word s)  = s
 to_s (NoSub s) = s
 to_s x         = error $ "to_s doesn't understand: " ++ show x
 
+procIncr [vname] = incr vname 1
+procIncr [vname,val] = T.asInt val >>= incr vname
+procIncr _ = tclErr $ "Wrong number of args to incr"
+incr n i =  do v <- varGet bsname
+               intval <- T.asInt v
+               let res = (T.mkTclInt (intval + i))
+               set bsname res
+               return res
+ where bsname = T.asBStr n
+
 procLlength [lst] 
   | B.null `onObj` lst = return (T.mkTclInt 0)
   | otherwise = return . T.mkTclInt . length . head . getParsed $ lst
@@ -231,7 +243,7 @@ procWhile [cond,body] = loop `catchError` herr
        herr (ERet s)  = return s
        herr EContinue = loop `catchError` herr
        herr x         = throwError x
-       loop = do condVal <- doCond (T.asBStr cond)
+       loop = do condVal <- doCond cond
                  if condVal then runCmds pbody >> loop else ret
 
 procReturn [s] = throwError (ERet s)
@@ -262,7 +274,7 @@ upvar n d s = do (e:es) <- get
 
 procProc [name,args,body] = do
   params <- case parseArgs (T.asBStr args) of
-              Nothing -> if trim (T.asBStr args) .== "" then return [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
+              Nothing -> if trim args .== "" then return [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
               Just (r,_) -> return $ map to_s r
   let pbody = getParsed body
   regProc (T.asBStr name) (procRunner params pbody)

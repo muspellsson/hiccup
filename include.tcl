@@ -7,12 +7,7 @@ proc foreach {vname lst what} {
   }
 }
 
-proc incr v {
-  upvar $v loc
-  set loc [+ $loc 1]
-}
-
 proc decr v {
   upvar $v loc
-  set loc [- $loc 1]
+  incr loc -1
 }

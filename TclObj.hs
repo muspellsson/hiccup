@@ -24,7 +24,7 @@ class ITObj o where
 
 instance ITObj BS.ByteString where
   asStr = BS.unpack
-  asBool = (`elem` trueValues)
+  asBool bs = (bs `elem` trueValues)
   asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
   asBStr = id
 
@@ -44,4 +44,5 @@ instance ITObj TclObj where
   
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
+
 

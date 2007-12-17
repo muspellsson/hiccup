@@ -8,18 +8,20 @@ proc die s {
 source include.tcl
 
 proc assertEq {a b} {
+  global assertcount
   if {== $a $b} {
     puts -nonewline "."
-    uplevel {set assertcount [+ 1 $assertcount]}
+    set assertcount [+ 1 $assertcount]
   } else {
     die "Failed! $a != $b"
   }
 }
 
 proc assertStrEq {a b} {
+  global assertcount
   if {eq $a $b} {
     puts -nonewline "."
-    uplevel {set assertcount [+ 1 $assertcount]}
+    incr assertcount
   } else {
     die "Failed! \"$a\" != \"$b\""
   }
@@ -71,6 +73,14 @@ incr count
 incr count
 
 assertEq $count 3
+
+incr count 2
+
+assertEq 5 $count
+
+incr count -2
+
+assertEq 3 $count
 
 decr count
 decr count
