@@ -1,14 +1,9 @@
 # Here is an example of some stuff hiccup can do.
 # I think it's neat.
 
-proc incr v {
-  upvar 1 $v loc
-  set loc [+ $loc 1]
-}
-
 proc decr v {
   upvar $v loc
-  set loc [- $loc 1]
+  incr loc -1
 }
 
 proc memfib x {
