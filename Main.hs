@@ -10,8 +10,10 @@ main = do args <- getArgs
           hSetBuffering stdout NoBuffering
           case args of
              [] -> mkInterp >>= runRepl
-             [f] -> B.readFile f >>= runTcl >> return ()
- where runRepl i = do putStr "hiccup> "
+             [f] -> B.readFile f >>= runTcl >>= foll
+ where foll (Left e) = putStrLn $ "error: "++ B.unpack e 
+       foll _        = return ()
+       runRepl i = do putStr "hiccup> "
                       eof <- isEOF
                       when (not eof) $ do
                          ln <- B.getLine

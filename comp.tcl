@@ -25,7 +25,7 @@ proc assertStrEq {a b} {
   }
 }
 
-proc announce { 
+proc announce { } { 
   puts "Running tests"
 }
 
@@ -212,6 +212,11 @@ assertStrEq "whee $ stuff" "whee \$ stuff"
 
 assertStrEq "whee \$ stuff" "whee \$ stuff"
 assertStrEq "whee \$\" stuff" "whee $\" stuff"
+
+assertEq 1 [catch { proc banana }]
+assertEq 1 [catch { proc banana { puts "banana" } }]
+assertEq 0 [catch { proc banana { } { puts "banana" } }]
+assertEq 0 [catch { proc banana {} { puts "banana" } }]
 
 puts ""
 puts "Done. Passed $assertcount checks."

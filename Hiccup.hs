@@ -260,15 +260,14 @@ upvar n d s = do (e:es) <- get
                  put ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
 
-procProc [name,body]      = regProc (T.asBStr name) (procRunner [] (getParsed body))
 procProc [name,args,body] = do
-  let params = case parseArgs (T.asBStr args) of
-                 Nothing -> error "Parse failed."
-                 Just (r,_) -> map to_s r
+  params <- case parseArgs (T.asBStr args) of
+              Nothing -> if trim (T.asBStr args) .== "" then return [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
+              Just (r,_) -> return $ map to_s r
   let pbody = getParsed body
   regProc (T.asBStr name) (procRunner params pbody)
 
-procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show x
+procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 
 procRunner :: [BString] -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
