@@ -1,4 +1,5 @@
 set assertcount 0
+set current_test "Test"
 
 proc die s {
   puts $s
@@ -9,21 +10,23 @@ source include.tcl
 
 proc assertEq {a b} {
   global assertcount
+  global current_test
   if {== $a $b} {
     puts -nonewline "."
-    set assertcount [+ 1 $assertcount]
+    incr assertcount
   } else {
-    die "Failed! $a != $b"
+    die "$current_test failed: $a != $b"
   }
 }
 
 proc assertStrEq {a b} {
   global assertcount
+  global current_test
   if {eq $a $b} {
     puts -nonewline "."
     incr assertcount
   } else {
-    die "Failed! \"$a\" != \"$b\""
+    die "$current_test failed: \"$a\" != \"$b\""
   }
 }
 
@@ -66,35 +69,46 @@ if {== 3 4} {
  assertEq 1 1
 }
 
-set count 0
+proc test {name body} {
+  global current_test
+  set current_test $name
+  eval $body
+}
 
-incr count
-incr count
-incr count
+test "incr test" {
+  set count 0
 
-assertEq $count 3
+  incr count
+  incr count
+  incr count
 
-incr count 2
+  assertEq $count 3
 
-assertEq 5 $count
+  incr count 2
 
-incr count -2
+  assertEq 5 $count
 
-assertEq 3 $count
+  incr count -2
 
-decr count
-decr count
-decr count
+  assertEq 3 $count
 
-assertEq $count 0
+  decr count
+  decr count
+  decr count
 
+  assertEq $count 0
+}
 
-set bean [list 1 2 3 4 5 {6 7 8}]
+test "list test" {
+  set bean [list 1 2 3 4 5 {6 7 8}]
 
-assertEq [llength $bean] 6
-assertEq [lindex $bean 3] 4
-assertEq [lindex $bean 5] {6 7 8}
+  assertEq [llength $bean] 6
+  assertEq [lindex $bean 3] 4
+  assertEq [lindex $bean 5] {6 7 8}
 
+  assertEq [lindex 4] 4
+  assertStrEq [lindex $bean 8] "" 
+}
 
 if { eq "one" "two" } {
   die "Should not have hit this."
@@ -137,13 +151,19 @@ assertEq 4 $sval2
 
 assertEq 10 [+ 15 -5] # Check that negatives parse.
 
-assertEq 4 [string length "five"]
-assertEq 0 [string length ""]
-assertEq 7 [string length "one\ntwo"]
-assertEq 4 [string length "h\n\ti"]
+test "string methods" {
+  assertEq 4 [string length "five"]
+  assertEq 0 [string length ""]
+  assertEq 7 [string length "one\ntwo"]
+  assertEq 4 [string length "h\n\ti"]
 
-set fst [string index "whee" 1]
-assertStrEq "h" $fst
+  set fst [string index "whee" 1]
+  assertStrEq "h" $fst
+
+  assertStrEq "wombat" [string tolower "WOMBAT"]
+  assertStrEq "CALCULUS" [string toupper "calculus"]
+  assertStrEq "hello" [string trim "  hello  "]
+}
 
 
 set somestr "one"
@@ -184,9 +204,6 @@ proc join { lsx mid } {
 
 assertStrEq "1+2+3+4+5+6" [join $misc +]
 
-assertStrEq "wombat" [string tolower "WOMBAT"]
-assertStrEq "CALCULUS" [string toupper "calculus"]
-assertStrEq "hello" [string trim "  hello  "]
 
 proc expr { a1 args } { 
   if { != [llength $args] 0 } {  

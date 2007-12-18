@@ -16,7 +16,7 @@ import qualified TclObj as T
 
 type BString = B.ByteString
 
-data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Eq,Show)
+data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Eq)
 
 instance Error Err where
  noMsg    = EDie "An error occurred."
@@ -69,21 +69,23 @@ runTcl v = mkInterp >>= (`runInterp` v)
 ret = return T.empty
 
 doTcl :: BString -> ErrorT Err (StateT [TclEnv] IO) RetVal
-doTcl = runCmds . getParsed
+doTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
 
 getParsed str = case runParse (T.asBStr str) of 
-                 Nothing -> error $ "parse error: " ++ (T.asStr str) 
-                 Just (v,r) -> filter (not . null) v
+                 Nothing -> tclErr $ "parse error: " ++ (T.asStr str) 
+                 Just (v,r) -> return $ filter (not . null) v
 
 (.==) bs str = (T.asBStr bs) == B.pack str
 {-# INLINE (.==) #-}
 
 doCond :: T.TclObj -> TclM Bool
-doCond str = case getParsed str of
-              [x]      -> runCommand x >>= return . T.asBool
-              _       -> tclErr "Too many statements in conditional"
+doCond str = do 
+      p <- getParsed str
+      case p of
+        [x]      -> runCommand x >>= return . T.asBool
+        _       -> tclErr "Too many statements in conditional"
 
 trim :: T.TclObj -> BString
 trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
@@ -206,8 +208,10 @@ oconcat = T.mkTclBStr . B.concat . map T.asBStr
 procList = treturn . B.concat . intersperse (B.singleton ' ') . map (escape . T.asBStr)
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
-procLindex [l,i] = do let items = map to_s . head . getParsed $ l
-                      treturn . (!!) items =<< (T.asInt i)
+procLindex [l] = return l
+procLindex [l,i] = do items <- liftM (map to_s . head) (getParsed l)
+                      ind <- T.asInt i
+                      if ind >= length items then ret else treturn (items !! ind)
 
 to_s (Word s)  = s
 to_s (NoSub s) = s
@@ -225,7 +229,7 @@ incr n i =  do v <- varGet bsname
 
 procLlength [lst] 
   | B.null `onObj` lst = return (T.mkTclInt 0)
-  | otherwise = return . T.mkTclInt . length . head . getParsed $ lst
+  | otherwise = liftM (T.mkTclInt . length . head)  (getParsed lst)
 procLlength x = tclErr $ "Bad args to llength: " ++ show x
 
 procIf (cond:yes:rest) = do
@@ -238,12 +242,12 @@ procIf (cond:yes:rest) = do
 procIf x = tclErr "Not enough arguments to If."
 
 procWhile [cond,body] = loop `catchError` herr
- where pbody = getParsed body 
-       herr EBreak    = ret
+ where herr EBreak    = ret
        herr (ERet s)  = return s
        herr EContinue = loop `catchError` herr
        herr x         = throwError x
        loop = do condVal <- doCond cond
+                 pbody <- getParsed body
                  if condVal then runCmds pbody >> loop else ret
 
 procReturn [s] = throwError (ERet s)
@@ -276,7 +280,7 @@ procProc [name,args,body] = do
   params <- case parseArgs (T.asBStr args) of
               Nothing -> if trim args .== "" then return [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
               Just (r,_) -> return $ map to_s r
-  let pbody = getParsed body
+  pbody <- getParsed body
   regProc (T.asBStr name) (procRunner params pbody)
 
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
@@ -289,7 +293,7 @@ procRunner pl body args = withScope $ do mapM_ (uncurry set) (zip pl args)
                                                set (B.pack "args") val
                                          (runCmds body) `catchError` herr
  where herr (ERet s) = return s
-       herr x        = tclErr (show x)
+       herr (EDie s) = tclErr s
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- liftM head get
