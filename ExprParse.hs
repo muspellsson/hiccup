@@ -200,6 +200,7 @@ evalTests = TestList
 varEvalTests = TestList
     [ 
       ((TVar "num") + (tInt 3)) `eql` (tInt 7),
+      ((tInt 4) + ((TVar "num") - (tInt 1))) `eql` (tInt 7),
       ((TVar "boo") `eq` (tStr "bean")) `eql` (tInt 1)
     ]
  where eql a b = (runExpr lu a) ~=? Just b
