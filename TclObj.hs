@@ -8,15 +8,16 @@ type Str = String
 data TclObj = TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) (Maybe [[P.TclWord]]) deriving (Show,Eq)
 
 mkTclStr s = mkTclBStr (BS.pack s)
-mkTclBStr s = TclBStr s mayint (doParse s)
-  where mayint = case BS.readInt s of
+mkTclBStr s = mkTclBStrP s (doParse s)
+
+isSpace x = x == ' ' || x == '\t'
+
+mkTclBStrP s p = TclBStr s mayint p
+  where mayint = case BS.readInt (BS.dropWhile isSpace s) of
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
-mkTclBStrP s p = TclBStr s mayint p
-  where mayint = case BS.readInt s of
-                   Nothing -> Nothing
-                   Just (i,_) -> Just i
+
 
 doParse s = case P.runParse s of
                  Nothing -> Nothing
@@ -25,6 +26,11 @@ doParse s = case P.runParse s of
 mkTclInt i = TclInt i (BS.pack (show i))
 
 empty = TclBStr BS.empty Nothing Nothing
+
+tclTrue = mkTclInt 1 
+tclFalse = mkTclInt 0 
+
+fromBool b = if b then tclTrue else tclFalse
 
 class ITObj o where
   asStr :: o -> Str
@@ -39,7 +45,7 @@ instance ITObj BS.ByteString where
   asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
   asBStr = id
   asParsed s = case P.runParse s of
-                 Nothing -> fail "parse failed"
+                 Nothing -> fail $ "parse failed: " ++ show s
                  Just (r,_) -> return r
 
 instance ITObj TclObj where

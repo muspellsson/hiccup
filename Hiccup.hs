@@ -35,9 +35,10 @@ procMap = Map.fromList . map (B.pack *** id) $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),("puts",procPuts),("gets",procGets),
   ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
   ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
-  ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),
+  ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
+  ("==",procEql),
   ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource), ("incr", procIncr)]
-   ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("==",toI (==)),("!=",toI (/=))]
+   ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
 io = liftIO
@@ -155,11 +156,17 @@ getChan c = maybe (tclErr ("cannot find channel named " ++ show c)) return (look
  where chans :: [(BString,Handle)]
        chans = zip (map B.pack ["stdin", "stdout", "stderr"]) [stdin, stdout, stderr]
 
-procEq [a,b] = return $ if a == b then (T.mkTclInt 1) else (T.mkTclInt 0)
+procEq [a,b] = return $ T.fromBool (a == b)
+procNe [a,b] = return $ T.fromBool (a /= b)
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
 procMath op _       = tclErr "math: Wrong arg count"
+
+procEql [a,b] = case (T.asInt a, T.asInt b) of
+                  (Just ia, Just ib) -> return $ T.fromBool (ia == ib)
+                  _                  -> procEq [a,b]
+
 
 tclEval s = procEval [T.mkTclBStr (B.pack s)] >>= return . T.asBStr
 
@@ -170,9 +177,9 @@ procSource [s] = io (B.readFile (T.asStr s)) >>= doTcl
 
 procExit [] = io (exitWith ExitSuccess)
 
-procCatch [s] = (doTcl (T.asBStr s) >> procReturn [T.mkTclInt 0]) `catchError` (return . T.mkTclInt . catchRes)
- where catchRes (EDie s) = 1
-       catchRes _        = 0
+procCatch [s] = (doTcl (T.asBStr s) >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+ where catchRes (EDie s) = T.tclTrue
+       catchRes _        = T.tclFalse
 
 retmod f = \v -> treturn (f `onObj` v)
 
@@ -228,7 +235,7 @@ incr n i =  do v <- varGet bsname
  where bsname = T.asBStr n
 
 procLlength [lst] 
-  | B.null `onObj` lst = return (T.mkTclInt 0)
+  | B.null `onObj` lst = return T.tclFalse
   | otherwise = liftM (T.mkTclInt . length . head)  (getParsed lst)
 procLlength x = tclErr $ "Bad args to llength: " ++ show x
 

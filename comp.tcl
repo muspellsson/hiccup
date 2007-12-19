@@ -9,24 +9,49 @@ proc die s {
 source include.tcl
 
 proc assertEq {a b} {
-  global assertcount
   global current_test
   if {== $a $b} {
-    puts -nonewline "."
-    incr assertcount
+    assertPass
   } else {
     die "$current_test failed: $a != $b"
   }
 }
 
-proc assertStrEq {a b} {
+proc assertPass {} {
   global assertcount
+  puts -nonewline "."
+  incr assertcount
+}
+
+proc assertFail why {
+  global current_test
+  die "$current_test failed: $why"
+}
+
+proc assertStrEq {a b} {
   global current_test
   if {eq $a $b} {
-    puts -nonewline "."
-    incr assertcount
+    assertPass
   } else {
     die "$current_test failed: \"$a\" != \"$b\""
+  }
+}
+
+proc assertNoErr code {
+  set ret [catch $code]
+  if { == $ret 0 } {
+    assertPass
+  } else {
+    assertFail "code failed: $code"
+  }
+}
+
+proc assertErr code {
+  set ret [catch $code]
+  if { == $ret 1 } {
+    assertPass
+  } else {
+    assertFail "code should've failed: $code"
   }
 }
 
@@ -73,7 +98,7 @@ test "unevaluated blocks aren't parsed" {
    "This should be no problem. $woo_etcetera.; 
    "
   } else {
-   assertEq 1 1
+   assertPass
   }
 }
 
@@ -116,7 +141,7 @@ test "test if, elseif, else" {
   if { eq "one" "two" } {
     die "Should not have hit this."
   } elseif { == 1 1 } {
-    assertEq 44 44
+    assertPass
   } else {
     die "Should not have hit this."
   }
@@ -244,6 +269,7 @@ proc testglobal {bah} {
 assertStrEq 1 [testglobal 1]
 assertStrEq 12 [testglobal 2]
 
+
 test "parsing corners" {
   set { shh.. ?} 425
   assertStrEq " 425 " " ${ shh.. ?} "
@@ -252,12 +278,36 @@ test "parsing corners" {
 
   assertStrEq "whee \$ stuff" "whee \$ stuff"
   assertStrEq "whee \$\" stuff" "whee $\" stuff"
+  assertNoErr { 
+    eval {  if { == 3 3 } { } else { die "bad" } }
+  }
 }
 
-assertEq 1 [catch { proc banana }]
-assertEq 1 [catch { proc banana { puts "banana" } }]
-assertEq 0 [catch { proc banana { } { puts "banana" } }]
-assertEq 0 [catch { proc banana {} { puts "banana" } }]
+proc assert code {
+  set ret [uplevel $code]
+  if { == $ret 1 } { assertPass } else { die "Failed: $code" }
+}
+
+proc not v {
+  if { == 1 $v } { return false } else { return true }
+}
+
+test "equality of strings and nums" {
+  set x 10
+  set y " 10 "
+  assert { == $x $y }
+  assert { ne $x $y }
+  assert { eq 33 33 }
+  assert { == "cobra" "cobra" }
+  assert { eq "cobra" "cobra" }
+  assert { == 4 4 }
+}
+
+
+assertErr { proc banana }
+assertErr { proc banana { puts "banana" } }
+assertNoErr { proc banana { } { puts "banana" } }
+assertNoErr { proc banana {} { puts "banana" } }
 
 puts ""
 puts "Done. Passed $assertcount checks."

@@ -20,6 +20,7 @@ dispatch str = do h <- safeHead str
 mkNoSub s = NoSub s (runParse s)
 
 parseArgs = multi (dispatch . dropWhite)
+
 runParse :: B.ByteString -> Result
 runParse = multi (mainparse . dropWhite)
 
@@ -46,17 +47,22 @@ getInterp str = do
 
 orElse a b = \v -> (a v) `mplus` (b v)
 
-mainparse str = do h <- safeHead str
-                   case h of 
-                    ';'  -> return ([], B.tail str) 
-                    '\n' -> return ([], B.tail str)
-                    '#'  -> eatcomment str
-                    _    -> parseArgs str
+mainparse str = if B.null str 
+                   then return ([], B.empty) 
+                   else do
+                       h <- safeHead str
+                       case h of 
+                        ';'  -> return ([], B.tail str) 
+                        '\n' -> return ([], B.tail str)
+                        '#'  -> eatcomment str
+                        _    -> parseArgs str
 
 multi p s = do (w,r) <- p s
-               case multi p r of
-                Nothing -> return ([w],r)
-                Just (wx,r2) -> return $! (w:wx,r2)
+               if B.null r 
+                 then return ([w],r)
+                 else case multi p r of
+                       Nothing -> return ([w],r)
+                       Just (wx,r2) -> return $! (w:wx,r2)
 {-# INLINE multi #-}
 
 parseSub s = do guard (B.head s == '[') 
@@ -203,11 +209,20 @@ getWordTests = TestList [
 nestedTests = TestList [
   "Fail nested" ~: Nothing ~=? nested (bp "  {       the end"),
   "Pass nested" ~: Just (mkNoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}"),
+  "Pass empty nested" ~: Just (mkNoSub (bp " "), B.empty) ~=? nested (bp "{ }"),
   "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
  ]
 
+runParseTests = TestList [
+     "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
+     "empty" ~: ([[]],"") ?=? " "
+  ]
+ where badword str = Nothing ~=? runParse (bp str)
+       (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)
+
 tests = TestList [ nestedTests, testEscaped, brackVarTests,
-                   parseStrTests, getInterpTests, getWordTests, wrapInterpTests ]
+                   parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
+                   runParseTests ]
 
 runUnit = runTestTT tests
 
