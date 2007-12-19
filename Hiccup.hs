@@ -73,9 +73,8 @@ doTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
 
-getParsed str = case runParse (T.asBStr str) of 
-                 Nothing -> tclErr $ "parse error: " ++ (T.asStr str) 
-                 Just (v,r) -> return $ filter (not . null) v
+getParsed str = do p <- T.asParsed str
+                   return $ filter (not . null) p
 
 (.==) bs str = (T.asBStr bs) == B.pack str
 {-# INLINE (.==) #-}
@@ -113,7 +112,8 @@ regProc name pr = modify (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }
 
 evalw :: TclWord -> TclM RetVal
 evalw (Word s)      = interp s
-evalw (NoSub s)     = treturn s
+evalw (NoSub s (Just (p,_)))     = return $ T.mkTclBStrP s (Just p)
+evalw (NoSub s Nothing)     = return $ T.mkTclBStrP s Nothing
 evalw (Subcommand c) = runCommand c
 
 ptrace = True -- IGNORE
@@ -214,7 +214,7 @@ procLindex [l,i] = do items <- liftM (map to_s . head) (getParsed l)
                       if ind >= length items then ret else treturn (items !! ind)
 
 to_s (Word s)  = s
-to_s (NoSub s) = s
+to_s (NoSub s p) = s
 to_s x         = error $ "to_s doesn't understand: " ++ show x
 
 procIncr [vname] = incr vname 1

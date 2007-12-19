@@ -6,7 +6,9 @@ import Control.Monad
 import Data.Char
 import Test.HUnit  -- IGNORE
 
-data TclWord = Word !B.ByteString | Subcommand [TclWord] | NoSub !B.ByteString deriving (Show,Eq)
+type Result = Maybe ([[TclWord]], B.ByteString)
+
+data TclWord = Word !B.ByteString | Subcommand [TclWord] | NoSub !B.ByteString Result deriving (Show,Eq)
 
 dispatch str = do h <- safeHead str
                   case h of
@@ -15,7 +17,10 @@ dispatch str = do h <- safeHead str
                    '"' -> parseStr str
                    _  -> getword str
 
+mkNoSub s = NoSub s (runParse s)
+
 parseArgs = multi (dispatch . dropWhite)
+runParse :: B.ByteString -> Result
 runParse = multi (mainparse . dropWhite)
 
 safeHead s = guard (not (B.null s)) >> return (B.head s)
@@ -109,7 +114,7 @@ escaped v s = escaped' v
 
 nested s = do ind <- match 0 0
               let (w,r) = B.splitAt ind s
-              return (NoSub (B.tail w), (B.tail r))
+              return (mkNoSub (B.tail w), (B.tail r))
  where match !c !i 
         | B.length s <= i = fail $ "Couldn't match bracket" ++ show s
         | otherwise       = 
@@ -197,7 +202,7 @@ getWordTests = TestList [
 
 nestedTests = TestList [
   "Fail nested" ~: Nothing ~=? nested (bp "  {       the end"),
-  "Pass nested" ~: Just (NoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}"),
+  "Pass nested" ~: Just (mkNoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}"),
   "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
  ]
 
