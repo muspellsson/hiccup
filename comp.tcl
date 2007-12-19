@@ -62,17 +62,19 @@ set y 99
 uptest2 y 3
 assertEq $y 4
 
-if {== 3 4} {
- "This should be no problem. $woo_etcetera.; 
- "
-} else {
- assertEq 1 1
-}
-
 proc test {name body} {
   global current_test
   set current_test $name
   eval $body
+}
+
+test "unevaluated blocks aren't parsed" {
+  if {== 3 4} {
+   "This should be no problem. $woo_etcetera.; 
+   "
+  } else {
+   assertEq 1 1
+  }
 }
 
 test "incr test" {
@@ -110,27 +112,31 @@ test "list test" {
   assertStrEq [lindex $bean 8] "" 
 }
 
-if { eq "one" "two" } {
-  die "Should not have hit this."
-} elseif { == 1 1 } {
-  assertEq 44 44
-} else {
-  die "Should not have hit this."
-}
-
-set total 0
-proc argstest {tot args} {
-  upvar $tot total
-  set i 0
-  while {< $i [llength $args]} {
-    set total [+ [lindex $args $i] $total]
-    incr i
+test "test if, elseif, else" {
+  if { eq "one" "two" } {
+    die "Should not have hit this."
+  } elseif { == 1 1 } {
+    assertEq 44 44
+  } else {
+    die "Should not have hit this."
   }
 }
 
-assertEq 0 $total
-argstest total 1 2 3 4 5 6 7 8
-assertEq 36 $total
+test "test args parameter" {
+  set total 0
+  proc argstest {tot args} {
+    upvar $tot total
+    set i 0
+    while {< $i [llength $args]} {
+      set total [+ [lindex $args $i] $total]
+      incr i
+    }
+  }
+
+  assertEq 0 $total
+  argstest total 1 2 3 4 5 6 7 8
+  assertEq 36 $total
+}
 
 set sval 0
 set sval2 1
@@ -187,22 +193,24 @@ foreach feitem {"a b" "c d"} {
 
 assertStrEq "c d" $fer
 
-set misc { 1 2 3 4 5 6 }
-proc join { lsx mid } {
-  set res ""
-  set first_time 1
-  foreach ind $lsx {
-    if { [== $first_time 1] } {
-      set res $ind
-      set first_time 0
-    } else {
-      set res "$res$mid$ind"
+test "join and foreach" {
+  set misc { 1 2 3 4 5 6 }
+  proc join { lsx mid } {
+    set res ""
+    set first_time 1
+    foreach ind $lsx {
+      if { [== $first_time 1] } {
+        set res $ind
+        set first_time 0
+      } else {
+        set res "$res$mid$ind"
+      }
     }
+    return $res
   }
-  return $res
-}
 
-assertStrEq "1+2+3+4+5+6" [join $misc +]
+  assertStrEq "1+2+3+4+5+6" [join $misc +]
+}
 
 
 proc expr { a1 args } { 
@@ -216,8 +224,12 @@ proc expr { a1 args } {
 assertEq 8 [expr 4 + 4]
 assertEq 8 [expr {4 + 4}]
 
-set babytime 444
-assertEq 444 [set babytime]
+test "set returns correctly" {
+  set babytime 444
+  assertEq 444 [set babytime]
+  assertEq 512 [set babytime 512]
+  assertEq 512 $babytime
+}
 
 assertEq 1 [catch { puts "$thisdoesntexist" }]
 assertEq 0 [catch { [+ 1 1] }]
@@ -232,13 +244,15 @@ proc testglobal {bah} {
 assertStrEq 1 [testglobal 1]
 assertStrEq 12 [testglobal 2]
 
-set { shh.. ?} 425
-assertStrEq " 425 " " ${ shh.. ?} "
+test "parsing corners" {
+  set { shh.. ?} 425
+  assertStrEq " 425 " " ${ shh.. ?} "
 
-assertStrEq "whee $ stuff" "whee \$ stuff"
+  assertStrEq "whee $ stuff" "whee \$ stuff"
 
-assertStrEq "whee \$ stuff" "whee \$ stuff"
-assertStrEq "whee \$\" stuff" "whee $\" stuff"
+  assertStrEq "whee \$ stuff" "whee \$ stuff"
+  assertStrEq "whee \$\" stuff" "whee $\" stuff"
+}
 
 assertEq 1 [catch { proc banana }]
 assertEq 1 [catch { proc banana { puts "banana" } }]
