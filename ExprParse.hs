@@ -20,7 +20,7 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
-data TExp = TOp Op TExp TExp | TVar String | TVal T.TclObj deriving (Show,Eq)
+data TExp = TOp Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
 asBool lu v = 
  case v of
@@ -33,7 +33,13 @@ asStr lu v = case v of
          (TVar s) -> lu s
          _        -> fail "Can't convert to string"
 
+testLu :: String -> IO T.TclObj
+testLu v = M.lookup v table
+ where table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
 
+exprCompile :: (Monad m) => String -> m ((String -> m T.TclObj) -> m T.TclObj)
+exprCompile s = do v <- expr s
+                   return $ runExpr2 v
 exprAsBool lu s = do v <- expr s
                      v2 <- runExpr lu v
                      asBool lu v2
@@ -60,6 +66,7 @@ instance Num TExp where
 (.<=) = TOp OpLte
 (.>) = TOp OpGt
 (.>=) = TOp OpGte
+(.==) = TOp OpEql
 
 eq = TOp OpStrEq
 ne = TOp OpStrNe
@@ -78,12 +85,42 @@ intapply lu f x y = do
   i2 <- getInt lu =<< runExpr lu y 
   return $ tInt (f i1 i2)
 
+objapply :: (Monad m) => (String -> m T.TclObj) -> ([T.TclObj] -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
+objapply lu f x y = do
+  i1 <- runExpr2 x lu 
+  i2 <- runExpr2 y lu
+  f [i1,i2]
+
 strapply lu f x y = do 
  i1 <- asStr lu =<< runExpr lu x  
  i2 <- asStr lu =<< runExpr lu y 
  return $ tInt (f i1 i2)
 
 toI v = \a b -> if v a b then 1 else 0 
+
+runExpr2 :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
+runExpr2 exp lu = 
+  case exp of
+    (TOp OpPlus a b) -> objap (procMath (+)) a b
+    (TOp OpTimes a b) -> objap (procMath (*)) a b
+    (TOp OpMinus a b) -> objap (procMath (-)) a b
+    (TOp OpDiv a b) -> objap nop a b
+    (TOp OpEql a b) -> objap nop a b
+    (TOp OpNeql a b) -> objap nop a b
+    (TOp OpLt a b) -> objap nop a b
+    (TOp OpGt a b) -> objap nop a b
+    (TOp OpLte a b) -> objap nop a b
+    (TOp OpGte a b) -> objap nop a b
+    (TOp OpStrEq a b) -> objap nop a b
+    (TOp OpStrNe a b) -> objap nop a b
+    (TVal v) -> return v
+    (TVar n) -> lu n
+    _                 -> fail $ "wtf?" ++ (show exp)
+ where nop lst = fail "not implemented"
+       objap = objapply lu
+       procMath f [a,b] = do ai <- T.asInt a
+                             bi <- T.asInt b
+                             return $ T.mkTclInt (ai `f` bi)
 
 runExpr :: (Monad m) => (String -> m String) -> TExp -> m TExp
 runExpr lu expr =
@@ -118,11 +155,11 @@ table = [[op "*" (OpTimes) AssocLeft, op "/" (OpDiv)  AssocLeft]
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc
      tryop s f assoc = Infix (do{ try(symbol s); return (TOp f)}) assoc
 
-factor = do char '('
+factor = do symbol "("
             x <- pexpr
-            char ')'
+            symbol ")"
             return x
-         <|> myint <|> mystr <|> myvar <|> factor <?> "term"
+         <|> myint <|> mystr <|> myvar <|> myfun <|> factor <?> "term"
             
 myint = do i <- (integer <?> "integer")
            return $ tInt (fromIntegral i)
@@ -134,6 +171,12 @@ myvar = do char '$'
            s <- identifier
            return $ TVar s
         <?> "variable"
+
+myfun = do s <- identifier
+           char '('
+           inner <- factor
+           char ')'
+           return $ TFun s inner
 
 
 --- Unit Testing ---
@@ -182,6 +225,12 @@ exprTests = TestList
      ,"string eq" ~: ((tStr "X") `eq` (tStr "Y")) ?=? (pexpr, "\"X\" eq \"Y\"")
      ,"string eq var" ~: ((TVar "X") `eq` (tStr "Y")) ?=? (pexpr, "$X eq \"Y\"")
      ,"string ne" ~: ((tStr "X") `ne` (tStr "Y")) ?=? (pexpr, " \"X\" ne \"Y\"")
+     ,"varstorm1" ~: (((TVar "me") + (TVar "hey")) .< (TVar "something")) ?=? (pexpr, "($me + $hey) < $something")
+     ,"varstorm2" ~: (((TVar "me") + (TVar "hey")) .< (TVar "something")) ?=? (pexpr, "($me + $hey)< $something")
+     ,"varstorm3" ~: (((TVar "me") + (TVar "hey")) .< (TVar "st")) ?=? (pexpr, " ( $me+$hey ) <$st ")
+     ,"varstorm4" ~: (((TVar "me") * (TVar "hey")) .== (TVar "st")) ?=? (pexpr, " $me * $hey  == $st ")
+     ,"fun1" ~: (TFun "sin" (tInt 44)) ?=? (pexpr, "sin(44)")
+     ,"fun2" ~: ((tInt 11) + (TFun "sin" (tInt 44))) ?=? (pexpr, "11 + sin(44)")
  ]
 
 evalTests = TestList
@@ -210,3 +259,5 @@ varEvalTests = TestList
 parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 
 runUnit = runTestTT parseTests
+
+howbout s = parse pexpr "" s
