@@ -17,6 +17,16 @@ proc assertEq {a b} {
   }
 }
 
+
+proc checkthat { var op r } {
+  set res [eval "$op $var $r"]
+  if { == $res 1 } {
+    assertPass
+  } else {
+    assertFail "\"$var $op $r\" was not true"
+  }
+}
+
 proc assertPass {} {
   global assertcount
   puts -nonewline "."
@@ -25,7 +35,7 @@ proc assertPass {} {
 
 proc assertFail why {
   global current_test
-  die "$current_test failed: $why"
+  die "'$current_test' failed: $why"
 }
 
 proc assertStrEq {a b} {
@@ -33,7 +43,7 @@ proc assertStrEq {a b} {
   if {eq $a $b} {
     assertPass
   } else {
-    die "$current_test failed: \"$a\" != \"$b\""
+    assertFail "\"$a\" != \"$b\""
   }
 }
 
@@ -57,6 +67,11 @@ proc assertErr code {
 
 proc announce { } { 
   puts "Running tests"
+}
+
+proc assert code {
+  set ret [uplevel $code]
+  if { == $ret 1 } { assertPass } else { assertFail "Failed: $code" }
 }
 
 announce
@@ -234,7 +249,7 @@ test "join and foreach" {
     return $res
   }
 
-  assertStrEq "1+2+3+4+5+6" [join $misc +]
+  checkthat [join $misc +] eq "1+2+3+4+5+6"
 }
 
 
@@ -260,14 +275,28 @@ assertEq 1 [catch { puts "$thisdoesntexist" }]
 assertEq 0 [catch { [+ 1 1] }]
 
 set whagganog ""
-proc testglobal {bah} {
-  global whagganog
-  append whagganog $bah
-  return $whagganog
+set otherthing ""
+
+test "global test" {
+  upvar otherthing ot
+  proc testglobal {bah} {
+    proc modother { m } {
+      global whagganog otherthing
+      set otherthing $whagganog$m
+    }
+
+    global whagganog
+    append whagganog $bah
+    modother $bah
+    return $whagganog
+  }
+
+  checkthat [testglobal 1] == 1
+  checkthat $ot            == 11
+  checkthat [testglobal 2] == 12
+  checkthat $ot            == 122
 }
 
-assertStrEq 1 [testglobal 1]
-assertStrEq 12 [testglobal 2]
 
 
 test "parsing corners" {
@@ -279,14 +308,10 @@ test "parsing corners" {
   assertStrEq "whee \$ stuff" "whee \$ stuff"
   assertStrEq "whee \$\" stuff" "whee $\" stuff"
   assertNoErr { 
-    eval {  if { == 3 3 } { } else { die "bad" } }
+    if { == 3 3 } { } else { die "bad" } 
   }
 }
 
-proc assert code {
-  set ret [uplevel $code]
-  if { == $ret 1 } { assertPass } else { die "Failed: $code" }
-}
 
 proc not v {
   if { == 1 $v } { return false } else { return true }
