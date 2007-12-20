@@ -18,7 +18,7 @@ main = do args <- getArgs
                       when (not eof) $ do
                          ln <- B.getLine
                          unless (B.null ln) $ do
-                             v <- runInterp i ln 
+                             v <- runInterp ln i 
                              case v of
                                 Left e -> putStrLn $ "error: " ++ B.unpack e
                                 Right o -> unless (B.null o) (B.putStrLn o)

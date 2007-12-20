@@ -324,6 +324,7 @@ test "equality of strings and nums" {
   assert { ne $x $y }
   assert { eq 33 33 }
   assert { == "cobra" "cobra" }
+  checkthat " 1 " eq 1 
   assert { eq "cobra" "cobra" }
   assert { == 4 4 }
 }

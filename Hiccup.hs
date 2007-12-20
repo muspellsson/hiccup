@@ -14,6 +14,7 @@ import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import BSParse
 import qualified TclObj as T
+import Test.HUnit  -- IGNORE
 
 type BString = B.ByteString
 
@@ -50,13 +51,16 @@ toI n a b = if n a b then 1 else 0
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
 
 data Interpreter = Interpreter (IORef [TclEnv])
+
 mkInterp :: IO Interpreter
 mkInterp = newIORef [baseEnv] >>= return . Interpreter
 
-runInterp :: Interpreter -> BString -> IO (Either BString BString)
-runInterp (Interpreter i) s = do
+runInterp :: BString -> Interpreter -> IO (Either BString BString)
+runInterp s = runInterp' (doTcl s)
+
+runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i
-                 (r,i') <- runStateT (runErrorT ((doTcl s))) bEnv 
+                 (r,i') <- runStateT (runErrorT (t)) bEnv 
                  writeIORef i i'
                  return (fixErr r)
   where perr (EDie s) = B.pack s
@@ -66,7 +70,7 @@ runInterp (Interpreter i) s = do
         fixErr (Left x) = Left (perr x)
         fixErr (Right v) = Right (T.asBStr v)
 
-runTcl v = mkInterp >>= (`runInterp` v)
+runTcl v = mkInterp >>= runInterp v
 
 ret = return T.empty
 
@@ -335,3 +339,28 @@ interp str = case wrapInterp str of
        handle (b,m,a) = do mid <- f m
                            let front = B.append b (T.asBStr mid)
                            interp a >>= \v -> treturn (B.append front (T.asBStr v))
+
+-- # TESTS # --
+
+
+run :: TclM RetVal -> Either Err RetVal -> IO Bool
+run t v = do ret <- liftM fst (runStateT (runErrorT (t)) [baseEnv])
+             return (ret == v)
+
+testProcEq = TestList [
+      "1 eq 1 -> t" ~:          isTrue (procEq [int 1, int 1])
+      ,"1 == 1 -> t" ~:         isTrue (procEql [int 1, int 1])
+      ,"' 1 ' == 1 -> t" ~:     procEql [str " 1 ", int 1] `is` True
+      ,"' 1 ' eq 1 -> f" ~:     procEq [str " 1 ", int 1] `is` False
+      ,"' 1 ' eq ' 1 ' -> t" ~: procEq [str " 1 ", str " 1 "] `is` True
+   ]
+ where (?=?) a b = assert (run b (Right a))
+       isTrue c = T.tclTrue ?=? c
+       isFalse c = T.tclFalse ?=? c
+       is c b = (T.fromBool b) ?=? c
+       int i = T.mkTclInt i
+       str s = T.mkTclStr s
+
+
+tests = TestList [ testProcEq ]
+runUnit = runTestTT tests
