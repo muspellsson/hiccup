@@ -4,6 +4,9 @@ Description:         A simplistic interpreter for a subset of tcl
 License:             GPL
 License-file:        LICENSE
 Author:              Kyle Consalus
+Stability:           experimental
+Homepage:            http://code.google.com/p/hiccup/
+Category:            Compilers/Interpreters
 Maintainer:          consalus+hiccup@google.com
 Build-Depends:       base, HUnit, mtl, haskell98
 extra-source-files:  Hiccup.hs TclObj.hs BSParse.hs README example.tcl
