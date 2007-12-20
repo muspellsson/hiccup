@@ -217,7 +217,7 @@ procAppend (v:vx) = do val <- varGet (T.asBStr v) `catchError` \_ -> ret
 oconcat :: [T.TclObj] -> T.TclObj
 oconcat = T.mkTclBStr . B.concat . map T.asBStr
 
-procList = treturn . B.concat . intersperse (B.singleton ' ') . map (escape . T.asBStr)
+procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
 procLindex [l] = return l
@@ -299,7 +299,7 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 
 
 procRunner :: [BString] -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
-procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # args: should be " ++ show pl)
+procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # args: should be " ++ show (pl `joinWith` ' '))
                                          zipWithM_ set pl args
                                          when hasArgs $ do
                                                val <- procList (drop ((length pl) - 1) args) 
@@ -311,6 +311,10 @@ procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # ar
            | hasArgs   = length args < (length pl - 1)
            | otherwise = length args /= length pl
        hasArgs = (not . null) pl && (last pl .== "args")
+
+
+
+joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- liftM head get
