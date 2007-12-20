@@ -1,4 +1,4 @@
-module ExprParse (exprAsBool,exprAsStr) where
+module ExprParse  where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
@@ -22,17 +22,6 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data TExp = TOp Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
-asBool lu v = 
- case v of
-   TVal v -> return (T.asBool v)
-   TVar v -> asBool lu (tStr v)
-   _      -> fail "cannot convert to bool"
-
-asStr lu v = case v of
-         (TVal v) -> return (T.asStr v)
-         (TVar s) -> lu s
-         _        -> fail "Can't convert to string"
-
 testLu :: String -> IO T.TclObj
 testLu v = M.lookup v table
  where table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
@@ -41,14 +30,6 @@ exprCompile :: (Monad m) => String -> m ((String -> m T.TclObj) -> m T.TclObj)
 exprCompile s = do v <- expr s
                    return $ runExpr v
 
-exprAsBool lu s = do v <- expr s
-                     v2 <- runExpr2 lu v
-                     asBool lu v2
-
-exprAsStr lu s = do v <- expr s
-                    v2 <- runExpr2 lu v
-                    asStr lu v2
-   
 
 expr s = case parse pexpr "" s of
            Left err -> fail $ "Bad parse: (" ++ s ++ "): " ++ show err
@@ -72,32 +53,12 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-getInt :: (Monad m) => (String -> m String) -> TExp -> m Int
-getInt lu x = 
- case x of
-    TVal i -> T.asInt i
-    TVar s -> do val <- lu s
-                 return (read val)
-    _      -> fail "type error"
-
-intapply :: (Monad m) => (String -> m String) -> (Int -> Int -> Int) -> TExp -> TExp -> m TExp
-intapply lu f x y = do
-  i1 <- getInt lu =<< runExpr2 lu x  
-  i2 <- getInt lu =<< runExpr2 lu y 
-  return $ tInt (f i1 i2)
-
 objapply :: (Monad m) => (String -> m T.TclObj) -> ([T.TclObj] -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
   f [i1,i2]
 
-strapply lu f x y = do 
- i1 <- asStr lu =<< runExpr2 lu x  
- i2 <- asStr lu =<< runExpr2 lu y 
- return $ tInt (f i1 i2)
-
-toI v = \a b -> if v a b then 1 else 0 
 
 runExpr :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
@@ -127,25 +88,6 @@ runExpr exp lu =
                              return $ T.fromBool (ai `f` bi)
        procStr f [a,b]  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
-runExpr2 :: (Monad m) => (String -> m String) -> TExp -> m TExp
-runExpr2 lu expr =
-  case expr of
-    (TOp OpPlus a b) -> intap (+) a b
-    (TOp OpTimes a b) -> intap (*) a b
-    (TOp OpMinus a b) -> intap (-) a b
-    (TOp OpDiv a b) -> intap div a b
-    (TOp OpEql a b) -> intap (toI (==)) a b
-    (TOp OpNeql a b) -> intap (toI (/=)) a b
-    (TOp OpLt a b) -> intap (toI (<)) a b
-    (TOp OpGt a b) -> intap (toI (>)) a b
-    (TOp OpLte a b) -> intap (toI (<=)) a b
-    (TOp OpGte a b) -> intap (toI (>=)) a b
-    (TOp OpStrEq a b) -> strap (toI (==)) a b
-    (TOp OpStrNe a b) -> strap (toI (/=)) a b
-    _                 -> return expr
- where intap = intapply lu
-       strap = strapply lu
- 
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor
 
@@ -255,6 +197,7 @@ evalTests = TestList
 
 varEvalTests = TestList
     [ 
+      "$num -> 4" ~: (TVar "num") `eql` (mint 4),
       ((TVar "num") + (tInt 3)) `eql` (mint 7),
       ((tInt 4) + ((TVar "num") - (tInt 1))) `eql` (mint 7),
       "$boo == \"bean\" -> true" ~: ((TVar "boo") `eq` (tStr "bean")) `eql` T.tclTrue
