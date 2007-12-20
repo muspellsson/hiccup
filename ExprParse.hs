@@ -39,13 +39,14 @@ testLu v = M.lookup v table
 
 exprCompile :: (Monad m) => String -> m ((String -> m T.TclObj) -> m T.TclObj)
 exprCompile s = do v <- expr s
-                   return $ runExpr2 v
+                   return $ runExpr v
+
 exprAsBool lu s = do v <- expr s
-                     v2 <- runExpr lu v
+                     v2 <- runExpr2 lu v
                      asBool lu v2
 
 exprAsStr lu s = do v <- expr s
-                    v2 <- runExpr lu v
+                    v2 <- runExpr2 lu v
                     asStr lu v2
    
 
@@ -81,37 +82,37 @@ getInt lu x =
 
 intapply :: (Monad m) => (String -> m String) -> (Int -> Int -> Int) -> TExp -> TExp -> m TExp
 intapply lu f x y = do
-  i1 <- getInt lu =<< runExpr lu x  
-  i2 <- getInt lu =<< runExpr lu y 
+  i1 <- getInt lu =<< runExpr2 lu x  
+  i2 <- getInt lu =<< runExpr2 lu y 
   return $ tInt (f i1 i2)
 
 objapply :: (Monad m) => (String -> m T.TclObj) -> ([T.TclObj] -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
-  i1 <- runExpr2 x lu 
-  i2 <- runExpr2 y lu
+  i1 <- runExpr x lu 
+  i2 <- runExpr y lu
   f [i1,i2]
 
 strapply lu f x y = do 
- i1 <- asStr lu =<< runExpr lu x  
- i2 <- asStr lu =<< runExpr lu y 
+ i1 <- asStr lu =<< runExpr2 lu x  
+ i2 <- asStr lu =<< runExpr2 lu y 
  return $ tInt (f i1 i2)
 
 toI v = \a b -> if v a b then 1 else 0 
 
-runExpr2 :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
-runExpr2 exp lu = 
+runExpr :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
+runExpr exp lu = 
   case exp of
     (TOp OpPlus a b) -> objap (procMath (+)) a b
     (TOp OpTimes a b) -> objap (procMath (*)) a b
     (TOp OpMinus a b) -> objap (procMath (-)) a b
     (TOp OpDiv a b) -> objap nop a b
     (TOp OpEql a b) -> objap nop a b
-    (TOp OpNeql a b) -> objap nop a b
-    (TOp OpLt a b) -> objap nop a b
-    (TOp OpGt a b) -> objap nop a b
-    (TOp OpLte a b) -> objap nop a b
-    (TOp OpGte a b) -> objap nop a b
-    (TOp OpStrEq a b) -> objap nop a b
+    (TOp OpNeql a b) -> objap (procCmp (/=)) a b
+    (TOp OpLt a b) -> objap (procCmp (<)) a b
+    (TOp OpGt a b) -> objap (procCmp (>)) a b
+    (TOp OpLte a b) -> objap (procCmp (<=)) a b
+    (TOp OpGte a b) -> objap (procCmp (>=)) a b
+    (TOp OpStrEq a b) -> objap (procStr (==)) a b
     (TOp OpStrNe a b) -> objap nop a b
     (TVal v) -> return v
     (TVar n) -> lu n
@@ -121,9 +122,13 @@ runExpr2 exp lu =
        procMath f [a,b] = do ai <- T.asInt a
                              bi <- T.asInt b
                              return $ T.mkTclInt (ai `f` bi)
+       procCmp f [a,b]  = do ai <- T.asInt a
+                             bi <- T.asInt b
+                             return $ T.fromBool (ai `f` bi)
+       procStr f [a,b]  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
-runExpr :: (Monad m) => (String -> m String) -> TExp -> m TExp
-runExpr lu expr =
+runExpr2 :: (Monad m) => (String -> m String) -> TExp -> m TExp
+runExpr2 lu expr =
   case expr of
     (TOp OpPlus a b) -> intap (+) a b
     (TOp OpTimes a b) -> intap (*) a b
@@ -233,27 +238,29 @@ exprTests = TestList
      ,"fun2" ~: ((tInt 11) + (TFun "sin" (tInt 44))) ?=? (pexpr, "11 + sin(44)")
  ]
 
+mint v = T.mkTclInt v
+
 evalTests = TestList
     [ 
-      (tInt 3) `eql` (tInt 3),
-      ((tInt 5) + (tInt 5)) `eql` (tInt 10),
-      (((tInt 8) - (tInt 5)) + (tInt 5)) `eql` (tInt 8),
-      (((tInt 8) - (tInt 5)) .> (tInt 5)) `eql` (tInt 0),
-      ((tInt 5) .>= (tInt 5)) `eql` (tInt 1),
-      ((tInt 5) .<= (tInt 5)) `eql` (tInt 1),
-      ((tInt 6) .<= (tInt 5)) `eql` (tInt 0),
-      (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` (tInt 1)
+      (tInt 3) `eql` (mint 3),
+      ((tInt 5) + (tInt 5)) `eql` (mint 10),
+      (((tInt 8) - (tInt 5)) + (tInt 5)) `eql` (mint 8),
+      (((tInt 8) - (tInt 5)) .> (tInt 5)) `eql` T.tclFalse,
+      "5 >= 5 -> true" ~: ((tInt 5) .>= (tInt 5)) `eql` (T.tclTrue),
+      "5 <= 5 -> true" ~: ((tInt 5) .<= (tInt 5)) `eql` (T.tclTrue),
+      ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
+      "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
     ]
- where eql a b = (runExpr return a) ~=? Just b
+ where eql a b = (runExpr a (return . T.mkTclStr)) ~=? Just b
 
 varEvalTests = TestList
     [ 
-      ((TVar "num") + (tInt 3)) `eql` (tInt 7),
-      ((tInt 4) + ((TVar "num") - (tInt 1))) `eql` (tInt 7),
-      ((TVar "boo") `eq` (tStr "bean")) `eql` (tInt 1)
+      ((TVar "num") + (tInt 3)) `eql` (mint 7),
+      ((tInt 4) + ((TVar "num") - (tInt 1))) `eql` (mint 7),
+      "$boo == \"bean\" -> true" ~: ((TVar "boo") `eq` (tStr "bean")) `eql` T.tclTrue
     ]
- where eql a b = (runExpr lu a) ~=? Just b
-       table = M.fromList [("boo", "bean"), ("num", "4")]
+ where eql a b = (runExpr a lu) ~=? Just b
+       table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
        lu v = M.lookup v table
 
 parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
