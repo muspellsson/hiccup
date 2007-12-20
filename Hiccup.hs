@@ -1,4 +1,4 @@
-module Hiccup (runTcl, mkInterp,runInterp) where
+module Hiccup (runTcl, mkInterp,runInterp,hiccupTests) where
 
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -362,5 +362,8 @@ testProcEq = TestList [
        str s = T.mkTclStr s
 
 
-tests = TestList [ testProcEq ]
-runUnit = runTestTT tests
+hiccupTests = TestList [ testProcEq ]
+
+runUnit = runTestTT hiccupTests
+
+-- # ENDTESTS # --

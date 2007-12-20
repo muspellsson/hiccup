@@ -1,9 +1,12 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
 
-module BSParse (parseArgs,runParse,wrapInterp,TclWord(..),dropWhite) where
+module BSParse ( parseArgs, runParse, wrapInterp, TclWord(..), dropWhite 
+            ,bsParseTests 
+  ) where
+
 import qualified Data.ByteString.Char8 as B
 import Control.Monad
-import Data.Char
+import Data.Ix
 import Test.HUnit  -- IGNORE
 
 type Result = Maybe ([[TclWord]], B.ByteString)
@@ -41,6 +44,7 @@ getInterp str = do
                                return (pre, s, rest)
                      '[' -> do (s, rest) <- parseSub aft
                                return (pre, s, rest)
+                     _   -> fail "should've been $ or [ in getInterp"
           in res `mplus` dorestfrom loc locval
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
@@ -75,10 +79,13 @@ eatcomment = return . (,) [] . B.tail . B.dropWhile (/= '\n')
 
 dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 
+{-
 wordChar ' ' = False
 wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
-  (ord '0' <= ci  && ci <= ord '9') || (c == '_')
+  (ord '0' <= ci  && ci <= ord '9') || (c == '_') -}
+--wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  || c == '_'
+wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
  where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*=/:^%!&<>"))) s
@@ -220,11 +227,11 @@ runParseTests = TestList [
  where badword str = Nothing ~=? runParse (bp str)
        (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)
 
-tests = TestList [ nestedTests, testEscaped, brackVarTests,
+bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
                    runParseTests ]
 
-runUnit = runTestTT tests
+runUnit = runTestTT bsParseTests
 
 
 -- # ENDTESTS # --
