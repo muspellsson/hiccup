@@ -95,9 +95,13 @@ withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
   (o:old) <- get
   put $ (baseEnv { procs = procs o }) : o : old
-  ret <- f
-  get >>= put . tail
-  return ret
+  f `ensure` (get >>= put . tail)
+
+ensure :: TclM RetVal -> TclM () -> TclM RetVal
+ensure action p = do
+   r <- action `catchError` (\e -> p >> throwError e)
+   p
+   return r
 
 set :: BString -> T.TclObj -> TclM ()
 set str v = do when (B.null str) $ tclErr "Empty varname to set!" 
@@ -295,13 +299,18 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 
 
 procRunner :: [BString] -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
-procRunner pl body args = withScope $ do mapM_ (uncurry set) (zip pl args)
-                                         when ((not . null) pl && (last pl .== "args")) $ do
+procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # args: should be " ++ show pl)
+                                         zipWithM_ set pl args
+                                         when hasArgs $ do
                                                val <- procList (drop ((length pl) - 1) args) 
                                                set (B.pack "args") val
                                          (runCmds body) `catchError` herr
  where herr (ERet s) = return s
        herr (EDie s) = tclErr s
+       invalidCount 
+           | hasArgs   = length args < (length pl - 1)
+           | otherwise = length args /= length pl
+       hasArgs = (not . null) pl && (last pl .== "args")
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- liftM head get

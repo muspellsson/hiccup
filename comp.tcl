@@ -328,6 +328,27 @@ test "equality of strings and nums" {
   assert { == 4 4 }
 }
 
+test "arg count check" {
+  proc blah {a b} {
+   + $a $b
+  }
+
+
+ assertErr { blah 4 }
+ assertErr { blah 4 5 6 }
+ assertNoErr { blah 4 5 }
+
+  proc blah2 {a b args} {
+    + $a [+ $b [llength $args]]
+  }
+
+ assertErr { blah2 1 }
+ assertErr { blah2 }
+ checkthat [blah2 1 2 3] == 4
+ checkthat [blah2 1 2]   == 3
+ checkthat [blah2 1 2 1 1 1] == 6
+}
+
 
 assertErr { proc banana }
 assertErr { proc banana { puts "banana" } }
