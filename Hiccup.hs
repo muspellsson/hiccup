@@ -48,7 +48,7 @@ toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
 
-newtype Interpreter = Interpreter (IORef [TclEnv])
+data Interpreter = Interpreter (IORef [TclEnv])
 mkInterp :: IO Interpreter
 mkInterp = newIORef [baseEnv] >>= return . Interpreter
 

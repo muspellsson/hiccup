@@ -1,9 +1,8 @@
 module TclObj where
+
 import qualified BSParse as P
 
 import qualified Data.ByteString.Char8 as BS
-
-type Str = String
 
 data TclObj = TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) (Maybe [[P.TclWord]]) deriving (Show,Eq)
 
@@ -33,7 +32,7 @@ tclFalse = mkTclInt 0
 fromBool b = if b then tclTrue else tclFalse
 
 class ITObj o where
-  asStr :: o -> Str
+  asStr :: o -> String
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BS.ByteString

@@ -1,12 +1,12 @@
 Name:                hiccup
-Version:             0.2
+Version:             0.3
 Description:         A simplistic interpreter for a subset of tcl 
 License:             GPL
 License-file:        LICENSE
 Author:              Kyle Consalus
 Maintainer:          consalus+hiccup@google.com
-Build-Depends:       base, HUnit, mtl
-extra-source-files:  BSParse.hs README example.tcl
+Build-Depends:       base, HUnit, mtl, haskell98
+extra-source-files:  Hiccup.hs TclObj.hs BSParse.hs README example.tcl
 
 Executable:          hiccup
 Main-is:             Main.hs
