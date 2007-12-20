@@ -9,10 +9,8 @@ data TclObj = TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) (Ma
 mkTclStr s = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (doParse s)
 
-isSpace x = x == ' ' || x == '\t'
-
 mkTclBStrP s p = TclBStr s mayint p
-  where mayint = case BS.readInt (BS.dropWhile isSpace s) of
+  where mayint = case BS.readInt (P.dropWhite s) of
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
@@ -67,5 +65,3 @@ instance ITObj TclObj where
   
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
-
-

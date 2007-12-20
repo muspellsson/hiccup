@@ -1,4 +1,5 @@
-module Hiccup where
+module Hiccup (runTcl, mkInterp,runInterp) where
+
 import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
@@ -69,7 +70,7 @@ runTcl v = mkInterp >>= (`runInterp` v)
 
 ret = return T.empty
 
-doTcl :: BString -> ErrorT Err (StateT [TclEnv] IO) RetVal
+doTcl :: BString -> TclM RetVal
 doTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
