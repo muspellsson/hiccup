@@ -9,7 +9,6 @@ import System.Exit
 import Data.IORef
 import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
-import System.Environment
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import BSParse
@@ -38,7 +37,7 @@ procMap = Map.fromList . map (B.pack *** id) $
   ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
   ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
   ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
-  ("==",procEql),
+  ("==",procEql), ("error", procError),
   ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource), ("incr", procIncr)]
    ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("!=",toI (/=))]
 
@@ -142,9 +141,20 @@ procSet [s1,s2] = set (T.asBStr s1) s2 >> return s2
 procSet [s1] = varGet (T.asBStr s1)
 procSet _    = tclErr $ "set: Wrong arg count"
 
-procPuts s@(sh:st) = (io . mapM_ puts) (map T.asBStr txt) >> ret
+procPuts args = case args of
+                 [s] -> tPutLn s
+                 [a1,str] -> if a1 .== "-nonewline" then tPut str
+                               else do h <- getChan (T.asBStr a1) >>= checkWritable
+                                       (io . B.hPutStrLn h  . T.asBStr) str >> ret
+                 _        -> tclErr $ "bad args to puts"
+ where tPut s = (io . B.putStr . T.asBStr) s >> ret
+       tPutLn s = (io . B.putStrLn . T.asBStr) s >> ret
+
+{-
+procPuts [sh,st] = (io . puts) (T.asBStr txt) >> ret
  where (puts,txt) = if sh .== "-nonewline" then (B.putStr,st) else (B.putStrLn,s)
 procPuts x         = tclErr $ "Bad args to puts: " ++ show x
+-}
 
 procGets args = case args of
           [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
@@ -160,24 +170,32 @@ procGets args = case args of
 checkReadable c = do r <- (io (hIsReadable c))
                      if r then return c else (tclErr $ "channel wasn't opened for reading")
 
+checkWritable c = do r <- (io (hIsWritable c))
+                     if r then return c else (tclErr $ "channel wasn't opened for writing")
+
 getChan :: BString -> TclM Handle
 getChan c = maybe (tclErr ("cannot find channel named " ++ show c)) return (lookup c chans)
  where chans :: [(BString,Handle)]
        chans = zip (map B.pack ["stdin", "stdout", "stderr"]) [stdin, stdout, stderr]
 
-procEq [a,b] = return $ T.fromBool (a == b)
-procNe [a,b] = return $ T.fromBool (a /= b)
+procEq args = case args of
+                  [a,b] -> return $ T.fromBool (a == b)
+                  _     -> tclErr "eq: wrong # of args" 
+
+procNe args = case args of
+                  [a,b] -> return $ T.fromBool (a /= b)
+                  _     -> tclErr "ne: wrong # of args" 
+
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
-procMath op _       = tclErr "math: Wrong arg count"
+procMath _ _       = tclErr "math: Wrong arg count"
 
 procEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $ T.fromBool (ia == ib)
                   _                  -> procEq [a,b]
+procEql _ = tclErr "==: Wrong arg count"
 
-
-tclEval s = procEval [T.mkTclBStr (B.pack s)] >>= return . T.asBStr
 
 procEval [s] = doTcl (T.asBStr s)
 procEval x   = tclErr $ "Bad eval args: " ++ show x
@@ -205,14 +223,16 @@ procString (f:s:args)
                                     if ind >= (B.length `onObj` s) || ind < 0 then ret else treturn $ B.singleton (B.index (T.asBStr s) ind)
                           _   -> tclErr $ "Bad args to string index."
  | otherwise            = tclErr $ "Can't do string action: " ++ show f
+procString _ = tclErr $ "Bad string args"
 
 tclErr = throwError . EDie
 
-procInfo [x] = if x .== "commands" 
-                 then get >>= procList . toObs . Map.keys . procs . head
-                 else if x .== "vars" 
-                        then get >>= procList . toObs . Map.keys . vars . head
-                        else tclErr $ "Unknown info command: " ++ show x
+procInfo (x:xs) = if x .== "commands" 
+                    then get >>= procList . toObs . Map.keys . procs . head
+                    else if x .== "vars" 
+                          then get >>= procList . toObs . Map.keys . vars . head
+                          else tclErr $ "Unknown info command: " ++ show x
+procInfo _     = tclErr $ "info: Bad arg count"
 
 toObs = map T.mkTclBStr
 procAppend (v:vx) = do val <- varGet (T.asBStr v) `catchError` \_ -> ret
@@ -257,6 +277,9 @@ procIf (cond:yes:rest) = do
           []      -> ret
 procIf x = tclErr "Not enough arguments to If."
 
+mkProc ac n p = \lst -> if length lst /= ac then tclErr ("wrong # of args: " ++ n)
+                                            else p lst
+
 procWhile [cond,body] = loop `catchError` herr
  where herr EBreak    = ret
        herr (ERet s)  = return s
@@ -266,7 +289,10 @@ procWhile [cond,body] = loop `catchError` herr
                  pbody <- getParsed body
                  if condVal then runCmds pbody >> loop else ret
 
-procReturn [s] = throwError (ERet s)
+--procReturn [s] = throwError (ERet s)
+procReturn =  mkProc 1 "return" body
+ where body [s] = throwError (ERet s)
+
 procRetv c [] = throwError c
 procError [s] = tclErr (T.asStr s)
 
