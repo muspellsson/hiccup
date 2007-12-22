@@ -329,6 +329,18 @@ test "equality of strings and nums" {
   assert { == 4 4 }
 }
 
+test "early return" {
+  set moo 4
+  proc yay {} { 
+    upvar moo moo2
+    return 
+    set moo2 5
+  }
+
+  yay
+  checkthat $moo == 4
+}
+
 test "arg count check" {
   proc blah {a b} {
    + $a $b

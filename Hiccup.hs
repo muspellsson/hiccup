@@ -142,19 +142,17 @@ procSet [s1] = varGet (T.asBStr s1)
 procSet _    = tclErr $ "set: Wrong arg count"
 
 procPuts args = case args of
-                 [s] -> tPutLn s
-                 [a1,str] -> if a1 .== "-nonewline" then tPut str
+                 [s] -> tPutLn stdout s
+                 [a1,str] -> if a1 .== "-nonewline" then tPut stdout str
                                else do h <- getChan (T.asBStr a1) >>= checkWritable
-                                       (io . B.hPutStrLn h  . T.asBStr) str >> ret
-                 _        -> tclErr $ "bad args to puts"
- where tPut s = (io . B.putStr . T.asBStr) s >> ret
-       tPutLn s = (io . B.putStrLn . T.asBStr) s >> ret
-
-{-
-procPuts [sh,st] = (io . puts) (T.asBStr txt) >> ret
- where (puts,txt) = if sh .== "-nonewline" then (B.putStr,st) else (B.putStrLn,s)
-procPuts x         = tclErr $ "Bad args to puts: " ++ show x
--}
+                                       tPutLn h str
+                 [a1,a2,str] ->do unless (a1 .== "-nonewline") bad
+                                  h <- getChan (T.asBStr a1) >>= checkWritable
+                                  tPut h str 
+                 _        -> bad
+ where tPut h s = (io . B.hPutStr h . T.asBStr) s >> ret
+       tPutLn h s = (io . B.hPutStrLn h . T.asBStr) s >> ret
+       bad = tclErr $ "bad args to puts"
 
 procGets args = case args of
           [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
@@ -263,10 +261,10 @@ incr n i =  do v <- varGet bsname
                return res
  where bsname = T.asBStr n
 
-procLlength [lst] 
-  | B.null `onObj` lst = return T.tclFalse
-  | otherwise = liftM (T.mkTclInt . length . head)  (getParsed lst)
-procLlength x = tclErr $ "Bad args to llength: " ++ show x
+procLlength = mkProc (/=1) "llength" body
+ where body [lst] = if B.null `onObj` lst 
+                        then return T.tclFalse
+                        else liftM (T.mkTclInt . length . head) (getParsed lst)
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -277,7 +275,7 @@ procIf (cond:yes:rest) = do
           []      -> ret
 procIf x = tclErr "Not enough arguments to If."
 
-mkProc ac n p = \lst -> if length lst /= ac then tclErr ("wrong # of args: " ++ n)
+mkProc ac n p = \lst -> if ac (length lst) then tclErr ("wrong # of args: " ++ n)
                                             else p lst
 
 procWhile [cond,body] = loop `catchError` herr
@@ -289,9 +287,8 @@ procWhile [cond,body] = loop `catchError` herr
                  pbody <- getParsed body
                  if condVal then runCmds pbody >> loop else ret
 
---procReturn [s] = throwError (ERet s)
-procReturn =  mkProc 1 "return" body
- where body [s] = throwError (ERet s)
+procReturn [s] = throwError (ERet s)
+procReturn [] = throwError (ERet T.empty)
 
 procRetv c [] = throwError c
 procError [s] = tclErr (T.asStr s)
