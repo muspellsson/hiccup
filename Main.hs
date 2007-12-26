@@ -9,8 +9,9 @@ import qualified Data.ByteString.Char8 as B
 main = do args <- getArgs 
           hSetBuffering stdout NoBuffering
           case args of
-             [] -> mkInterp >>= runRepl
+             []  -> mkInterp >>= runRepl
              [f] -> B.readFile f >>= runTcl >>= foll
+             _   -> error "too many args"
  where foll (Left e) = putStrLn $ "error: "++ B.unpack e 
        foll _        = return ()
        runRepl i = do putStr "hiccup> "

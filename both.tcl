@@ -16,14 +16,14 @@ proc fact {x} {
   return $res
 }
 
-set fcount 2
+set fcount 3
 while {<= $fcount 22} {
   puts [fib $fcount]
   set fcount [+ $fcount 1]
 }
 
 
-set count 9
+set count 11
 while {<= 1 $count} {
   puts [fact $count]
   set count [- $count 1]

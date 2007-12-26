@@ -137,9 +137,10 @@ runCommand args = do
  maybe (tclErr ("invalid command name: " ++ (T.asStr name))) ($! evArgs) proc
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
-procSet [s1,s2] = set (T.asBStr s1) s2 >> return s2
-procSet [s1] = varGet (T.asBStr s1)
-procSet _    = tclErr $ "set: Wrong arg count"
+procSet args = case args of
+     [s1,s2] -> set (T.asBStr s1) s2 >> return s2
+     [s1]    -> varGet (T.asBStr s1)
+     _       -> argErr "set"
 
 procPuts args = case args of
                  [s] -> tPutLn stdout s
@@ -147,12 +148,12 @@ procPuts args = case args of
                                else do h <- getChan (T.asBStr a1) >>= checkWritable
                                        tPutLn h str
                  [a1,a2,str] ->do unless (a1 .== "-nonewline") bad
-                                  h <- getChan (T.asBStr a1) >>= checkWritable
+                                  h <- getChan (T.asBStr a2) >>= checkWritable
                                   tPut h str 
                  _        -> bad
  where tPut h s = (io . B.hPutStr h . T.asBStr) s >> ret
        tPutLn h s = (io . B.hPutStrLn h . T.asBStr) s >> ret
-       bad = tclErr $ "bad args to puts"
+       bad = argErr "puts"
 
 procGets args = case args of
           [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
@@ -163,12 +164,13 @@ procGets args = case args of
                              else do s <- io (B.hGetLine h)
                                      set (T.asBStr vname) (T.mkTclBStr s)
                                      return $ T.mkTclInt (B.length s)
-          _  -> tclErr "gets: Wrong arg count"
+          _  -> argErr "gets"
 
-checkReadable c = do r <- (io (hIsReadable c))
+
+checkReadable c = do r <- io (hIsReadable c)
                      if r then return c else (tclErr $ "channel wasn't opened for reading")
 
-checkWritable c = do r <- (io (hIsWritable c))
+checkWritable c = do r <- io (hIsWritable c)
                      if r then return c else (tclErr $ "channel wasn't opened for writing")
 
 getChan :: BString -> TclM Handle
@@ -178,11 +180,13 @@ getChan c = maybe (tclErr ("cannot find channel named " ++ show c)) return (look
 
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
-                  _     -> tclErr "eq: wrong # of args" 
+                  _     -> argErr "eq"
 
 procNe args = case args of
                   [a,b] -> return $ T.fromBool (a /= b)
-                  _     -> tclErr "ne: wrong # of args" 
+                  _     -> argErr "ne"
+
+argErr s = tclErr ("wrong # of args: " ++ s)
 
 
 procMath :: (Int -> Int -> Int) -> TclProc
@@ -198,12 +202,21 @@ procEql _ = tclErr "==: Wrong arg count"
 procEval [s] = doTcl (T.asBStr s)
 procEval x   = tclErr $ "Bad eval args: " ++ show x
 
-procSource [s] = io (B.readFile (T.asStr s)) >>= doTcl
+procSource args = case args of
+                  [s] -> io (B.readFile (T.asStr s)) >>= doTcl
+                  _   -> argErr "source"
 
-procExit [] = io (exitWith ExitSuccess)
+procExit args = case args of
+            [] -> io (exitWith ExitSuccess)
+            [i] -> do v <- T.asInt i
+                      let ecode = if v == 0 then ExitSuccess else ExitFailure v
+                      io (exitWith ecode)
+            _  -> argErr "exit"
 
-procCatch [s] = (doTcl (T.asBStr s) >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
- where catchRes (EDie s) = T.tclTrue
+procCatch args = case args of
+           [s] -> (doTcl (T.asBStr s) >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           _   -> argErr "catch"
+ where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
 
 retmod f = \v -> treturn (f `onObj` v)
@@ -233,19 +246,22 @@ procInfo (x:xs) = if x .== "commands"
 procInfo _     = tclErr $ "info: Bad arg count"
 
 toObs = map T.mkTclBStr
-procAppend (v:vx) = do val <- varGet (T.asBStr v) `catchError` \_ -> ret
-                       procSet [v, oconcat (val:vx)]
 
-oconcat :: [T.TclObj] -> T.TclObj
-oconcat = T.mkTclBStr . B.concat . map T.asBStr
+procAppend args = case args of
+            (v:vx) -> do val <- varGet (T.asBStr v) `catchError` \_ -> ret
+                         procSet [v, oconcat (val:vx)]
+            _  -> argErr "append"
+ where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 
 procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
-procLindex [l] = return l
-procLindex [l,i] = do items <- liftM (map to_s . head) (getParsed l)
+procLindex args = case args of
+          [l]   -> return l
+          [l,i] -> do items <- liftM (map to_s . head) (getParsed l)
                       ind <- T.asInt i
                       if ind >= length items then ret else treturn (items !! ind)
+          _     -> argErr "lindex"
 
 to_s (Word s)  = s
 to_s (NoSub s p) = s
@@ -261,10 +277,11 @@ incr n i =  do v <- varGet bsname
                return res
  where bsname = T.asBStr n
 
-procLlength = mkProc (/=1) "llength" body
- where body [lst] = if B.null `onObj` lst 
+procLlength args = case args of
+        [lst] -> if B.null `onObj` lst 
                         then return T.tclFalse
-                        else liftM (T.mkTclInt . length . head) (getParsed lst)
+                        else liftM (T.mkTclInt . length . head) (getParsed lst) 
+        _     -> argErr "llength"
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -275,9 +292,6 @@ procIf (cond:yes:rest) = do
           []      -> ret
 procIf x = tclErr "Not enough arguments to If."
 
-mkProc ac n p = \lst -> if ac (length lst) then tclErr ("wrong # of args: " ++ n)
-                                            else p lst
-
 procWhile [cond,body] = loop `catchError` herr
  where herr EBreak    = ret
        herr (ERet s)  = return s
@@ -287,14 +301,26 @@ procWhile [cond,body] = loop `catchError` herr
                  pbody <- getParsed body
                  if condVal then runCmds pbody >> loop else ret
 
-procReturn [s] = throwError (ERet s)
-procReturn [] = throwError (ERet T.empty)
+procWhile _ = argErr "while"
+
+procReturn args = case args of
+      [s] -> throwError (ERet s)
+      []  -> throwError (ERet T.empty)
+      _   -> argErr "return"
 
 procRetv c [] = throwError c
-procError [s] = tclErr (T.asStr s)
+procRetv c _  = argErr $ st c
+ where st EContinue = "continue"
+       st EBreak    = "break"
+       st _         = "??"
 
-procUpLevel [p]    = uplevel 1 (procEval [p])
-procUpLevel (si:p) = T.asInt si >>= \i -> uplevel i (procEval p)
+procError [s] = tclErr (T.asStr s)
+procError _ = argErr "error"
+
+procUpLevel args = case args of
+              [p]    -> uplevel 1 (procEval [p])
+              (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
+              _      -> argErr "uplevel"
 
 uplevel i p = do 
   (curr,new) <- liftM (splitAt i) get 
@@ -303,8 +329,10 @@ uplevel i p = do
   get >>= put . (curr ++)
   return res
 
-procUpVar [d,s]    = upvar 1 d s
-procUpVar [si,d,s] = T.asInt si >>= \i -> upvar i d s
+procUpVar args = case args of
+     [d,s]    -> upvar 1 d s
+     [si,d,s] -> T.asInt si >>= \i -> upvar i d s
+     _        -> argErr "upvar"
 
 procGlobal lst@(_:_) = mapM_ inner lst >> ret
  where inner g = do lst <- get
@@ -376,6 +404,7 @@ testProcEq = TestList [
       ,"' 1 ' == 1 -> t" ~:     procEql [str " 1 ", int 1] `is` True
       ,"' 1 ' eq 1 -> f" ~:     procEq [str " 1 ", int 1] `is` False
       ,"' 1 ' eq ' 1 ' -> t" ~: procEq [str " 1 ", str " 1 "] `is` True
+      ,"' 1 ' ne '1' -> t" ~: procNe [str " 1 ", str "1"] `is` True
    ]
  where (?=?) a b = assert (run b (Right a))
        isTrue c = T.tclTrue ?=? c
