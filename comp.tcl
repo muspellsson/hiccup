@@ -19,7 +19,7 @@ proc assertEq {a b} {
 
 
 proc checkthat { var op r } {
-  set res [eval "$op $var $r"]
+  set res [eval "$op {$var} {$r}"]
   if { == $res 1 } {
     assertPass
   } else {
@@ -231,7 +231,8 @@ foreach feitem {"a b" "c d"} {
   set fer $feitem
 }
 
-assertStrEq "c d" $fer
+checkthat $fer eq "c d" 
+# $fer
 
 test "join and foreach" {
   set misc { 1 2 3 4 5 6 }
@@ -266,10 +267,12 @@ assertEq 8 [expr {4 + 4}]
 
 test "set returns correctly" {
   set babytime 444
-  assertEq 444 [set babytime]
+  checkthat [set babytime] == 444
   assertEq 512 [set babytime 512]
   assertEq 512 $babytime
 }
+
+assertErr { error "oh noes" }
 
 assertEq 1 [catch { puts "$thisdoesntexist" }]
 assertEq 0 [catch { [+ 1 1] }]
@@ -324,7 +327,8 @@ test "equality of strings and nums" {
   assert { ne $x $y }
   assert { eq 33 33 }
   assert { == "cobra" "cobra" }
-  checkthat " 1 " eq 1 
+  checkthat " 1 " ne 1 
+  checkthat " 1 " == 1 
   assert { eq "cobra" "cobra" }
   assert { == 4 4 }
 }
@@ -360,6 +364,27 @@ test "arg count check" {
  checkthat [blah2 1 2 3] == 4
  checkthat [blah2 1 2]   == 3
  checkthat [blah2 1 2 1 1 1] == 6
+}
+
+test "bad continue/break test" {
+  proc whee {} {
+    break
+  }
+
+  assertErr { whee }
+
+  proc whee2 {} {
+    continue
+  }
+
+  assertErr { whee2 }
+
+  proc whee3 {} {
+    return
+  }
+
+  assertNoErr { whee3 }
+
 }
 
 

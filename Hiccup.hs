@@ -31,15 +31,27 @@ type VarMap = Map.Map BString T.TclObj
 
 type RetVal = T.TclObj -- IGNORE
 
-procMap :: ProcMap
-procMap = Map.fromList . map (B.pack *** id) $
- [("proc",procProc),("set",procSet),("upvar",procUpVar),("puts",procPuts),("gets",procGets),
-  ("uplevel", procUpLevel),("if",procIf),("while",procWhile),("eval", procEval),("exit",procExit),
-  ("list",procList),("lindex",procLindex),("llength",procLlength),("return",procReturn),
-  ("break",procRetv EBreak),("catch",procCatch),("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
-  ("==",procEql), ("error", procError),
-  ("string", procString), ("append", procAppend), ("info", procInfo), ("global", procGlobal), ("source", procSource), ("incr", procIncr)]
-   ++ map (id *** procMath) [("+",(+)), ("*",(*)), ("-",(-)), ("/",div), ("<", toI (<)),("<=",toI (<=)),("!=",toI (/=))]
+coreProcs, baseProcs, mathProcs :: ProcMap
+
+coreProcs = Map.fromList . map (B.pack *** id) $
+ [("proc",procProc),("set",procSet),("upvar",procUpVar),
+  ("uplevel", procUpLevel),("if",procIf),
+  ("while",procWhile),("eval", procEval),("exit",procExit),
+  ("list",procList),("return",procReturn),
+  ("break",procRetv EBreak),("catch",procCatch),
+  ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
+  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
+
+baseProcs = Map.fromList . map (B.pack *** id) $
+ [("puts",procPuts),("gets",procGets),
+  ("lindex",procLindex),("llength",procLlength),
+  ("string", procString), ("append", procAppend), 
+  ("source", procSource), ("incr", procIncr)]
+
+
+mathProcs = Map.fromList . map (B.pack *** procMath) $ 
+   [("+",(+)), ("*",(*)), ("-",(-)), 
+    ("/",div), ("<", toI (<)),("<=",toI (<=)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
 io = liftIO
@@ -48,6 +60,7 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
+ where procMap = Map.unions [coreProcs, baseProcs, mathProcs]
 
 data Interpreter = Interpreter (IORef [TclEnv])
 
@@ -89,7 +102,7 @@ doCond str = do
       p <- getParsed str
       case p of
         [x]      -> runCommand x >>= return . T.asBool
-        _       -> tclErr "Too many statements in conditional"
+        _        -> tclErr "Too many statements in conditional"
 
 trim :: T.TclObj -> BString
 trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
@@ -191,12 +204,12 @@ argErr s = tclErr ("wrong # of args: " ++ s)
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
-procMath _ _       = tclErr "math: Wrong arg count"
+procMath _ _       = argErr "math"
 
 procEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $ T.fromBool (ia == ib)
                   _                  -> procEq [a,b]
-procEql _ = tclErr "==: Wrong arg count"
+procEql _ = argErr "=="
 
 
 procEval [s] = doTcl (T.asBStr s)
@@ -238,7 +251,7 @@ procString _ = tclErr $ "Bad string args"
 
 tclErr = throwError . EDie
 
-procInfo (x:xs) = if x .== "commands" 
+procInfo [x] = if x .== "commands" 
                     then get >>= procList . toObs . Map.keys . procs . head
                     else if x .== "vars" 
                           then get >>= procList . toObs . Map.keys . vars . head
@@ -264,12 +277,12 @@ procLindex args = case args of
           _     -> argErr "lindex"
 
 to_s (Word s)  = s
-to_s (NoSub s p) = s
+to_s (NoSub s _) = s
 to_s x         = error $ "to_s doesn't understand: " ++ show x
 
 procIncr [vname] = incr vname 1
 procIncr [vname,val] = T.asInt val >>= incr vname
-procIncr _ = tclErr $ "Wrong number of args to incr"
+procIncr _ = argErr "incr"
 incr n i =  do v <- varGet bsname
                intval <- T.asInt v
                let res = (T.mkTclInt (intval + i))
@@ -290,7 +303,7 @@ procIf (cond:yes:rest) = do
           [s,blk] -> if s .== "else" then doTcl (T.asBStr blk) else tclErr "Invalid If"
           (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
-procIf x = tclErr "Not enough arguments to If."
+procIf _ = tclErr "Not enough arguments to If."
 
 procWhile [cond,body] = loop `catchError` herr
  where herr EBreak    = ret
@@ -338,6 +351,7 @@ procGlobal lst@(_:_) = mapM_ inner lst >> ret
  where inner g = do lst <- get
                     let len = length lst - 1
                     upvar len g g
+procGlobal _         = argErr "global"
 
 upvar n d s = do (e:es) <- get 
                  put ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
@@ -360,8 +374,10 @@ procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # ar
                                                val <- procList (drop ((length pl) - 1) args) 
                                                set (B.pack "args") val
                                          (runCmds body) `catchError` herr
- where herr (ERet s) = return s
-       herr (EDie s) = tclErr s
+ where herr (ERet s)  = return s
+       herr (EDie s)  = tclErr s
+       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
+       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
        invalidCount 
            | hasArgs   = length args < (length pl - 1)
            | otherwise = length args /= length pl
