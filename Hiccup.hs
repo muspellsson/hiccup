@@ -86,7 +86,6 @@ runTcl v = mkInterp >>= runInterp v
 
 ret = return T.empty
 
-doTcl :: BString -> TclM RetVal
 doTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
@@ -133,10 +132,10 @@ getProc str = get >>= return . Map.lookup str . procs . head
 regProc name pr = modify (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
 
 evalw :: TclWord -> TclM RetVal
-evalw (Word s)      = interp s
-evalw (NoSub s (Just (p,_)))     = return $ T.mkTclBStrP s (Just p)
-evalw (NoSub s Nothing)     = return $ T.mkTclBStrP s Nothing
-evalw (Subcommand c) = runCommand c
+evalw (Word s)               = interp s
+evalw (NoSub s (Just (p,_))) = return $ T.mkTclBStrP s (Just p)
+evalw (NoSub s Nothing)      = return $ T.mkTclBStrP s Nothing
+evalw (Subcommand c)         = runCommand c
 
 ptrace = True -- IGNORE
 
@@ -212,7 +211,7 @@ procEql [a,b] = case (T.asInt a, T.asInt b) of
 procEql _ = argErr "=="
 
 
-procEval [s] = doTcl (T.asBStr s)
+procEval [s] = doTcl s
 procEval x   = tclErr $ "Bad eval args: " ++ show x
 
 procSource args = case args of
@@ -227,7 +226,7 @@ procExit args = case args of
             _  -> argErr "exit"
 
 procCatch args = case args of
-           [s] -> (doTcl (T.asBStr s) >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s] -> (doTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
            _   -> argErr "catch"
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
@@ -298,9 +297,9 @@ procLlength args = case args of
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
-  if condVal then doTcl (T.asBStr yes)
+  if condVal then doTcl yes
     else case rest of
-          [s,blk] -> if s .== "else" then doTcl (T.asBStr blk) else tclErr "Invalid If"
+          [s,blk] -> if s .== "else" then doTcl blk else tclErr "Invalid If"
           (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
 procIf _ = tclErr "Not enough arguments to If."
