@@ -167,7 +167,9 @@ procPuts args = case args of
        bad = argErr "puts"
 
 procGets args = case args of
-          [ch] -> getChan (T.asBStr ch) >>= checkReadable >>= io . B.hGetLine >>= treturn
+          [ch] -> do h <- getChan (T.asBStr ch) >>= checkReadable
+                     eof <- io (hIsEOF h)
+                     if eof then ret else (io . B.hGetLine) h >>= treturn
           [ch,vname] -> do h <- getChan (T.asBStr ch) >>= checkReadable
                            eof <- io (hIsEOF h)
                            if eof
