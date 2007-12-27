@@ -72,7 +72,7 @@ multi p s = do (w,r) <- p s
 parseSub s = do guard (B.head s == '[') 
                 (p,r) <- parseArgs (B.tail s)
                 loc <- B.elemIndex ']' r
-                let (pre,aft) = B.splitAt loc r
+                let (_,aft) = B.splitAt loc r
                 return (Subcommand p, B.tail aft)
 
 eatcomment = return . (,) [] . B.tail . B.dropWhile (/= '\n')

@@ -1,10 +1,14 @@
 module TclObj where
 
 import qualified BSParse as P
+import System.IO
+import Data.Unique
 
 import qualified Data.ByteString.Char8 as BS
 
-data TclObj = TclInt !Int BS.ByteString | TclBStr !BS.ByteString (Maybe Int) (Maybe [[P.TclWord]]) deriving (Show,Eq)
+data TclObj = TclInt !Int BS.ByteString | 
+              TclHand Handle BS.ByteString |
+              TclBStr !BS.ByteString (Maybe Int) (Maybe [[P.TclWord]]) deriving (Show,Eq)
 
 mkTclStr s = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (doParse s)
@@ -14,6 +18,9 @@ mkTclBStrP s p = TclBStr s mayint p
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
+mkTclHand h = do n <- uniqueNum
+                 return (TclHand h (BS.pack ("file" ++ show n)))
+ where uniqueNum = newUnique >>= return . hashUnique
 
 
 doParse s = case P.runParse s of
@@ -46,22 +53,27 @@ instance ITObj BS.ByteString where
                  Just (r,_) -> return r
 
 instance ITObj TclObj where
-  asStr (TclInt i b) = BS.unpack b
+  asStr (TclInt _ b) = BS.unpack b
   asStr (TclBStr bs _ _) = asStr bs
+  asStr (TclHand _ n) = BS.unpack n
 
   asBool (TclInt i _) = i /= 0
   asBool (TclBStr bs _ _) = asBool bs
+  asBool (TclHand _ _) = False
 
   asInt (TclInt i _) = return i
-  asInt (TclBStr v (Just i) _) = return i
+  asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
+  asInt (TclHand _ _) = fail "can't use file as int"
   
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
+  asBStr (TclHand _ b) = b
 
   asParsed (TclBStr _ _ Nothing) = fail "Parse failed"
-  asParsed (TclBStr _ v (Just r)) = return r
+  asParsed (TclBStr _ _ (Just r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
+  asParsed (TclHand _ _) = fail "Can't parse a file"
   
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
