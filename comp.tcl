@@ -387,6 +387,11 @@ test "bad continue/break test" {
 
 }
 
+test "incomplete parse" {
+  assertErr { set bean 4 " }
+  assertErr { set bean 4() }
+  assertErr { " }
+}
 
 assertErr { proc banana }
 assertErr { proc banana { puts "banana" } }
@@ -394,4 +399,4 @@ assertNoErr { proc banana { } { puts "banana" } }
 assertNoErr { proc banana {} { puts "banana" } }
 
 puts ""
-puts "Done. Passed $assertcount checks."
+puts stdout "Done. Passed $assertcount checks."

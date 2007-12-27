@@ -6,8 +6,9 @@ import Data.Unique
 
 import qualified Data.ByteString.Char8 as BS
 
+data TclChan = TclChan { chanHandle :: Handle, chanName :: BS.ByteString } deriving (Eq,Show)
+
 data TclObj = TclInt !Int BS.ByteString | 
-              TclHand Handle BS.ByteString |
               TclBStr !BS.ByteString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
 
 mkTclStr s = mkTclBStr (BS.pack s)
@@ -18,10 +19,16 @@ mkTclBStrP s p = TclBStr s mayint p
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
-mkTclHand h = do n <- uniqueNum
-                 return (TclHand h (BS.pack ("file" ++ show n)))
+tclStdout = mkChan' stdout "stdout"
+tclStdin = mkChan' stdin "stdin"
+tclStderr = mkChan' stderr "stderr"
+
+
+mkChan h = do n <- uniqueNum
+              return (mkChan' h ("file" ++ show n))
  where uniqueNum = newUnique >>= return . hashUnique
 
+mkChan' h n = TclChan h (BS.pack n)
 
 doParse s = case P.runParse s of
                  Nothing -> Left "parse failed"
@@ -56,25 +63,20 @@ instance ITObj BS.ByteString where
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
   asStr (TclBStr bs _ _) = asStr bs
-  asStr (TclHand _ n) = BS.unpack n
 
   asBool (TclInt i _) = i /= 0
   asBool (TclBStr bs _ _) = asBool bs
-  asBool (TclHand _ _) = False
 
   asInt (TclInt i _) = return i
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
-  asInt (TclHand _ _) = fail "can't use file as int"
   
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
-  asBStr (TclHand _ b) = b
 
   asParsed (TclBStr _ _ (Left f)) = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
-  asParsed (TclHand _ _) = fail "Can't parse a file"
   
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]

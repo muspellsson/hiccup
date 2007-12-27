@@ -187,9 +187,11 @@ checkWritable c = do r <- io (hIsWritable c)
                      if r then return c else (tclErr $ "channel wasn't opened for writing")
 
 getChan :: BString -> TclM Handle
-getChan c = maybe (tclErr ("cannot find channel named " ++ show c)) return (lookup c chans)
- where chans :: [(BString,Handle)]
-       chans = zip (map B.pack ["stdin", "stdout", "stderr"]) [stdin, stdout, stderr]
+getChan c = do chans <- getBaseChans
+               maybe (tclErr ("cannot find channel named " ++ show c)) (return . T.chanHandle) (Map.lookup c chans)
+
+getBaseChans = return chans
+ where chans = Map.fromList (map (\x -> (T.chanName x, x)) [T.tclStdout, T.tclStdin, T.tclStderr ] )
 
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
