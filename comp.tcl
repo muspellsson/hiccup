@@ -57,7 +57,7 @@ proc assertNoErr code {
 }
 
 proc assertErr code {
-  set ret [catch $code]
+  set ret [catch "eval {$code}"]
   if { == $ret 1 } {
     assertPass
   } else {
@@ -389,8 +389,13 @@ test "bad continue/break test" {
 
 test "incomplete parse" {
   assertErr { set bean 4 " }
-  assertErr { set bean 4() }
+  assertNoErr { set bean 4() }
   assertErr { " }
+}
+
+test "array set/get" {
+  set boo(4) 111
+  checkthat "$boo(4)" == 111
 }
 
 assertErr { proc banana }

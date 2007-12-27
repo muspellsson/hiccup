@@ -40,8 +40,10 @@ getInterp str = do
      then dorestfrom loc locval
      else let (pre,aft) = B.splitAt loc str in
           let res = case locval of
-                     '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
-                               return (pre, s, rest)
+                     '$' -> do (Word s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
+                               case getInd rest of
+                                 Nothing -> return (pre, Word s, rest)
+                                 Just (i,r) -> return (pre, Word (B.append s i), r)
                      '[' -> do (s, rest) <- parseSub aft
                                return (pre, s, rest)
                      _   -> fail "should've been $ or [ in getInterp"
@@ -49,6 +51,12 @@ getInterp str = do
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
+getInd str  
+  | B.null str || B.head str /= '(' = Nothing
+  | otherwise                       = do ind <- B.elemIndex ')' str
+                                         let (pre,post) = B.splitAt (ind+1) str
+                                         return (pre, post)
+           
 orElse a b = \v -> (a v) `mplus` (b v)
 
 mainparse str = if B.null str 
@@ -88,7 +96,7 @@ wordChar !c = let ci = ord c in
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
- where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*=/:^%!&<>"))) s
+ where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*()=/:^%!&<>"))) s
 
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
@@ -188,6 +196,8 @@ getInterpTests = TestList [
           (bp "you have $", mkwd "dollars", bp "")  ?=? "you have $$dollars",
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
     "Trailing bang" ~: (bp "", mkwd "var", bp "!" ) ?=? "$var!",
+    "basic arr" ~: (bp "", mkwd "boo(4)", bp " " ) ?=? "$boo(4) ",
+    "basic arr" ~: (bp "", mkwd "boo( 4,5 )", bp " " ) ?=? "$boo( 4,5 ) ",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
     "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
@@ -223,7 +233,7 @@ nestedTests = TestList [
 runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
      "empty" ~: ([[]],"") ?=? " ",
-     "arr 1" ~: ([[mkwd "set",mkwd "buggy"]], "(4) 11") ?=? "set buggy(4) 11"
+     "arr 1" ~: ([[mkwd "set",mkwd "buggy(4)", mkwd "11"]], "") ?=? "set buggy(4) 11"
   ]
  where badword str = Nothing ~=? runParse (bp str)
        (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)
