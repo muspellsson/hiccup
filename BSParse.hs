@@ -222,7 +222,8 @@ nestedTests = TestList [
 
 runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
-     "empty" ~: ([[]],"") ?=? " "
+     "empty" ~: ([[]],"") ?=? " ",
+     "arr 1" ~: ([[mkwd "set",mkwd "buggy"]], "(4) 11") ?=? "set buggy(4) 11"
   ]
  where badword str = Nothing ~=? runParse (bp str)
        (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)

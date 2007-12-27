@@ -8,7 +8,7 @@ import qualified Data.ByteString.Char8 as BS
 
 data TclObj = TclInt !Int BS.ByteString | 
               TclHand Handle BS.ByteString |
-              TclBStr !BS.ByteString (Maybe Int) (Maybe [[P.TclWord]]) deriving (Show,Eq)
+              TclBStr !BS.ByteString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
 
 mkTclStr s = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (doParse s)
@@ -24,12 +24,12 @@ mkTclHand h = do n <- uniqueNum
 
 
 doParse s = case P.runParse s of
-                 Nothing -> Nothing
-                 Just (r,_) -> Just r
+                 Nothing -> Left "parse failed"
+                 Just (r,rs) -> if BS.null rs then Right r else Left ("Incomplete parse: " ++ show rs)
                   
 mkTclInt i = TclInt i (BS.pack (show i))
 
-empty = TclBStr BS.empty Nothing Nothing
+empty = TclBStr BS.empty Nothing (Left "bad parse")
 
 tclTrue = mkTclInt 1 
 tclFalse = mkTclInt 0 
@@ -50,7 +50,8 @@ instance ITObj BS.ByteString where
   asBStr = id
   asParsed s = case P.runParse s of
                  Nothing -> fail $ "parse failed: " ++ show s
-                 Just (r,_) -> return r
+                 Just (r,rs) -> if BS.null rs then return r
+                                              else fail $ "incomplete parse: " ++ show rs
 
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
@@ -70,8 +71,8 @@ instance ITObj TclObj where
   asBStr (TclInt _ b) = b
   asBStr (TclHand _ b) = b
 
-  asParsed (TclBStr _ _ Nothing) = fail "Parse failed"
-  asParsed (TclBStr _ _ (Just r)) = return r
+  asParsed (TclBStr _ _ (Left f)) = fail f
+  asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   asParsed (TclHand _ _) = fail "Can't parse a file"
   

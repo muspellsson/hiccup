@@ -133,8 +133,9 @@ regProc name pr = modify (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }
 
 evalw :: TclWord -> TclM RetVal
 evalw (Word s)               = interp s
-evalw (NoSub s (Just (p,_))) = return $ T.mkTclBStrP s (Just p)
-evalw (NoSub s Nothing)      = return $ T.mkTclBStrP s Nothing
+evalw (NoSub s (Just (p,ps))) = if B.null ps then return $ T.mkTclBStrP s (Right p)
+                                             else return $ T.mkTclBStrP s (Left ("bad parse: " ++ show ps))
+evalw (NoSub s Nothing)      = return $ T.mkTclBStrP s (Left "bad parse")
 evalw (Subcommand c)         = runCommand c
 
 ptrace = True -- IGNORE
