@@ -29,6 +29,8 @@ type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
 type VarMap = Map.Map BString T.TclObj
 
+type ChanMap = Map.Map BString T.TclChan
+
 type RetVal = T.TclObj -- IGNORE
 
 coreProcs, baseProcs, mathProcs :: ProcMap
@@ -120,7 +122,7 @@ ensure action p = do
 
 set :: BString -> T.TclObj -> TclM ()
 set str v = do when (B.null str) $ tclErr "Empty varname to set!" 
-               env <- liftM head get
+               env <- getScope
                case upped str env of
                  Just (i,s) -> uplevel i (set s v)
                  Nothing -> do es <- liftM tail get
@@ -128,7 +130,7 @@ set str v = do when (B.null str) $ tclErr "Empty varname to set!"
 
 upped s e = Map.lookup s (upMap e)
 
-getProc str = get >>= return . Map.lookup str . procs . head
+getProc str = getScope >>= return . Map.lookup str . procs
 regProc name pr = modify (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
 
 evalw :: TclWord -> TclM RetVal
@@ -138,14 +140,10 @@ evalw (NoSub s (Just (p,ps))) = if B.null ps then return $ T.mkTclBStrP s (Right
 evalw (NoSub s Nothing)      = return $ T.mkTclBStrP s (Left "bad parse")
 evalw (Subcommand c)         = runCommand c
 
-ptrace = True -- IGNORE
-
 runCommand :: [TclWord] -> TclM RetVal
 runCommand [Subcommand s] = runCommand s
 runCommand args = do 
  (name:evArgs) <- mapM evalw args
- -- (e:_) <- get 
- -- when ptrace $ io (print (name,args) >> print (vars e)) -- IGNORE
  proc <- getProc (T.asBStr name)
  maybe (tclErr ("invalid command name: " ++ (T.asStr name))) ($! evArgs) proc
 
@@ -190,6 +188,7 @@ getChan :: BString -> TclM Handle
 getChan c = do chans <- getBaseChans
                maybe (tclErr ("cannot find channel named " ++ show c)) (return . T.chanHandle) (Map.lookup c chans)
 
+getBaseChans :: TclM ChanMap
 getBaseChans = return chans
  where chans = Map.fromList (map (\x -> (T.chanName x, x)) [T.tclStdout, T.tclStdin, T.tclStderr ] )
 
@@ -253,12 +252,14 @@ procString _ = tclErr $ "Bad string args"
 
 tclErr = throwError . EDie
 
+getScope = get >>= return . head
+
 procInfo [x] = if x .== "commands" 
-                    then get >>= procList . toObs . Map.keys . procs . head
+                    then getScope >>= procList . toObs . Map.keys . procs
                     else if x .== "vars" 
-                          then get >>= procList . toObs . Map.keys . vars . head
+                          then getScope >>= procList . toObs . Map.keys . vars
                           else tclErr $ "Unknown info command: " ++ show x
-procInfo _     = tclErr $ "info: Bad arg count"
+procInfo _   = argErr "info"
 
 toObs = map T.mkTclBStr
 
@@ -305,7 +306,7 @@ procIf (cond:yes:rest) = do
           [s,blk] -> if s .== "else" then doTcl blk else tclErr "Invalid If"
           (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
-procIf _ = tclErr "Not enough arguments to If."
+procIf _ = argErr "if"
 
 procWhile [cond,body] = loop `catchError` herr
  where herr EBreak    = ret
@@ -370,7 +371,7 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 
 
 procRunner :: [BString] -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
-procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # args: should be " ++ show (pl `joinWith` ' '))
+procRunner pl body args = withScope $ do when invalidCount $ argErr ("should be " ++ show (pl `joinWith` ' '))
                                          zipWithM_ set pl args
                                          when hasArgs $ do
                                                val <- procList (drop ((length pl) - 1) args) 
@@ -390,7 +391,7 @@ procRunner pl body args = withScope $ do when invalidCount $ tclErr ("wrong # ar
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
 varGet :: BString -> TclM RetVal
-varGet name = do env <- liftM head get
+varGet name = do env <- getScope
                  case upped name env of
                    Nothing -> maybe (tclErr ("can't read \"$" ++ T.asStr name ++ "\": no such variable")) 
                                     return 
@@ -417,12 +418,16 @@ run t v = do ret <- liftM fst (runStateT (runErrorT (t)) [baseEnv])
              return (ret == v)
 
 testProcEq = TestList [
-      "1 eq 1 -> t" ~:          isTrue (procEq [int 1, int 1])
-      ,"1 == 1 -> t" ~:         isTrue (procEql [int 1, int 1])
+      "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
+      ,"1 == 1 -> t" ~:         (procEql [int 1, int 1]) `is` True
       ,"' 1 ' == 1 -> t" ~:     procEql [str " 1 ", int 1] `is` True
       ,"' 1 ' eq 1 -> f" ~:     procEq [str " 1 ", int 1] `is` False
       ,"' 1 ' eq ' 1 ' -> t" ~: procEq [str " 1 ", str " 1 "] `is` True
       ,"' 1 ' ne '1' -> t" ~: procNe [str " 1 ", str "1"] `is` True
+      ,"'cats' eq 'cats' -> t" ~: procEq [str "cats", str "cats"] `is` True
+      ,"'cats' eq 'caps' -> f" ~: procEq [str "cats", str "caps"] `is` False
+      ,"'cats' ne 'cats' -> t" ~: procNe [str "cats", str "cats"] `is` False
+      ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
    ]
  where (?=?) a b = assert (run b (Right a))
        isTrue c = T.tclTrue ?=? c
