@@ -393,6 +393,16 @@ test "incomplete parse" {
   assertErr { " }
 }
 
+test "default proc args" {
+  proc plus { x { y 1 } } {
+    [+ $x $y]
+  }
+
+  checkthat [plus 3 3] == 6
+  # not ready yet
+  # checkthat [plus 3] == 4
+}
+
 test "array set/get" {
   set boo(4) 111
   checkthat "$boo(4)" == 111

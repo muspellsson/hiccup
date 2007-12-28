@@ -1,5 +1,5 @@
 Name:                hiccup
-Version:             0.3
+Version:             0.35
 Description:         A simplistic interpreter for a subset of tcl 
 License:             GPL
 License-file:        LICENSE

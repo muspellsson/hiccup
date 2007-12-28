@@ -403,33 +403,48 @@ upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
 
+type ParamList = (Bool,Int,[BString])
+
 procProc [name,args,body] = do
-  params <- case parseArgs (T.asBStr args) of
-              Nothing -> if trim args .== "" then return [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
-              Just (r,_) -> return $ map to_s r
+  params <- parseParams args
   pbody <- getParsed body
   regProc (T.asBStr name) (procRunner params pbody)
-
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
+parseParams :: T.TclObj -> TclM ParamList
+parseParams args = 
+         case parseArgs (T.asBStr args) of
+           Nothing -> if trim args .== "" then countRet [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
+           Just (r,_) -> countRet $ map parseArg r
+ where parseArg (Word s)                        = s
+       parseArg (NoSub _ (Just ([[z,n],[]],_))) = parseArg z
+       parseArg (NoSub s _)                     = s
+       parseArg  x                              = error $ "parseArg doesn't understand: " ++ show x
+       countRet l = return (hasArgs l, length l, l)
+       hasArgs pl = (not . null) pl && (last pl .== "args")
+                      
 
-procRunner :: [BString] -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
-procRunner pl body args = withScope $ do when invalidCount $ argErr ("should be " ++ show (pl `joinWith` ' '))
-                                         zipWithM_ set pl args
-                                         when hasArgs $ do
-                                               val <- procList (drop ((length pl) - 1) args) 
-                                               set (B.pack "args") val
-                                         (runCmds body) `catchError` herr
+procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
+procRunner pl body args = 
+  withScope $ do 
+    bindArgs pl args
+    runCmds body `catchError` herr
  where herr (ERet s)  = return s
        herr (EDie s)  = tclErr s
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
-       invalidCount 
-           | hasArgs   = length args < (length pl - 1)
-           | otherwise = length args /= length pl
-       hasArgs = (not . null) pl && (last pl .== "args")
 
-
+bindArgs :: ParamList -> [T.TclObj] -> TclM ()
+bindArgs (hasArgs,plen,pl) args = do
+    when invalidCount $ argErr ("should be " ++ show (pl `joinWith` ' '))
+    zipWithM_ set pl args
+    when hasArgs $ do
+       val <- procList (drop (plen - 1) args) 
+       set (B.pack "args") val
+  where invalidCount 
+           | hasArgs   = length args < (plen - 1)
+           | otherwise = length args /= plen
+  
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
