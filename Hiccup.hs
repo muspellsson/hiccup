@@ -50,7 +50,7 @@ baseProcs = Map.fromList . map (B.pack *** id) $
   ("lindex",procLindex),("llength",procLlength),
   ("string", procString), ("append", procAppend), 
   ("source", procSource), ("incr", procIncr),
-  ("open", procOpen)]
+  ("open", procOpen), ("close", procClose)]
 
 
 mathProcs = Map.fromList . map (B.pack *** procMath) $ 
@@ -167,21 +167,22 @@ procSet args = case args of
 procPuts args = case args of
                  [s] -> tPutLn stdout s
                  [a1,str] -> if a1 .== "-nonewline" then tPut stdout str
-                               else do h <- getChan (T.asBStr a1) >>= checkWritable
+                               else do h <- getWritable a1
                                        tPutLn h str
                  [a1,a2,str] ->do unless (a1 .== "-nonewline") bad
-                                  h <- getChan (T.asBStr a2) >>= checkWritable
+                                  h <- getWritable a2
                                   tPut h str 
                  _        -> bad
  where tPut h s = (io . B.hPutStr h . T.asBStr) s >> ret
        tPutLn h s = (io . B.hPutStrLn h . T.asBStr) s >> ret
+       getWritable c = getChan (T.asBStr c) >>= checkWritable . T.chanHandle
        bad = argErr "puts"
 
 procGets args = case args of
-          [ch] -> do h <- getChan (T.asBStr ch) >>= checkReadable
+          [ch] -> do h <- getReadable ch
                      eof <- io (hIsEOF h)
                      if eof then ret else (io . B.hGetLine) h >>= treturn
-          [ch,vname] -> do h <- getChan (T.asBStr ch) >>= checkReadable
+          [ch,vname] -> do h <- getReadable ch
                            eof <- io (hIsEOF h)
                            if eof
                              then set (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
@@ -189,6 +190,7 @@ procGets args = case args of
                                      set (T.asBStr vname) (T.mkTclBStr s)
                                      return $ T.mkTclInt (B.length s)
           _  -> argErr "gets"
+ where getReadable c = getChan (T.asBStr c) >>= checkReadable . T.chanHandle
 
 
 checkReadable c = do r <- io (hIsReadable c)
@@ -203,9 +205,12 @@ getChans = do s <- gets tclChans
 addChan c = do s <- gets tclChans
                io (modifyIORef s (Map.insert (T.chanName c) c))
 
-getChan :: BString -> TclM Handle
+removeChan c = do s <- gets tclChans
+                  io (modifyIORef s (Map.delete (T.chanName c)))
+
+getChan :: BString -> TclM T.TclChan
 getChan c = do chans <- getChans
-               maybe (tclErr ("cannot find channel named " ++ show c)) (return . T.chanHandle) (Map.lookup c chans)
+               maybe (tclErr ("cannot find channel named " ++ show c)) return (Map.lookup c chans)
 
 
 procEq args = case args of
@@ -243,6 +248,13 @@ procOpen args = case args of
                           addChan chan
                           treturn (T.chanName chan)
          _    -> argErr "open"
+
+procClose args = case args of
+         [ch] -> do h <- getChan (T.asBStr ch)
+                    removeChan h
+                    io (hClose (T.chanHandle h))
+                    ret
+         _    -> argErr "close"
                      
 
 procSource args = case args of
@@ -480,13 +492,12 @@ testArr = TestList [
    ,"dec)mber" `should_be` Nothing
    ,"(cujo)" `should_be` Nothing
    ,"de(c)mber" `should_be` Nothing
-   ,"a(1)"          ?==> ("a","1")
-   ,"xx(september)" ?==> ("xx","september")
-   ,"arr(3,4,5)"    ?==> ("arr","3,4,5")
-   ,"arr()"         ?==> ("arr","")
+   ,"a(1)"          ?=> ("a","1")
+   ,"xx(september)" ?=> ("xx","september")
+   ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
+   ,"arr()"         ?=> ("arr","")
  ]
- where (?=>) a (b1,b2) = parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
-       (?==>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
+ where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
        should_be x r =  (x ++ " should be " ++ show r) ~: parseArrRef (B.pack x) ~=? r
 hiccupTests = TestList [ testProcEq, testArr ]
 
