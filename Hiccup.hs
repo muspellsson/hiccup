@@ -299,7 +299,7 @@ procInfo [x] = if x .== "commands"
                     then getFrame >>= procList . toObs . Map.keys . procs
                     else if x .== "vars" 
                           then getFrame >>= procList . toObs . Map.keys . vars
-                          else tclErr $ "Unknown info command: " ++ show x
+                          else tclErr $ "Unknown info command: " ++ show (T.asBStr x)
 procInfo _   = argErr "info"
 
 toObs = map T.mkTclBStr
