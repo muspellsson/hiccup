@@ -4,6 +4,7 @@ import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
 import System.IO
+import qualified System.IO.Error as IOE 
 import Control.Monad.Error
 import System.Exit
 import Data.IORef
@@ -24,7 +25,7 @@ instance Error Err where
  strMsg s = EDie s
 
 data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
-type TclM = ErrorT Err (StateT [TclEnv] IO)
+type TclM = ErrorT Err (StateT TclState IO)
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
 type VarMap = Map.Map BString T.TclObj
@@ -48,7 +49,8 @@ baseProcs = Map.fromList . map (B.pack *** id) $
  [("puts",procPuts),("gets",procGets),
   ("lindex",procLindex),("llength",procLlength),
   ("string", procString), ("append", procAppend), 
-  ("source", procSource), ("incr", procIncr)]
+  ("source", procSource), ("incr", procIncr),
+  ("open", procOpen)]
 
 
 mathProcs = Map.fromList . map (B.pack *** procMath) $ 
@@ -64,10 +66,16 @@ toI n a b = if n a b then 1 else 0
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
  where procMap = Map.unions [coreProcs, baseProcs, mathProcs]
 
-data Interpreter = Interpreter (IORef [TclEnv])
+data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: [TclEnv] }
+
+data Interpreter = Interpreter (IORef TclState)
 
 mkInterp :: IO Interpreter
-mkInterp = newIORef [baseEnv] >>= return . Interpreter
+mkInterp = do chans <- newIORef baseChans
+              st <- newIORef (TclState chans [baseEnv]) 
+              return (Interpreter st)
+
+baseChans = Map.fromList (map (\x -> (T.chanName x, x)) [T.tclStdout, T.tclStdin, T.tclStderr ] )
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
 runInterp s = runInterp' (doTcl s)
@@ -108,11 +116,15 @@ doCond str = do
 trim :: T.TclObj -> BString
 trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
 
+
+putStack s = modify (\v -> v { tclStack = s })
+modStack f = getStack >>= putStack . f
+
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
-  (o:old) <- get
-  put $ (baseEnv { procs = procs o }) : o : old
-  f `ensure` (get >>= put . tail)
+  (o:old) <- getStack
+  putStack $ (baseEnv { procs = procs o }) : o : old
+  f `ensure` (modStack tail)
 
 ensure :: TclM RetVal -> TclM () -> TclM RetVal
 ensure action p = do
@@ -122,16 +134,15 @@ ensure action p = do
 
 set :: BString -> T.TclObj -> TclM ()
 set str v = do when (B.null str) $ tclErr "Empty varname to set!" 
-               env <- getScope
+               (env:es) <- getStack
                case upped str env of
                  Just (i,s) -> uplevel i (set s v)
-                 Nothing -> do es <- liftM tail get
-                               put ((env { vars = Map.insert str v (vars env) }):es)
+                 Nothing    -> putStack ((env { vars = Map.insert str v (vars env) }):es)
 
 upped s e = Map.lookup s (upMap e)
 
-getProc str = getScope >>= return . Map.lookup str . procs
-regProc name pr = modify (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
+getProc str = getFrame >>= return . Map.lookup str . procs
+regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
 
 evalw :: TclWord -> TclM RetVal
 evalw (Word s)               = interp s
@@ -186,13 +197,16 @@ checkReadable c = do r <- io (hIsReadable c)
 checkWritable c = do r <- io (hIsWritable c)
                      if r then return c else (tclErr $ "channel wasn't opened for writing")
 
+getChans = do s <- gets tclChans
+              (io . readIORef) s
+
+addChan c = do s <- gets tclChans
+               io (modifyIORef s (Map.insert (T.chanName c) c))
+
 getChan :: BString -> TclM Handle
-getChan c = do chans <- getBaseChans
+getChan c = do chans <- getChans
                maybe (tclErr ("cannot find channel named " ++ show c)) (return . T.chanHandle) (Map.lookup c chans)
 
-getBaseChans :: TclM ChanMap
-getBaseChans = return chans
- where chans = Map.fromList (map (\x -> (T.chanName x, x)) [T.tclStdout, T.tclStdin, T.tclStderr ] )
 
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
@@ -217,6 +231,19 @@ procEql _ = argErr "=="
 
 procEval [s] = doTcl s
 procEval x   = tclErr $ "Bad eval args: " ++ show x
+
+procOpen args = case args of
+         [fn] -> do eh <- io (IOE.try (openFile (T.asStr fn) ReadMode)) 
+                    case eh of
+                      Left e -> if IOE.isDoesNotExistError e 
+                                      then tclErr $ "could not open " ++ show (T.asStr fn) ++ ": no such file or directory"
+                                      else tclErr (show e)
+                      Right h -> do
+                          chan <- io (T.mkChan h)
+                          addChan chan
+                          treturn (T.chanName chan)
+         _    -> argErr "open"
+                     
 
 procSource args = case args of
                   [s] -> io (B.readFile (T.asStr s)) >>= doTcl
@@ -254,12 +281,12 @@ procString _ = tclErr $ "Bad string args"
 
 tclErr = throwError . EDie
 
-getScope = get >>= return . head
+getFrame = liftM head getStack
 
 procInfo [x] = if x .== "commands" 
-                    then getScope >>= procList . toObs . Map.keys . procs
+                    then getFrame >>= procList . toObs . Map.keys . procs
                     else if x .== "vars" 
-                          then getScope >>= procList . toObs . Map.keys . vars
+                          then getFrame >>= procList . toObs . Map.keys . vars
                           else tclErr $ "Unknown info command: " ++ show x
 procInfo _   = argErr "info"
 
@@ -340,11 +367,13 @@ procUpLevel args = case args of
               (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
 
+getStack = gets tclStack
 uplevel i p = do 
-  (curr,new) <- liftM (splitAt i) get 
-  put new
+  (curr,new) <- liftM (splitAt i) getStack
+  putStack new
   res <- p
-  get >>= put . (curr ++)
+  modStack (curr ++)
+  --getStack >>= putStack . (curr ++)
   return res
 
 procUpVar args = case args of
@@ -353,13 +382,13 @@ procUpVar args = case args of
      _        -> argErr "upvar"
 
 procGlobal lst@(_:_) = mapM_ inner lst >> ret
- where inner g = do lst <- get
+ where inner g = do lst <- getStack
                     let len = length lst - 1
                     upvar len g g
 procGlobal _         = argErr "global"
 
-upvar n d s = do (e:es) <- get 
-                 put ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
+upvar n d s = do (e:es) <- getStack
+                 putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
 
 procProc [name,args,body] = do
@@ -393,7 +422,7 @@ procRunner pl body args = withScope $ do when invalidCount $ argErr ("should be 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
 varGet :: BString -> TclM RetVal
-varGet name = do env <- getScope
+varGet name = do env <- getFrame
                  case upped name env of
                    Nothing -> maybe (tclErr ("can't read \"$" ++ T.asStr name ++ "\": no such variable")) 
                                     return 
@@ -422,7 +451,8 @@ parseArrRef str = do start <- B.elemIndex '(' str
 
 
 run :: TclM RetVal -> Either Err RetVal -> IO Bool
-run t v = do ret <- liftM fst (runStateT (runErrorT (t)) [baseEnv])
+run t v = do chans <- newIORef Map.empty
+             ret <- liftM fst (runStateT (runErrorT (t)) (TclState chans [baseEnv]))
              return (ret == v)
 
 testProcEq = TestList [
