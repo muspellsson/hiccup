@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
 
-module BSParse ( parseArgs, runParse, wrapInterp, TclWord(..), dropWhite 
+module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite 
             ,bsParseTests 
   ) where
 
@@ -230,6 +230,16 @@ nestedTests = TestList [
   "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
  ]
 
+parseArgsTests = TestList [
+     " x " ~: "x" ?=> ([mkwd "x"], "")  
+     ," x y " ~: " x y " ?=> ([mkwd "x", mkwd "y"], " ")  
+     ,"x y" ~: "x y" ?=> ([mkwd "x", mkwd "y"], "")  
+     ,"x { y 0 }" ~: "x { y 0 }" ?=> ([mkwd "x", nosub " y 0 "], "")  
+     ,"x {y 0}" ~: "x {y 0}" ?=> ([mkwd "x", nosub "y 0"], "")  
+   ]
+ where (?=>) str (res,r) = Just (res, bp r) ~=? parseArgs (bp str)
+       nosub s = mkNoSub (bp s)
+
 runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
      "empty" ~: ([[]],"") ?=? " ",
@@ -240,7 +250,7 @@ runParseTests = TestList [
 
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
-                   runParseTests ]
+                   parseArgsTests, runParseTests ]
 
 runUnit = runTestTT bsParseTests
 

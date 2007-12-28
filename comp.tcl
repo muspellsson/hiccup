@@ -394,13 +394,36 @@ test "incomplete parse" {
 }
 
 test "default proc args" {
-  proc plus { x { y 1 } } {
+
+  proc plus { t { y 1 } } {
+    [+ $t $y]
+  }
+
+  proc plus2 { x {y 1} } {
     [+ $x $y]
   }
 
+  proc plus3 { {a 5} {b 1} } {
+    [+ $a $b]
+  }
+
+  proc withargs { i {j 4} args } {
+    [+ [llength $args] [+ $i $j]]
+  }
+
   checkthat [plus 3 3] == 6
-  # not ready yet
-  # checkthat [plus 3] == 4
+  checkthat [plus2 3 3] == 6
+  checkthat [plus3 3 3] == 6
+  checkthat [plus 3] == 4
+  checkthat [plus2 3] == 4
+  checkthat [plus3 3] == 4
+
+  checkthat [plus3] == 6
+
+  checkthat [withargs 1] == 5
+  checkthat [withargs 1 3] == 4
+  checkthat [withargs 1 3 1] == 5
+  checkthat [withargs 1 3 1 1 1 8 1] == 9
 }
 
 test "array set/get" {

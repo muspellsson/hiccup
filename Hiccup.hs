@@ -310,6 +310,7 @@ procAppend args = case args of
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 
+procList :: TclProc
 procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
@@ -385,7 +386,6 @@ uplevel i p = do
   putStack new
   res <- p
   modStack (curr ++)
-  --getStack >>= putStack . (curr ++)
   return res
 
 procUpVar args = case args of
@@ -403,7 +403,17 @@ upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
 
-type ParamList = (Bool,Int,[BString])
+type ArgList = [Either BString (BString,BString)]
+type ParamList = (Bool,Int,ArgList)
+
+{-
+toArgList lst 
+ | otherwise      = SomeOpt lst
+ where isLeft (Left _) = True
+       isLeft _        = False
+       fromLeft (Left x) = x
+       fromLeft _        = error "fromLeft applied."
+-}
 
 procProc [name,args,body] = do
   params <- parseParams args
@@ -413,15 +423,17 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 
 parseParams :: T.TclObj -> TclM ParamList
 parseParams args = 
-         case parseArgs (T.asBStr args) of
+         case T.asParsed args of
            Nothing -> if trim args .== "" then countRet [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
-           Just (r,_) -> countRet $ map parseArg r
- where parseArg (Word s)                        = s
-       parseArg (NoSub _ (Just ([[z,n],[]],_))) = parseArg z
-       parseArg (NoSub s _)                     = s
+           Just [r]    ->  countRet r
+           Just [r,[]] ->  countRet r -- FIXME: Why?
+           x        -> tclErr $ "What is " ++ show x ++ "?"
+ where parseArg (Word s)                        = Left s
+       parseArg (NoSub _ (Just ([[Word z, Word n]],_))) = Right (z,n)
+       parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
        parseArg  x                              = error $ "parseArg doesn't understand: " ++ show x
-       countRet l = return (hasArgs l, length l, l)
-       hasArgs pl = (not . null) pl && (last pl .== "args")
+       countRet l = return (hasArgs l, length l, map parseArg l)
+       hasArgs pl = (not . null) pl && (to_s (last pl) .== "args")
                       
 
 procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
@@ -434,9 +446,10 @@ procRunner pl body args =
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
+{-
 bindArgs :: ParamList -> [T.TclObj] -> TclM ()
-bindArgs (hasArgs,plen,pl) args = do
-    when invalidCount $ argErr ("should be " ++ show (pl `joinWith` ' '))
+bindArgs (hasArgs, plen, AllReq pl) args = do
+    when invalidCount badArgs
     zipWithM_ set pl args
     when hasArgs $ do
        val <- procList (drop (plen - 1) args) 
@@ -444,7 +457,22 @@ bindArgs (hasArgs,plen,pl) args = do
   where invalidCount 
            | hasArgs   = length args < (plen - 1)
            | otherwise = length args /= plen
-  
+        badArgs = argErr ("should be " ++ show (pl `joinWith` ' '))
+-}
+
+bindArgs (hasArgs, _, pl) args = do
+    walkBoth used args 
+  where walkBoth ((Left v):xs) (a:as) = set v a >> walkBoth xs as
+        walkBoth ((Right (k,_)):xs) (a:as) = set k a >> walkBoth xs as
+        walkBoth ((Left _):_) []   = badArgs
+        walkBoth ((Right (k,v)):xs) []   = set k (T.mkTclBStr v) >> walkBoth xs []
+        walkBoth [] xl = if hasArgs then do val <- procList xl
+                                            set (B.pack "args") val
+                                    else when (not (null xl)) badArgs
+        a2s (Left s)      = s
+        a2s (Right (k,_)) = B.cons '?' (B.snoc k '?')
+        badArgs = argErr $ "should be " ++ show ((map a2s used) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+        used = if hasArgs then init pl else pl
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
