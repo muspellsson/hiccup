@@ -1,9 +1,9 @@
 # Here is an example of some stuff hiccup can do.
 # I think it's neat.
 
-proc decr v {
+proc decr { v { i -1 } } {
   upvar $v loc
-  incr loc -1
+  incr loc $i
 }
 
 proc memfib x {
@@ -36,8 +36,11 @@ proc foreach {vname lst what} {
   }
 }
 
-
-foreach name {Spain China Russia Argentina "North Dakota"} {
-  puts "I've never been to $name."
+proc say_i_havent_been_to { args } {
+  foreach name $args {
+    puts "I've never been to $name."
+  }
 }
+
+say_i_havent_been_to Spain China Russia Argentina "North Dakota"
 
