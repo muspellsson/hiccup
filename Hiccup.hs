@@ -406,15 +406,6 @@ upvar n d s = do (e:es) <- getStack
 type ArgList = [Either BString (BString,BString)]
 type ParamList = (Bool,Int,ArgList)
 
-{-
-toArgList lst 
- | otherwise      = SomeOpt lst
- where isLeft (Left _) = True
-       isLeft _        = False
-       fromLeft (Left x) = x
-       fromLeft _        = error "fromLeft applied."
--}
-
 procProc [name,args,body] = do
   params <- parseParams args
   pbody <- getParsed body
@@ -446,28 +437,13 @@ procRunner pl body args =
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
-{-
-bindArgs :: ParamList -> [T.TclObj] -> TclM ()
-bindArgs (hasArgs, plen, AllReq pl) args = do
-    when invalidCount badArgs
-    zipWithM_ set pl args
-    when hasArgs $ do
-       val <- procList (drop (plen - 1) args) 
-       set (B.pack "args") val
-  where invalidCount 
-           | hasArgs   = length args < (plen - 1)
-           | otherwise = length args /= plen
-        badArgs = argErr ("should be " ++ show (pl `joinWith` ' '))
--}
-
 bindArgs (hasArgs, _, pl) args = do
     walkBoth used args 
   where walkBoth ((Left v):xs) (a:as) = set v a >> walkBoth xs as
         walkBoth ((Right (k,_)):xs) (a:as) = set k a >> walkBoth xs as
         walkBoth ((Left _):_) []   = badArgs
         walkBoth ((Right (k,v)):xs) []   = set k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth [] xl = if hasArgs then do val <- procList xl
-                                            set (B.pack "args") val
+        walkBoth [] xl = if hasArgs then do procList xl >>= set (B.pack "args")
                                     else when (not (null xl)) badArgs
         a2s (Left s)      = s
         a2s (Right (k,_)) = B.cons '?' (B.snoc k '?')
