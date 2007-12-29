@@ -12,7 +12,7 @@ import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
-import BSParse
+import BSParse (TclWord(..), wrapInterp, dropWhite)
 import qualified TclObj as T
 import Test.HUnit  -- IGNORE
 
@@ -75,7 +75,7 @@ mkInterp = do chans <- newIORef baseChans
               st <- newIORef (TclState chans [baseEnv]) 
               return (Interpreter st)
 
-baseChans = Map.fromList (map (\x -> (T.chanName x, x)) [T.tclStdout, T.tclStdin, T.tclStderr ] )
+baseChans = Map.fromList (map (\x -> (T.chanName x, x)) T.tclStdChans )
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
 runInterp s = runInterp' (doTcl s)
@@ -85,11 +85,11 @@ runInterp' t (Interpreter i) = do
                  (r,i') <- runStateT (runErrorT (t)) bEnv 
                  writeIORef i i'
                  return (fixErr r)
-  where perr (EDie s) = B.pack s
-        perr (ERet v) = T.asBStr v
-        perr EBreak   = B.pack $ "invoked \"break\" outside of a loop"
+  where perr (EDie s)    = B.pack s
+        perr (ERet v)    = T.asBStr v
+        perr EBreak      = B.pack $ "invoked \"break\" outside of a loop"
         perr EContinue   = B.pack $ "invoked \"continue\" outside of a loop"
-        fixErr (Left x) = Left (perr x)
+        fixErr (Left x)  = Left (perr x)
         fixErr (Right v) = Right (T.asBStr v)
 
 runTcl v = mkInterp >>= runInterp v
@@ -113,6 +113,7 @@ doCond str = do
         [x]      -> runCommand x >>= return . T.asBool
         _        -> tclErr "Too many statements in conditional"
 
+-- TODO: Move to TclObj.h
 trim :: T.TclObj -> BString
 trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
 
@@ -123,7 +124,7 @@ modStack f = getStack >>= putStack . f
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
   (o:old) <- getStack
-  putStack $ (baseEnv { procs = procs o }) : o : old
+  putStack $ (baseEnv    { procs = procs o }) : o : old
   f `ensure` (modStack tail)
 
 ensure :: TclM RetVal -> TclM () -> TclM RetVal
@@ -295,11 +296,10 @@ tclErr = throwError . EDie
 
 getFrame = liftM head getStack
 
-procInfo [x] = if x .== "commands" 
-                    then getFrame >>= procList . toObs . Map.keys . procs
-                    else if x .== "vars" 
-                          then getFrame >>= procList . toObs . Map.keys . vars
-                          else tclErr $ "Unknown info command: " ++ show (T.asBStr x)
+procInfo [x] 
+  | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
+  | x .== "vars"     =  getFrame >>= procList . toObs . Map.keys . vars
+  | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
 procInfo _   = argErr "info"
 
 toObs = map T.mkTclBStr
@@ -325,9 +325,9 @@ to_s (Word s)  = s
 to_s (NoSub s _) = s
 to_s x         = error $ "to_s doesn't understand: " ++ show x
 
-procIncr [vname] = incr vname 1
+procIncr [vname]     = incr vname 1
 procIncr [vname,val] = T.asInt val >>= incr vname
-procIncr _ = argErr "incr"
+procIncr _           = argErr "incr"
 incr n i =  do v <- varGet bsname
                intval <- T.asInt v
                let res = (T.mkTclInt (intval + i))
@@ -414,11 +414,11 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 
 parseParams :: T.TclObj -> TclM ParamList
 parseParams args = 
-         case T.asParsed args of
-           Nothing -> if trim args .== "" then countRet [] else tclErr $ "Parse failed: " ++ show (T.asBStr args)
-           Just [r]    ->  countRet r
-           Just [r,[]] ->  countRet r -- FIXME: Why?
-           x        -> tclErr $ "What is " ++ show x ++ "?"
+         case getParsed args of
+           Nothing  -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
+           Just []  -> countRet []
+           Just [r] ->  countRet r
+           x        -> tclErr $ "What the heck is " ++ show x ++ "? " ++ show args
  where parseArg (Word s)                        = Left s
        parseArg (NoSub _ (Just ([[Word z, Word n]],_))) = Right (z,n)
        parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
@@ -472,13 +472,13 @@ interp str = case wrapInterp str of
                            let front = B.append b (T.asBStr mid)
                            interp a >>= \v -> treturn (B.append front (T.asBStr v))
 
+-- # TESTS # --
+
 parseArrRef str = do start <- B.elemIndex '(' str
                      guard (start /= 0)
                      guard (B.last str == ')')
                      let (pre,post) = B.splitAt start str
                      return (pre, B.tail (B.init post))
-
--- # TESTS # --
 
 
 run :: TclM RetVal -> Either Err RetVal -> IO Bool
@@ -499,8 +499,6 @@ testProcEq = TestList [
       ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
    ]
  where (?=?) a b = assert (run b (Right a))
-       isTrue c = T.tclTrue ?=? c
-       isFalse c = T.tclFalse ?=? c
        is c b = (T.fromBool b) ?=? c
        int i = T.mkTclInt i
        str s = T.mkTclStr s

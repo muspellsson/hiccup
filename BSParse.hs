@@ -243,6 +243,8 @@ parseArgsTests = TestList [
 runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
      "empty" ~: ([[]],"") ?=? " ",
+     "empty2" ~: ([[]],"") ?=? "",
+--     "a b " ~: ([[mkwd "a", mkwd "b"]],"") ?=? "a b ",
      "arr 1" ~: ([[mkwd "set",mkwd "buggy(4)", mkwd "11"]], "") ?=? "set buggy(4) 11"
   ]
  where badword str = Nothing ~=? runParse (bp str)

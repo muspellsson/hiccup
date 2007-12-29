@@ -1,12 +1,21 @@
 module TclObj where
 
 import qualified BSParse as P
+import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Data.Unique
 
-import qualified Data.ByteString.Char8 as BS
-
 data TclChan = TclChan { chanHandle :: Handle, chanName :: BS.ByteString } deriving (Eq,Show)
+
+tclStdChans = [ mkChan' stdout "stdout", mkChan' stdin "stdin", mkChan' stderr "stderr" ]
+
+
+mkChan h = do n <- uniqueNum
+              return (mkChan' h ("file" ++ show n))
+ where uniqueNum = newUnique >>= return . hashUnique
+
+mkChan' h n = TclChan h (BS.pack n)
+
 
 data TclObj = TclInt !Int BS.ByteString | 
               TclBStr !BS.ByteString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
@@ -18,17 +27,6 @@ mkTclBStrP s p = TclBStr s mayint p
   where mayint = case BS.readInt (P.dropWhite s) of
                    Nothing -> Nothing
                    Just (i,_) -> Just i
-
-tclStdout = mkChan' stdout "stdout"
-tclStdin = mkChan' stdin "stdin"
-tclStderr = mkChan' stderr "stderr"
-
-
-mkChan h = do n <- uniqueNum
-              return (mkChan' h ("file" ++ show n))
- where uniqueNum = newUnique >>= return . hashUnique
-
-mkChan' h n = TclChan h (BS.pack n)
 
 doParse s = case P.runParse s of
                  Nothing -> Left "parse failed"
