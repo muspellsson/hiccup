@@ -1,5 +1,7 @@
 module TclObj where
 
+import Test.HUnit  -- IGNORE
+
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
 import System.IO
@@ -41,6 +43,9 @@ tclFalse = mkTclInt 0
 
 fromBool b = if b then tclTrue else tclFalse
 
+trim :: TclObj -> BS.ByteString
+trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite . asBStr
+
 class ITObj o where
   asStr :: o -> String
   asBool :: o -> Bool
@@ -78,3 +83,38 @@ instance ITObj TclObj where
   
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
+
+-- # TESTS # --
+
+testTrim = TestList [
+     trim (int 10) ?=> "10",
+     trim (str "10") ?=> "10",
+     trim (str "     10 ") ?=> "10",
+     trim (str "\t10\t") ?=> "10",
+     trim (str "  \t    ") ?=> "",
+     trim (str "     10 ") ?=> "10"
+   ]
+ where (?=>) s e = s ~=? (BS.pack e)
+       int i = mkTclInt i
+       str s = mkTclStr s
+
+testAsBool = TestList [
+   tclTrue `is` True,
+   tclFalse `is` False,
+   (fromBool True) `is` True,
+   (int 1) `is` True,
+   (int 0) `is` False,
+   (int 2) `is` True,
+   (int (-1)) `is` True,
+   (str "true") `is` True,
+   (str "yes") `is` True,
+   (str "on") `is` True,
+   (fromBool False) `is` False
+  ]
+ where is a b = asBool a ~=? b
+       int i = mkTclInt i
+       str s = mkTclStr s
+
+tclObjTests = TestList [ testTrim, testAsBool ]
+
+-- # ENDTESTS # --

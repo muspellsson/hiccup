@@ -12,7 +12,7 @@ import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
-import BSParse (TclWord(..), wrapInterp, dropWhite)
+import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
 import Test.HUnit  -- IGNORE
 
@@ -112,11 +112,6 @@ doCond str = do
       case p of
         [x]      -> runCommand x >>= return . T.asBool
         _        -> tclErr "Too many statements in conditional"
-
--- TODO: Move to TclObj.h
-trim :: T.TclObj -> BString
-trim = B.reverse . dropWhite . B.reverse . dropWhite . T.asBStr
-
 
 putStack s = modify (\v -> v { tclStack = s })
 modStack f = getStack >>= putStack . f
@@ -281,7 +276,7 @@ onObj f o = (f (T.asBStr o))
 
 procString :: TclProc
 procString (f:s:args) 
- | f .== "trim" = treturn (trim s)
+ | f .== "trim" = treturn (T.trim s)
  | f .== "tolower" = retmod (B.map toLower) s
  | f .== "toupper" = retmod (B.map toUpper) s
  | f .== "length" = return $ T.mkTclInt (B.length `onObj` s)
@@ -404,7 +399,7 @@ upvar n d s = do (e:es) <- getStack
                  ret
 
 type ArgList = [Either BString (BString,BString)]
-type ParamList = (Bool,Int,ArgList)
+type ParamList = (Bool,ArgList)
 
 procProc [name,args,body] = do
   params <- parseParams args
@@ -423,7 +418,7 @@ parseParams args =
        parseArg (NoSub _ (Just ([[Word z, Word n]],_))) = Right (z,n)
        parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
        parseArg  x                              = error $ "parseArg doesn't understand: " ++ show x
-       countRet l = return (hasArgs l, length l, map parseArg l)
+       countRet l = return (hasArgs l, map parseArg l)
        hasArgs pl = (not . null) pl && (to_s (last pl) .== "args")
                       
 
@@ -437,7 +432,7 @@ procRunner pl body args =
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
-bindArgs (hasArgs, _, pl) args = do
+bindArgs (hasArgs, pl) args = do
     walkBoth used args 
   where walkBoth ((Left v):xs) (a:as) = set v a >> walkBoth xs as
         walkBoth ((Right (k,_)):xs) (a:as) = set k a >> walkBoth xs as
