@@ -206,8 +206,7 @@ removeChan c = do s <- gets tclChans
 
 getChan :: BString -> TclM T.TclChan
 getChan c = do chans <- getChans
-               maybe (tclErr ("cannot find channel named " ++ show c)) return (Map.lookup c chans)
-
+               Map.lookup c chans `ifNothing` ("cannot find channel named " ++ show c)
 
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
@@ -399,7 +398,20 @@ upvar n d s = do (e:es) <- getStack
                  ret
 
 type ArgList = [Either BString (BString,BString)]
+
+showParams (hasArgs,pl) = show ((map arg2name pl) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+
+arg2name arg = case arg of
+               Left s      -> s
+               Right (k,_) -> B.cons '?' (B.snoc k '?')
+
 type ParamList = (Bool,ArgList)
+
+mkParamList :: ArgList -> ParamList
+mkParamList lst = (hasArgs, used)
+ where hasArgs = (not . null) lst && (lastIsArgs lst)
+       used = if hasArgs then init lst else lst
+       lastIsArgs = either (.== "args") (const False)  . last
 
 procProc [name,args,body] = do
   params <- parseParams args
@@ -410,17 +422,14 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 parseParams :: T.TclObj -> TclM ParamList
 parseParams args = 
          case getParsed args of
-           Nothing  -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
            Just []  -> countRet []
-           Just [r] ->  countRet r
-           x        -> tclErr $ "What the heck is " ++ show x ++ "? " ++ show args
- where parseArg (Word s)                        = Left s
-       parseArg (NoSub _ (Just ([[Word z, Word n]],_))) = Right (z,n)
+           Just [r] -> countRet r
+           Nothing  -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
+ where parseArg (Word s)                                    = Left s
+       parseArg (NoSub _ (Just ([[Word z, Word n]],_)))     = Right (z,n)
        parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
-       parseArg  x                              = error $ "parseArg doesn't understand: " ++ show x
-       countRet l = return (hasArgs l, map parseArg l)
-       hasArgs pl = (not . null) pl && (to_s (last pl) .== "args")
-                      
+       parseArg  x                                          = error $ "parseArg doesn't understand: " ++ show x
+       countRet = return . mkParamList . map parseArg
 
 procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
 procRunner pl body args = 
@@ -433,33 +442,30 @@ procRunner pl body args =
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
 bindArgs (hasArgs, pl) args = do
-    walkBoth used args 
-  where walkBoth ((Left v):xs) (a:as) = set v a >> walkBoth xs as
+    walkBoth pl args 
+  where walkBoth ((Left v):xs)      (a:as) = set v a >> walkBoth xs as
+        walkBoth ((Left _):_)       []     = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) = set k a >> walkBoth xs as
-        walkBoth ((Left _):_) []   = badArgs
-        walkBoth ((Right (k,v)):xs) []   = set k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth [] xl = if hasArgs then do procList xl >>= set (B.pack "args")
-                                    else when (not (null xl)) badArgs
-        a2s (Left s)      = s
-        a2s (Right (k,_)) = B.cons '?' (B.snoc k '?')
-        badArgs = argErr $ "should be " ++ show ((map a2s used) `joinWith` ' ') ++ if hasArgs then " ..." else ""
-        used = if hasArgs then init pl else pl
+        walkBoth ((Right (k,v)):xs) []     = set k (T.mkTclBStr v) >> walkBoth xs []
+        walkBoth []                 xl     = if hasArgs then do procList xl >>= set (B.pack "args")
+                                                        else unless (null xl) badArgs
+        badArgs = argErr $ "should be " ++ showParams (hasArgs,pl)
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
+
+ifNothing m e = maybe (tclErr e) return m
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- getFrame
                  case upped name env of
-                   Nothing -> maybe (tclErr ("can't read \"$" ++ T.asStr name ++ "\": no such variable")) 
-                                    return 
-                                    (Map.lookup name (vars env))
+                   Nothing    -> (Map.lookup name (vars env)) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
                    Just (i,n) -> uplevel i (varGet n)
                    
 treturn = return . T.mkTclBStr 
 
 interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
-                   Left s -> treturn s
+                   Left s  -> treturn s
                    Right x -> handle x
  where f (Word match) = varGet match
        f x            = runCommand [x]

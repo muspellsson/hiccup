@@ -210,7 +210,9 @@ getInterpTests = TestList [
        (?=?) res str = Just res ~=? getInterp (bp str)
 
 wrapInterpTests = TestList [
-    "simple escape" ~: "oh $ yeah" ?!= "oh \\$ yeah"
+    "dollar escape"  ~: "oh $ yeah" ?!= "oh \\$ yeah",
+    "tab escape"     ~: "a \t tab"  ?!= "a \\t tab",
+    "newline escape" ~: "\nline\n"  ?!= "\\nline\\n"
   ]
  where (?=?) res str = Right res ~=? wrapInterp (bp str)
        (?!=) res str = Left (bp res) ~=? wrapInterp (bp str)

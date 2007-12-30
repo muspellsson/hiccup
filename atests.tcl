@@ -407,6 +407,10 @@ test "default proc args" {
     [+ $a $b]
   }
 
+  proc weirdorder { { a1 "boo" } a2 } {
+    return $a1$a2
+  }
+
   proc withargs { i {j 4} args } {
     [+ [llength $args] [+ $i $j]]
   }
@@ -420,6 +424,10 @@ test "default proc args" {
 
   checkthat [plus3] == 6
 
+  checkthat [weirdorder "xx" "yy"] eq "xxyy"
+
+  assertErr { weirdorder "xx" }
+
   checkthat [withargs 1] == 5
   checkthat [withargs 1 3] == 4
   checkthat [withargs 1 3 1] == 5
@@ -427,6 +435,7 @@ test "default proc args" {
 }
 
 test "array set/get" {
+  # Currently faked
   set boo(4) 111
   checkthat "$boo(4)" == 111
 }
