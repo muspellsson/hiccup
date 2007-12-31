@@ -129,6 +129,7 @@ escapeStr = optim
        escapeChar 't' = '\t'
        escapeChar  c  = c
 
+
 escaped v s = escaped' v
  where escaped' !i = if (i <= 0) then False else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 

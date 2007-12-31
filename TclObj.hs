@@ -22,19 +22,21 @@ mkChan' h n = TclChan h (BS.pack n)
 data TclObj = TclInt !Int BS.ByteString | 
               TclBStr !BS.ByteString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
 
-mkTclStr s = mkTclBStr (BS.pack s)
-mkTclBStr s = mkTclBStrP s (doParse s)
+mkTclStr s  = mkTclBStr (BS.pack s)
+mkTclBStr s = mkTclBStrP s (P.runParse s)
 
-mkTclBStrP s p = TclBStr s mayint p
+mkTclBStrP s res = TclBStr s mayint (resultToEither res s)
   where mayint = case BS.readInt (P.dropWhite s) of
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
-doParse s = case P.runParse s of
-                 Nothing -> Left "parse failed"
-                 Just (r,rs) -> if BS.null rs then Right r else Left ("Incomplete parse: " ++ show rs)
-                  
-mkTclInt i = TclInt i (BS.pack (show i))
+resultToEither :: Maybe ([[P.TclWord]], BS.ByteString) -> BS.ByteString -> Either String [[P.TclWord]]
+resultToEither res s = case res of
+                        Nothing -> Left $ "parse failed: " ++ show s
+                        Just (r,rs) -> if BS.null rs then Right r else Left ("Incomplete parse: " ++ show rs)
+
+mkTclInt i = TclInt i bsval
+ where bsval = BS.pack (show i)
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
 
@@ -58,10 +60,7 @@ instance ITObj BS.ByteString where
   asBool bs = (bs `elem` trueValues)
   asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
   asBStr = id
-  asParsed s = case P.runParse s of
-                 Nothing -> fail $ "parse failed: " ++ show s
-                 Just (r,rs) -> if BS.null rs then return r
-                                              else fail $ "incomplete parse: " ++ show rs
+  asParsed s = either fail return (resultToEither (P.runParse s) s)
 
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
@@ -77,7 +76,7 @@ instance ITObj TclObj where
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
 
-  asParsed (TclBStr _ _ (Left f)) = fail f
+  asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   

@@ -1,4 +1,4 @@
-module Hiccup (runTcl, mkInterp,runInterp,hiccupTests) where
+module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
 
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -55,7 +55,7 @@ baseProcs = Map.fromList . map (B.pack *** id) $
 
 mathProcs = Map.fromList . map (B.pack *** procMath) $ 
    [("+",(+)), ("*",(*)), ("-",(-)), 
-    ("/",div), ("<", toI (<)),("<=",toI (<=)),("!=",toI (/=))]
+    ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=)),("!=",toI (/=))]
 
 io :: IO a -> TclM a
 io = liftIO
@@ -78,7 +78,7 @@ mkInterp = do chans <- newIORef baseChans
 baseChans = Map.fromList (map (\x -> (T.chanName x, x)) T.tclStdChans )
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
-runInterp s = runInterp' (doTcl s)
+runInterp s = runInterp' (doTcl (T.mkTclBStr s))
 
 runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i
@@ -100,6 +100,7 @@ doTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
 
+getParsed :: T.TclObj -> TclM [[TclWord]]
 getParsed str = do p <- T.asParsed str
                    return $ filter (not . null) p
 
@@ -128,35 +129,34 @@ ensure action p = do
    p
    return r
 
-set :: BString -> T.TclObj -> TclM ()
-set str v = do when (B.null str) $ tclErr "Empty varname to set!" 
-               (env:es) <- getStack
-               case upped str env of
-                 Just (i,s) -> uplevel i (set s v)
-                 Nothing    -> putStack ((env { vars = Map.insert str v (vars env) }):es)
+varSet :: BString -> T.TclObj -> TclM ()
+varSet str v = do when (B.null str) $ tclErr "Empty varname to set!" 
+                  (env:es) <- getStack
+                  case upped str env of
+                    Just (i,s) -> uplevel i (varSet s v)
+                    Nothing    -> putStack ((env { vars = Map.insert str v (vars env) }):es)
 
 upped s e = Map.lookup s (upMap e)
 
-getProc str = getFrame >>= return . Map.lookup str . procs
+getProc str = getFrame >>= (`ifNothing` ("invalid command name " ++ show str)) . Map.lookup str . procs
 regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
 
-evalw :: TclWord -> TclM RetVal
-evalw (Word s)               = interp s
-evalw (NoSub s (Just (p,ps))) = if B.null ps then return $ T.mkTclBStrP s (Right p)
-                                             else return $ T.mkTclBStrP s (Left ("bad parse: " ++ show ps))
-evalw (NoSub s Nothing)      = return $ T.mkTclBStrP s (Left "bad parse")
-evalw (Subcommand c)         = runCommand c
+evalToken :: TclWord -> TclM RetVal
+evalToken (Word s)               = interp s
+evalToken (NoSub s res)          = return $ T.mkTclBStrP s res
+evalToken (Subcommand c)         = runCommand c
 
 runCommand :: [TclWord] -> TclM RetVal
 runCommand [Subcommand s] = runCommand s
 runCommand args = do 
- (name:evArgs) <- mapM evalw args
+ (name:evArgs) <- mapM evalToken args
  proc <- getProc (T.asBStr name)
- maybe (tclErr ("invalid command name: " ++ (T.asStr name))) ($! evArgs) proc
+ proc evArgs
+ --maybe (tclErr ("invalid command name " ++ show (T.asStr name))) ($! evArgs) proc
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet args = case args of
-     [s1,s2] -> set (T.asBStr s1) s2 >> return s2
+     [s1,s2] -> varSet (T.asBStr s1) s2 >> return s2
      [s1]    -> varGet (T.asBStr s1)
      _       -> argErr "set"
 
@@ -181,9 +181,9 @@ procGets args = case args of
           [ch,vname] -> do h <- getReadable ch
                            eof <- io (hIsEOF h)
                            if eof
-                             then set (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
+                             then varSet (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
                              else do s <- io (B.hGetLine h)
-                                     set (T.asBStr vname) (T.mkTclBStr s)
+                                     varSet (T.asBStr vname) (T.mkTclBStr s)
                                      return $ T.mkTclInt (B.length s)
           _  -> argErr "gets"
  where getReadable c = getChan (T.asBStr c) >>= checkReadable . T.chanHandle
@@ -253,7 +253,7 @@ procClose args = case args of
                      
 
 procSource args = case args of
-                  [s] -> io (B.readFile (T.asStr s)) >>= doTcl
+                  [s] -> io (B.readFile (T.asStr s)) >>= doTcl . T.mkTclBStr
                   _   -> argErr "source"
 
 procExit args = case args of
@@ -325,7 +325,7 @@ procIncr _           = argErr "incr"
 incr n i =  do v <- varGet bsname
                intval <- T.asInt v
                let res = (T.mkTclInt (intval + i))
-               set bsname res
+               varSet bsname res
                return res
  where bsname = T.asBStr n
 
@@ -420,11 +420,12 @@ procProc [name,args,body] = do
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 parseParams :: T.TclObj -> TclM ParamList
-parseParams args = 
-         case getParsed args of
-           Just []  -> countRet []
-           Just [r] -> countRet r
-           Nothing  -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
+parseParams args = do 
+         pa <- getParsed args
+         case pa of
+           []  -> countRet []
+           [r] -> countRet r
+           _        -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
  where parseArg (Word s)                                    = Left s
        parseArg (NoSub _ (Just ([[Word z, Word n]],_)))     = Right (z,n)
        parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
@@ -443,11 +444,11 @@ procRunner pl body args =
 
 bindArgs (hasArgs, pl) args = do
     walkBoth pl args 
-  where walkBoth ((Left v):xs)      (a:as) = set v a >> walkBoth xs as
+  where walkBoth ((Left v):xs)      (a:as) = varSet v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
-        walkBoth ((Right (k,_)):xs) (a:as) = set k a >> walkBoth xs as
-        walkBoth ((Right (k,v)):xs) []     = set k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth []                 xl     = if hasArgs then do procList xl >>= set (B.pack "args")
+        walkBoth ((Right (k,_)):xs) (a:as) = varSet k a >> walkBoth xs as
+        walkBoth ((Right (k,v)):xs) []     = varSet k (T.mkTclBStr v) >> walkBoth xs []
+        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSet (B.pack "args")
                                                         else unless (null xl) badArgs
         badArgs = argErr $ "should be " ++ showParams (hasArgs,pl)
 
@@ -458,7 +459,7 @@ ifNothing m e = maybe (tclErr e) return m
 varGet :: BString -> TclM RetVal
 varGet name = do env <- getFrame
                  case upped name env of
-                   Nothing    -> (Map.lookup name (vars env)) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+                   Nothing    -> Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
                    Just (i,n) -> uplevel i (varGet n)
                    
 treturn = return . T.mkTclBStr 

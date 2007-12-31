@@ -117,6 +117,15 @@ test "unevaluated blocks aren't parsed" {
   }
 }
 
+test "unused args" {
+  proc addem {a b} {
+    return [+ $a $a]
+    return [+ $b $a]
+  }
+
+  checkthat [addem 5 "balloon"] == 10
+}
+
 test "incr test" {
   set count 0
 
@@ -251,6 +260,23 @@ test "join and foreach" {
   }
 
   checkthat [join $misc +] eq "1+2+3+4+5+6"
+}
+
+test "for loop" {
+  set res 0
+  for {set i 0} { < $i 20 } { incr i } {
+    incr res $i
+  }
+
+  checkthat $res == 190
+  checkthat $i == 20
+
+  set val 0
+  for {set i 20} { > $i 0 } { decr i } {
+    incr val
+  }
+
+  checkthat $val == 20
 }
 
 
