@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
 
-module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite 
+module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite, parseList
             ,bsParseTests 
   ) where
 
@@ -20,9 +20,18 @@ dispatch str = do h <- safeHead str
                    '"' -> parseStr str
                    _  -> getword str
 
+
+listDisp str = do h <- safeHead str
+                  case h of
+                   '{' -> nested str >>= \((NoSub w _), r) -> return (w, r)
+                   '"' -> parseStr str >>= \((Word w), r) -> return (w,r)
+                   _   -> getListItem str
+
 mkNoSub s = NoSub s (runParse s)
 
 parseArgs = multi (dispatch . dropWhite)
+
+parseList = multi (listDisp . dropWhite)
 
 runParse :: B.ByteString -> Result
 runParse = multi (mainparse . dropWhite)
@@ -80,7 +89,7 @@ multi p s = do (w,r) <- p s
 parseSub s = do guard (B.head s == '[') 
                 (p,r) <- parseArgs (B.tail s)
                 loc <- B.elemIndex ']' r
-                let (_,aft) = B.splitAt loc r
+                let (_,aft) = B.splitAt loc r -- TODO: Ignores unparsed.. tsk tsk.
                 return (Subcommand p, B.tail aft)
 
 eatcomment = return . (,) [] . B.tail . B.dropWhile (/= '\n')
@@ -100,6 +109,9 @@ getword s = if B.null w then fail "can't parse word" else return (Word w,n)
 
 getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
  where (w,n) = B.span wordChar s
+
+getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
+ where (w,n) = B.span (\x -> x `B.notElem` (B.pack " \t\n{}\"")) s
 
 brackVar x = do hv <- safeHead x
                 guard (hv == '{')
@@ -121,9 +133,9 @@ escapeStr = optim
                        else let (x,xs) = (B.head lx, B.tail lx)
                             in case (x, esc) of
                                  ('\\', False) -> escape' True xs 
-                                 ('\\', True) -> B.cons x (optim xs)
-                                 (_,False)   -> B.cons x (optim xs)
-                                 (_,True)    -> B.cons (escapeChar x) (optim xs)
+                                 ('\\', True)  -> B.cons x (optim xs)
+                                 (_, False)    -> B.cons x (optim xs)
+                                 (_, True)     -> B.cons (escapeChar x) (optim xs)
        optim s = let (c,r) = B.span (/= '\\') s in B.append c (escape' False r)
        escapeChar 'n' = '\n'
        escapeChar 't' = '\t'
@@ -134,17 +146,20 @@ escaped v s = escaped' v
  where escaped' !i = if (i <= 0) then False else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
 
-nested s = do ind <- match 0 0
+nested s = do ind <- match 0 0 False
               let (w,r) = B.splitAt ind s
               return (mkNoSub (B.tail w), (B.tail r))
- where match !c !i 
+ where match !c !i !esc 
         | B.length s <= i = fail $ "Couldn't match bracket" ++ show s
         | otherwise       = 
+           let nexti = i+1 in
            case B.index s i of 
-            '}' -> if c == 1 then return i else match (c-1) (i+1)
-            '{' ->  match (c+1) (i+1)
-            _   ->  match c (i+1) 
+            '}'  -> if esc then match c nexti False else (if c == 1 then return i else match (c-1) nexti False)
+            '{'  -> if esc then match c nexti False else match (c+1) nexti False
+            '\\' -> match c nexti (not esc)
+            _    -> match c nexti False
 
+ 
 -- # TESTS # --
 
 testEscaped = TestList [
@@ -230,8 +245,13 @@ nestedTests = TestList [
   "Fail nested" ~: Nothing ~=? nested (bp "  {       the end"),
   "Pass nested" ~: Just (mkNoSub (bp "  { }"), B.empty) ~=? nested (bp "{  { }}"),
   "Pass empty nested" ~: Just (mkNoSub (bp " "), B.empty) ~=? nested (bp "{ }"),
-  "Fail nested" ~: Nothing ~=? nested (bp "  { {  }")
+  "Fail nested" ~: Nothing ~=? nested (bp "  { {  }"),
+  "Pass escape" ~: "{ \\{ }" `should_be` " \\{ ",
+  "Pass escape 2" ~: "{ \\{ \\{ }" `should_be` " \\{ \\{ ",
+  "Pass escape 3" ~: "{ \\\\}" `should_be` " \\\\",
+  "Pass escape 4" ~: "{ \\} }" `should_be` " \\} "
  ]
+ where should_be act exp = Just (mkNoSub (bp exp), B.empty) ~=? nested (bp act)
 
 parseArgsTests = TestList [
      " x " ~: "x" ?=> ([mkwd "x"], "")  
@@ -242,6 +262,19 @@ parseArgsTests = TestList [
    ]
  where (?=>) str (res,r) = Just (res, bp r) ~=? parseArgs (bp str)
        nosub s = mkNoSub (bp s)
+
+parseListTests = TestList [
+     " x " ~: " x " ?=> ([bp "x"], " ")  
+     ," x y " ~: " x y " ?=> ([bp "x", bp "y"], " ")  
+     ,"x y" ~: "x y" ?=> ([bp "x", bp "y"], "")  
+     ,"x { y 0 }" ~: "x { y 0 }" ?=> ([bp "x", bp " y 0 "], "")  
+     ,"x [puts yay]" ~: "x [puts yay]" ?=> ([bp "x", bp "[puts", bp "yay]"], "")  
+     ," y { \\{ \\{ \\{ } { x }" ~: " y { \\{ \\{ \\{ } { x }" ?=> ([bp "y", bp " \\{ \\{ \\{ ", bp " x "], "")  
+     , "unmatched fail" ~: fails " { { "
+     ,"x {y 0}" ~: "x {y 0}" ?=> ([bp "x", bp "y 0"], "")  
+   ]
+ where (?=>) str (res,r) = Just (res, bp r) ~=? parseList (bp str)
+       fails str = Nothing ~=? parseList (bp str)
 
 runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
@@ -255,7 +288,7 @@ runParseTests = TestList [
 
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
-                   parseArgsTests, runParseTests ]
+                   parseArgsTests, parseListTests, runParseTests ]
 
 runUnit = runTestTT bsParseTests
 

@@ -78,7 +78,7 @@ mkInterp = do chans <- newIORef baseChans
 baseChans = Map.fromList (map (\x -> (T.chanName x, x)) T.tclStdChans )
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
-runInterp s = runInterp' (doTcl (T.mkTclBStr s))
+runInterp s = runInterp' (evalTcl (T.mkTclBStr s))
 
 runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i
@@ -96,7 +96,7 @@ runTcl v = mkInterp >>= runInterp v
 
 ret = return T.empty
 
-doTcl s = runCmds =<< getParsed s
+evalTcl s = runCmds =<< getParsed s
 
 runCmds = liftM last . mapM runCommand
 
@@ -229,7 +229,7 @@ procEql [a,b] = case (T.asInt a, T.asInt b) of
 procEql _ = argErr "=="
 
 
-procEval [s] = doTcl s
+procEval [s] = evalTcl s
 procEval x   = tclErr $ "Bad eval args: " ++ show x
 
 procOpen args = case args of
@@ -253,7 +253,7 @@ procClose args = case args of
                      
 
 procSource args = case args of
-                  [s] -> io (B.readFile (T.asStr s)) >>= doTcl . T.mkTclBStr
+                  [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
                   _   -> argErr "source"
 
 procExit args = case args of
@@ -264,7 +264,7 @@ procExit args = case args of
             _  -> argErr "exit"
 
 procCatch args = case args of
-           [s] -> (doTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s] -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
            _   -> argErr "catch"
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
@@ -304,21 +304,24 @@ procAppend args = case args of
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 
-procList :: TclProc
+procList, procLindex, procLlength :: TclProc
 procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
 procLindex args = case args of
           [l]   -> return l
-          [l,i] -> do items <- liftM (map to_s . head) (getParsed l)
+          [l,i] -> do items <- T.asList l
                       ind <- T.asInt i
                       if ind >= length items then ret else treturn (items !! ind)
           _     -> argErr "lindex"
 
-to_s (Word s)  = s
-to_s (NoSub s _) = s
-to_s x         = error $ "to_s doesn't understand: " ++ show x
+procLlength args = case args of
+        [lst] -> if B.null `onObj` lst 
+                        then return T.tclFalse
+                        else liftM (T.mkTclInt . length) (T.asList lst) 
+        _     -> argErr "llength"
 
+procIncr :: TclProc
 procIncr [vname]     = incr vname 1
 procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"
@@ -329,17 +332,12 @@ incr n i =  do v <- varGet bsname
                return res
  where bsname = T.asBStr n
 
-procLlength args = case args of
-        [lst] -> if B.null `onObj` lst 
-                        then return T.tclFalse
-                        else liftM (T.mkTclInt . length . head) (getParsed lst) 
-        _     -> argErr "llength"
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
-  if condVal then doTcl yes
+  if condVal then evalTcl yes
     else case rest of
-          [s,blk] -> if s .== "else" then doTcl blk else tclErr "Invalid If"
+          [s,blk] -> if s .== "else" then evalTcl blk else tclErr "Invalid If"
           (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
 procIf _ = argErr "if"

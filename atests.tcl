@@ -157,8 +157,18 @@ test "list test" {
   assertEq [lindex $bean 3] 4
   assertEq [lindex $bean 5] {6 7 8}
 
+  checkthat [llength "peanut"] == 1
+  checkthat [llength "peanut ontology"] == 2
+  checkthat [llength ""] == 0
+
+  checkthat [llength {one [puts bean]}] == 3
+
+  checkthat [llength {a b # c d}] == 5
+
+  checkthat [llength [list [list 1 2 3] [list 3 4 5]]] == 2
   assertEq [lindex 4] 4
   assertStrEq [lindex $bean 8] "" 
+
 }
 
 test "test if, elseif, else" {

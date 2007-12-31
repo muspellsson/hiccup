@@ -81,6 +81,10 @@ instance ITObj TclObj where
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   
 
+asList obj = case P.parseList (asBStr obj) of
+              Nothing -> fail "list parse failure"
+              Just (lst,_) -> return lst
+
 trueValues = map BS.pack ["1", "true", "yes", "on"]
 
 -- # TESTS # --
