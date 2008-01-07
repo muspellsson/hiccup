@@ -115,10 +115,9 @@ evalToken (NoSub s res)          = return $ T.mkTclBStrP s res
 evalToken (Subcommand c)         = runCommand c
 
 runCommand :: [TclWord] -> TclM RetVal
-runCommand [Subcommand s] = runCommand s
 runCommand args = do 
  (name:evArgs) <- mapM evalToken args
- proc <- getProc (T.asBStr name)
+ proc <- getProc (T.asBStr name) 
  proc evArgs
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
@@ -402,8 +401,8 @@ interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
                    Left s  -> treturn s
                    Right x -> handle x
- where f (Word match) = varGet match
-       f x            = runCommand [x]
+ where f (Left match)   = varGet match
+       f (Right x) = runCommand x
        handle (b,m,a) = do mid <- f m
                            let front = B.append b (T.asBStr mid)
                            interp a >>= \v -> treturn (B.append front (T.asBStr v))

@@ -76,7 +76,7 @@ proc assert code {
 
 announce
 
-assertEq [eval {[* 4 4]}] 16
+assertEq [eval {* 4 4}] 16
 
 
 proc uptest {var v} {
@@ -243,6 +243,8 @@ foreach number $numbers {
   set result [+ $number $result]
 }
 
+checkthat 1 == 1
+
 assertEq 15 $result
 
 set fer "old"
@@ -259,7 +261,7 @@ test "join and foreach" {
     set res ""
     set first_time 1
     foreach ind $lsx {
-      if { [== $first_time 1] } {
+      if { == $first_time 1 } {
         set res $ind
         set first_time 0
       } else {
@@ -311,7 +313,7 @@ test "set returns correctly" {
 assertErr { error "oh noes" }
 
 assertEq 1 [catch { puts "$thisdoesntexist" }]
-assertEq 0 [catch { [+ 1 1] }]
+assertEq 0 [catch { + 1 1 }]
 
 set whagganog ""
 set otherthing ""
@@ -352,6 +354,7 @@ test "parsing corners" {
 }
 
 
+
 proc not v {
   if { == 1 $v } { return false } else { return true }
 }
@@ -380,6 +383,7 @@ test "early return" {
   yay
   checkthat $moo == 4
 }
+
 
 test "arg count check" {
   proc blah {a b} {
@@ -429,18 +433,19 @@ test "incomplete parse" {
   assertErr { " }
 }
 
+
 test "default proc args" {
 
   proc plus { t { y 1 } } {
-    [+ $t $y]
+    + $t $y
   }
 
   proc plus2 { x {y 1} } {
-    [+ $x $y]
+    + $x $y
   }
 
   proc plus3 { {a 5} {b 1} } {
-    [+ $a $b]
+    + $a $b
   }
 
   proc weirdorder { { a1 "boo" } a2 } {
@@ -448,7 +453,7 @@ test "default proc args" {
   }
 
   proc withargs { i {j 4} args } {
-    [+ [llength $args] [+ $i $j]]
+    + [llength $args] [+ $i $j]
   }
 
   checkthat [plus 3 3] == 6
@@ -468,6 +473,15 @@ test "default proc args" {
   checkthat [withargs 1 3] == 4
   checkthat [withargs 1 3 1] == 5
   checkthat [withargs 1 3 1 1 1 8 1] == 9
+}
+
+test "lone subcommand" {
+  proc id {x} { return $x }
+  set x 0
+
+  [id "set"] x 11
+
+  checkthat $x == 11
 }
 
 test "array set/get" {

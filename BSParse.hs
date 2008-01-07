@@ -49,12 +49,12 @@ getInterp str = do
      then dorestfrom loc locval
      else let (pre,aft) = B.splitAt loc str in
           let res = case locval of
-                     '$' -> do (Word s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
+                     '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
                                case getInd rest of
-                                 Nothing -> return (pre, Word s, rest)
-                                 Just (i,r) -> return (pre, Word (B.append s i), r)
-                     '[' -> do (s, rest) <- parseSub aft
-                               return (pre, s, rest)
+                                 Nothing    -> return (pre, Left s, rest)
+                                 Just (i,r) -> return (pre, Left (B.append s i), r)
+                     '[' -> do (Subcommand s, rest) <- parseSub aft
+                               return (pre, Right s, rest)
                      _   -> fail "should've been $ or [ in getInterp"
           in res `mplus` dorestfrom loc locval
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
@@ -107,7 +107,7 @@ wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange
 getword s = if B.null w then fail "can't parse word" else return (Word w,n)
  where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*()=/:^%!&<>"))) s
 
-getvar s = if B.null w then fail "can't parse var name" else return (Word w,n)
+getvar s = if B.null w then fail "can't parse var name" else return $! (w,n)
  where (w,n) = B.span wordChar s
 
 getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
@@ -117,7 +117,7 @@ brackVar x = do hv <- safeHead x
                 guard (hv == '{')
                 let (b,a) = B.span (/='}') (B.tail x)
                 safeHead a
-                return (Word b,(B.tail a))
+                return $! (b, B.tail a)
 
 parseStr s = do loc <- B.elemIndex '"' str
                 let (w,r) = B.splitAt loc str 
@@ -176,8 +176,8 @@ mklit = Word . bp
 mkwd = Word . bp
 
 parseStrTests = TestList [
-      "Escaped works" ~: (mklit "Oh \"yeah\" baby.", B.empty) ?=? "\"Oh \\\"yeah\\\" baby.\"", 
-      "Parse Str with leftover" ~: (mklit "Hey there.", bp " 44") ?=? "\"Hey there.\" 44",
+      "Escaped works" ~: (mkwd "Oh \"yeah\" baby.", B.empty) ?=? "\"Oh \\\"yeah\\\" baby.\"", 
+      "Parse Str with leftover" ~: (mkwd "Hey there.", bp " 44") ?=? "\"Hey there.\" 44",
       "Parse Str with dolla" ~: (mklit "How about \\$44?", B.empty) ?=? "\"How about \\$44?\"",
       "bad parse1" ~: badParse "What's new?"
    ]
@@ -185,8 +185,8 @@ parseStrTests = TestList [
        badParse str = Nothing ~=? parseStr (bp str)
 
 brackVarTests = TestList [
-      "Simple" ~: (mklit "data", B.empty) ?=? "{data}",
-      "With spaces" ~: (mklit " a b c d ", bp " ") ?=? "{ a b c d } ",
+      "Simple" ~: (bp "data", B.empty) ?=? "{data}",
+      "With spaces" ~: (bp " a b c d ", bp " ") ?=? "{ a b c d } ",
       "bad parse" ~: badParse "{ oh no",
       "bad parse" ~: badParse "pancake"
    ]
@@ -195,35 +195,36 @@ brackVarTests = TestList [
 
 getInterpTests = TestList [
     "Escaped $ works" ~: noInterp "a \\$variable",
-    "Bracket interp 1" ~: (bp "", mkwd "booga", bp "") ?=? "${booga}",
-    "Bracket interp 2" ~: (bp "", mkwd "oh yeah!", bp "") ?=? "${oh yeah!}",
-    "Bracket interp 3" ~: (bp " ", mkwd " !?! ", bp " ") ?=? " ${ !?! } ",
+    "Bracket interp 1" ~: (bp "", mkvar "booga", bp "") ?=? "${booga}",
+    "Bracket interp 2" ~: (bp "", mkvar "oh yeah!", bp "") ?=? "${oh yeah!}",
+    "Bracket interp 3" ~: (bp " ", mkvar " !?! ", bp " ") ?=? " ${ !?! } ",
     "unescaped $ works" ~: 
-          (bp "a ", mkwd "variable", bp "")  ?=? "a $variable",
+          (bp "a ", mkvar "variable", bp "")  ?=? "a $variable",
     "escaped $ works" ~: 
-          (bp "a \\$ ", mkwd "variable", bp "")  ?=? "a \\$ $variable",
+          (bp "a \\$ ", mkvar "variable", bp "")  ?=? "a \\$ $variable",
     "escaped $ works 2" ~: 
           noInterp  "you deserve \\$44.",
     "adjacent interp works" ~: 
-          (bp "", mkwd "var", bp "$bar$car")  ?=? "$var$bar$car",
+          (bp "", mkvar "var", bp "$bar$car")  ?=? "$var$bar$car",
     "interp after escaped dolla" ~: 
-          (bp "a \\$", mkwd "name", bp " guy")  ?=? "a \\$$name guy",
+          (bp "a \\$", mkvar "name", bp " guy")  ?=? "a \\$$name guy",
     "interp after dolla" ~: 
-          (bp "you have $", mkwd "dollars", bp "")  ?=? "you have $$dollars",
+          (bp "you have $", mkvar "dollars", bp "")  ?=? "you have $$dollars",
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
-    "Trailing bang" ~: (bp "", mkwd "var", bp "!" ) ?=? "$var!",
-    "basic arr" ~: (bp "", mkwd "boo(4)", bp " " ) ?=? "$boo(4) ",
-    "basic arr" ~: (bp "", mkwd "boo( 4,5 )", bp " " ) ?=? "$boo( 4,5 ) ",
+    "Trailing bang" ~: (bp "", mkvar "var", bp "!" ) ?=? "$var!",
+    "basic arr" ~: (bp "", mkvar "boo(4)", bp " " ) ?=? "$boo(4) ",
+    "basic arr" ~: (bp "", mkvar "boo( 4,5 )", bp " " ) ?=? "$boo( 4,5 ) ",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
     "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
     "unescaped $ after esc works" ~: 
-          (bp "a \\$", mkwd "variable", bp "") ?=? "a \\$$variable",
+          (bp "a \\$", mkvar "variable", bp "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
-       (bp "a ",Subcommand [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
+       (bp "a ",Right [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
   ]
  where noInterp str = Nothing ~=? getInterp (bp str)
        (?=?) res str = Just res ~=? getInterp (bp str)
+       mkvar w = Left (B.pack w)
 
 wrapInterpTests = TestList [
     "dollar escape"  ~: "oh $ yeah" ?!= "oh \\$ yeah",
