@@ -1,6 +1,5 @@
 module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
 
---import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
 import System.IO
@@ -301,8 +300,7 @@ procWhile [cond,body] = loop `catchError` herr
        herr EContinue = loop `catchError` herr
        herr x         = throwError x
        loop = do condVal <- doCond cond
-                 pbody <- getParsed body
-                 if condVal then runCmds pbody >> loop else ret
+                 if condVal then evalTcl body >> loop else ret
 
 procWhile _ = argErr "while"
 
@@ -396,8 +394,8 @@ interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
                    Left s  -> treturn s
                    Right x -> handle x
- where f (Left match)   = varGet match
-       f (Right x) = runCommand x
+ where f (Left match) = varGet match
+       f (Right x)    = runCommand x
        handle (b,m,a) = do mid <- f m
                            let front = B.append b (T.asBStr mid)
                            interp a >>= \v -> treturn (B.append front (T.asBStr v))
@@ -447,7 +445,5 @@ testArr = TestList [
  where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
        should_be x r =  (x ++ " should be " ++ show r) ~: parseArrRef (B.pack x) ~=? r
 hiccupTests = TestList [ testProcEq, testArr ]
-
-runUnit = runTestTT hiccupTests
 
 -- # ENDTESTS # --
