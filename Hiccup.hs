@@ -152,7 +152,6 @@ runCommand args = do
  (name:evArgs) <- mapM evalToken args
  proc <- getProc (T.asBStr name)
  proc evArgs
- --maybe (tclErr ("invalid command name " ++ show (T.asStr name))) ($! evArgs) proc
 
 procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet args = case args of
@@ -264,7 +263,7 @@ procExit args = case args of
             _  -> argErr "exit"
 
 procCatch args = case args of
-           [s] -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s] -> (procEval [s] >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
            _   -> argErr "catch"
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
@@ -365,7 +364,7 @@ procRetv c _  = argErr $ st c
        st _         = "??"
 
 procError [s] = tclErr (T.asStr s)
-procError _ = argErr "error"
+procError _   = argErr "error"
 
 procUpLevel args = case args of
               [p]    -> uplevel 1 (procEval [p])
@@ -397,28 +396,29 @@ upvar n d s = do (e:es) <- getStack
 
 type ArgList = [Either BString (BString,BString)]
 
-showParams (hasArgs,pl) = show ((map arg2name pl) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+showParams (n,hasArgs,pl) = show ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
 
 arg2name arg = case arg of
                Left s      -> s
                Right (k,_) -> B.cons '?' (B.snoc k '?')
 
-type ParamList = (Bool,ArgList)
+type ParamList = (BString, Bool, ArgList)
 
-mkParamList :: ArgList -> ParamList
-mkParamList lst = (hasArgs, used)
+mkParamList :: BString -> ArgList -> ParamList
+mkParamList name lst = (name, hasArgs, used)
  where hasArgs = (not . null) lst && (lastIsArgs lst)
        used = if hasArgs then init lst else lst
        lastIsArgs = either (.== "args") (const False)  . last
 
 procProc [name,args,body] = do
-  params <- parseParams args
+  let pname = T.asBStr name
+  params <- parseParams pname args
   pbody <- getParsed body
-  regProc (T.asBStr name) (procRunner params pbody)
+  regProc pname (procRunner params pbody)
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
-parseParams :: T.TclObj -> TclM ParamList
-parseParams args = do 
+parseParams :: BString -> T.TclObj -> TclM ParamList
+parseParams name args = do 
          pa <- getParsed args
          case pa of
            []  -> countRet []
@@ -428,7 +428,7 @@ parseParams args = do
        parseArg (NoSub _ (Just ([[Word z, Word n]],_)))     = Right (z,n)
        parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
        parseArg  x                                          = error $ "parseArg doesn't understand: " ++ show x
-       countRet = return . mkParamList . map parseArg
+       countRet = return . mkParamList name . map parseArg
 
 procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
 procRunner pl body args = 
@@ -440,7 +440,7 @@ procRunner pl body args =
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
-bindArgs (hasArgs, pl) args = do
+bindArgs params@(_,hasArgs,pl) args = do
     walkBoth pl args 
   where walkBoth ((Left v):xs)      (a:as) = varSet v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
@@ -448,7 +448,7 @@ bindArgs (hasArgs, pl) args = do
         walkBoth ((Right (k,v)):xs) []     = varSet k (T.mkTclBStr v) >> walkBoth xs []
         walkBoth []                 xl     = if hasArgs then do procList xl >>= varSet (B.pack "args")
                                                         else unless (null xl) badArgs
-        badArgs = argErr $ "should be " ++ showParams (hasArgs,pl)
+        badArgs = argErr $ "should be " ++ showParams params
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 

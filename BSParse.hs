@@ -92,7 +92,7 @@ parseSub s = do guard (B.head s == '[')
                 let (_,aft) = B.splitAt loc r -- TODO: Ignores unparsed.. tsk tsk.
                 return (Subcommand p, B.tail aft)
 
-eatcomment = return . (,) [] . B.tail . B.dropWhile (/= '\n')
+eatcomment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
 
 dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 
