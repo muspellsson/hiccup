@@ -111,7 +111,7 @@ getvar s = if B.null w then fail "can't parse var name" else return $! (w,n)
  where (w,n) = B.span wordChar s
 
 getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
- where (w,n) = B.span (\x -> x `B.notElem` (B.pack " \t\n{}\"")) s
+ where (w,n) = B.span (`B.notElem` (B.pack " \t\n{}\"")) s
 
 brackVar x = do hv <- safeHead x
                 guard (hv == '{')
@@ -136,11 +136,12 @@ escapeStr = optim
                                  ('\\', True)  -> B.cons x (optim xs)
                                  (_, False)    -> B.cons x (optim xs)
                                  (_, True)     -> B.cons (escapeChar x) (optim xs)
-       optim s = let (c,r) = B.span (/= '\\') s in B.append c (escape' False r)
+       optim s = case B.elemIndex '\\' s of
+                    Nothing -> s
+                    Just i  -> let (c,r) = B.splitAt i s in B.append c (escape' True (B.drop 1 r))
        escapeChar 'n' = '\n'
        escapeChar 't' = '\t'
        escapeChar  c  = c
-
 
 escaped v s = escaped' v
  where escaped' !i = if (i <= 0) then False else (B.index s (i-1) == '\\') && not (escaped' (i-1))
@@ -228,7 +229,9 @@ getInterpTests = TestList [
 
 wrapInterpTests = TestList [
     "dollar escape"  ~: "oh $ yeah" ?!= "oh \\$ yeah",
+    "brace escape"  ~: "oh [ yeah" ?!= "oh \\[ yeah",
     "tab escape"     ~: "a \t tab"  ?!= "a \\t tab",
+    "slash escape"     ~: "slash \\\\ party"  ?!= "slash \\\\\\\\ party",
     "newline escape" ~: "\nline\n"  ?!= "\\nline\\n"
   ]
  where (?=?) res str = Right res ~=? wrapInterp (bp str)
