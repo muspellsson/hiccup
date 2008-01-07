@@ -44,8 +44,9 @@ argErr s = tclErr ("wrong # of args: " ++ s)
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
 
-getChans = do s <- gets tclChans
-              (io . readIORef) s
+getChan n = do s <- gets tclChans
+               m <- (io . readIORef) s
+               return (Map.lookup n m)
 
 addChan c = do s <- gets tclChans
                io (modifyIORef s (Map.insert (T.chanName c) c))
@@ -69,19 +70,29 @@ varGet name = do env <- getFrame
                    Nothing    -> Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
                    Just (i,n) -> uplevel i (varGet n)
 
+uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do 
   (curr,new) <- liftM (splitAt i) getStack
   putStack new
   res <- p
   modStack (curr ++)
   return res
+{-# INLINE uplevel #-}
 
 upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
 
-{-# INLINE ifNothing #-}
 ifNothing m e = maybe (tclErr e) return m
+{-# INLINE ifNothing #-}
 
 ret :: TclM RetVal
 ret = return T.empty
+
+treturn :: BString -> TclM RetVal
+treturn = return . T.mkTclBStr 
+{-# INLINE treturn #-}
+
+(.==) :: T.TclObj -> String -> Bool
+(.==) bs str = (T.asBStr bs) == B.pack str
+{-# INLINE (.==) #-}

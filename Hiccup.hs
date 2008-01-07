@@ -3,9 +3,7 @@ module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
 import qualified Data.Map as Map
 import Control.Arrow
 import System.IO
-import qualified System.IO.Error as IOE 
 import Control.Monad.Error
-import System.Exit
 import Data.IORef
 import Data.Char (toLower,toUpper)
 import Data.List (intersperse)
@@ -13,6 +11,7 @@ import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
+import IOProcs
 import Test.HUnit  -- IGNORE
 
 import Common
@@ -82,8 +81,10 @@ getParsed :: T.TclObj -> TclM [[TclWord]]
 getParsed str = do p <- T.asParsed str
                    return $ filter (not . null) p
 
-(.==) bs str = (T.asBStr bs) == B.pack str
-{-# INLINE (.==) #-}
+procSource args = case args of
+                  [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
+                  _   -> argErr "source"
+
 
 doCond :: T.TclObj -> TclM Bool
 doCond str = do 
@@ -119,51 +120,11 @@ runCommand args = do
  proc <- getProc (T.asBStr name) 
  proc evArgs
 
-procProc, procSet, procPuts, procIf, procWhile, procReturn, procUpLevel :: TclProc
+procProc, procSet, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2 >> return s2
      [s1]    -> varGet (T.asBStr s1)
      _       -> argErr "set"
-
-procPuts args = case args of
-                 [s] -> tPutLn stdout s
-                 [a1,str] -> if a1 .== "-nonewline" then tPut stdout str
-                               else do h <- getWritable a1
-                                       tPutLn h str
-                 [a1,a2,str] ->do unless (a1 .== "-nonewline") bad
-                                  h <- getWritable a2
-                                  tPut h str 
-                 _        -> bad
- where tPut h s = (io . B.hPutStr h . T.asBStr) s >> ret
-       tPutLn h s = (io . B.hPutStrLn h . T.asBStr) s >> ret
-       getWritable c = getChan (T.asBStr c) >>= checkWritable . T.chanHandle
-       bad = argErr "puts"
-
-procGets args = case args of
-          [ch] -> do h <- getReadable ch
-                     eof <- io (hIsEOF h)
-                     if eof then ret else (io . B.hGetLine) h >>= treturn
-          [ch,vname] -> do h <- getReadable ch
-                           eof <- io (hIsEOF h)
-                           if eof
-                             then varSet (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
-                             else do s <- io (B.hGetLine h)
-                                     varSet (T.asBStr vname) (T.mkTclBStr s)
-                                     return $ T.mkTclInt (B.length s)
-          _  -> argErr "gets"
- where getReadable c = getChan (T.asBStr c) >>= checkReadable . T.chanHandle
-
-
-checkReadable c = do r <- io (hIsReadable c)
-                     if r then return c else (tclErr "channel wasn't opened for reading")
-
-checkWritable c = do r <- io (hIsWritable c)
-                     if r then return c else (tclErr "channel wasn't opened for writing")
-
-
-getChan :: BString -> TclM T.TclChan
-getChan c = do chans <- getChans
-               Map.lookup c chans `ifNothing` ("cannot find channel named " ++ show c)
 
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
@@ -186,36 +147,8 @@ procEql _ = argErr "=="
 procEval [s] = evalTcl s
 procEval x   = tclErr $ "Bad eval args: " ++ show x
 
-procOpen args = case args of
-         [fn] -> do eh <- io (IOE.try (openFile (T.asStr fn) ReadMode)) 
-                    case eh of
-                      Left e -> if IOE.isDoesNotExistError e 
-                                      then tclErr $ "could not open " ++ show (T.asStr fn) ++ ": no such file or directory"
-                                      else tclErr (show e)
-                      Right h -> do
-                          chan <- io (T.mkChan h)
-                          addChan chan
-                          treturn (T.chanName chan)
-         _    -> argErr "open"
 
-procClose args = case args of
-         [ch] -> do h <- getChan (T.asBStr ch)
-                    removeChan h
-                    io (hClose (T.chanHandle h))
-                    ret
-         _    -> argErr "close"
-                     
 
-procSource args = case args of
-                  [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
-                  _   -> argErr "source"
-
-procExit args = case args of
-            [] -> io (exitWith ExitSuccess)
-            [i] -> do v <- T.asInt i
-                      let ecode = if v == 0 then ExitSuccess else ExitFailure v
-                      io (exitWith ecode)
-            _  -> argErr "exit"
 
 procCatch args = case args of
            [s] -> (procEval [s] >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
@@ -349,7 +282,7 @@ mkParamList :: BString -> ArgList -> ParamList
 mkParamList name lst = (name, hasArgs, used)
  where hasArgs = (not . null) lst && (lastIsArgs lst)
        used = if hasArgs then init lst else lst
-       lastIsArgs = either (.== "args") (const False)  . last
+       lastIsArgs = either (== (B.pack "args")) (const False)  . last
 
 procProc [name,args,body] = do
   let pname = T.asBStr name
@@ -388,8 +321,6 @@ bindArgs params@(_,hasArgs,pl) args = do
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
                    
-treturn = return . T.mkTclBStr 
-
 interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
                    Left s  -> treturn s
