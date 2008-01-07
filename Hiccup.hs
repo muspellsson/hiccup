@@ -1,6 +1,6 @@
 module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
 
-import Control.Monad.State
+--import Control.Monad.State
 import qualified Data.Map as Map
 import Control.Arrow
 import System.IO
@@ -16,23 +16,7 @@ import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
 import Test.HUnit  -- IGNORE
 
-type BString = B.ByteString
-
-data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Eq)
-
-instance Error Err where
- noMsg    = EDie "An error occurred."
- strMsg s = EDie s
-
-data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
-type TclM = ErrorT Err (StateT TclState IO)
-type TclProc = [T.TclObj] -> TclM RetVal
-type ProcMap = Map.Map BString TclProc
-type VarMap = Map.Map BString T.TclObj
-
-type ChanMap = Map.Map BString T.TclChan
-
-type RetVal = T.TclObj -- IGNORE
+import Common
 
 coreProcs, baseProcs, mathProcs :: ProcMap
 
@@ -57,16 +41,12 @@ mathProcs = Map.fromList . map (B.pack *** procMath) $
    [("+",(+)), ("*",(*)), ("-",(-)), 
     ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=)),("!=",toI (/=))]
 
-io :: IO a -> TclM a
-io = liftIO
-
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
  where procMap = Map.unions [coreProcs, baseProcs, mathProcs]
 
-data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: [TclEnv] }
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -82,7 +62,7 @@ runInterp s = runInterp' (evalTcl (T.mkTclBStr s))
 
 runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i
-                 (r,i') <- runStateT (runErrorT (t)) bEnv 
+                 (r,i') <- runTclM t bEnv 
                  writeIORef i i'
                  return (fixErr r)
   where perr (EDie s)    = B.pack s
@@ -94,7 +74,6 @@ runInterp' t (Interpreter i) = do
 
 runTcl v = mkInterp >>= runInterp v
 
-ret = return T.empty
 
 evalTcl s = runCmds =<< getParsed s
 
@@ -114,13 +93,10 @@ doCond str = do
         [x]      -> runCommand x >>= return . T.asBool
         _        -> tclErr "Too many statements in conditional"
 
-putStack s = modify (\v -> v { tclStack = s })
-modStack f = getStack >>= putStack . f
-
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
   (o:old) <- getStack
-  putStack $ (baseEnv    { procs = procs o }) : o : old
+  putStack $ (baseEnv { procs = procs o }) : o : old
   f `ensure` (modStack tail)
 
 ensure :: TclM RetVal -> TclM () -> TclM RetVal
@@ -129,14 +105,6 @@ ensure action p = do
    p
    return r
 
-varSet :: BString -> T.TclObj -> TclM ()
-varSet str v = do when (B.null str) $ tclErr "Empty varname to set!" 
-                  (env:es) <- getStack
-                  case upped str env of
-                    Just (i,s) -> uplevel i (varSet s v)
-                    Nothing    -> putStack ((env { vars = Map.insert str v (vars env) }):es)
-
-upped s e = Map.lookup s (upMap e)
 
 getProc str = getFrame >>= (`ifNothing` ("invalid command name " ++ show str)) . Map.lookup str . procs
 regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
@@ -189,19 +157,11 @@ procGets args = case args of
 
 
 checkReadable c = do r <- io (hIsReadable c)
-                     if r then return c else (tclErr $ "channel wasn't opened for reading")
+                     if r then return c else (tclErr "channel wasn't opened for reading")
 
 checkWritable c = do r <- io (hIsWritable c)
-                     if r then return c else (tclErr $ "channel wasn't opened for writing")
+                     if r then return c else (tclErr "channel wasn't opened for writing")
 
-getChans = do s <- gets tclChans
-              (io . readIORef) s
-
-addChan c = do s <- gets tclChans
-               io (modifyIORef s (Map.insert (T.chanName c) c))
-
-removeChan c = do s <- gets tclChans
-                  io (modifyIORef s (Map.delete (T.chanName c)))
 
 getChan :: BString -> TclM T.TclChan
 getChan c = do chans <- getChans
@@ -214,9 +174,6 @@ procEq args = case args of
 procNe args = case args of
                   [a,b] -> return $ T.fromBool (a /= b)
                   _     -> argErr "ne"
-
-argErr s = tclErr ("wrong # of args: " ++ s)
-
 
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
@@ -285,9 +242,7 @@ procString (f:s:args)
  | otherwise            = tclErr $ "Can't do string action: " ++ show f
 procString _ = tclErr $ "Bad string args"
 
-tclErr = throwError . EDie
 
-getFrame = liftM head getStack
 
 procInfo [x] 
   | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
@@ -371,14 +326,6 @@ procUpLevel args = case args of
               (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
 
-getStack = gets tclStack
-uplevel i p = do 
-  (curr,new) <- liftM (splitAt i) getStack
-  putStack new
-  res <- p
-  modStack (curr ++)
-  return res
-
 procUpVar args = case args of
      [d,s]    -> upvar 1 d s
      [si,d,s] -> T.asInt si >>= \i -> upvar i d s
@@ -390,9 +337,6 @@ procGlobal lst@(_:_) = mapM_ inner lst >> ret
                     upvar len g g
 procGlobal _         = argErr "global"
 
-upvar n d s = do (e:es) <- getStack
-                 putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
-                 ret
 
 type ArgList = [Either BString (BString,BString)]
 
@@ -426,7 +370,7 @@ parseParams name args = do
            _        -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
  where parseArg (Word s)                                    = Left s
        parseArg (NoSub _ (Just ([[Word z, Word n]],_)))     = Right (z,n)
-       parseArg (NoSub _ (Just ([[ Word z, Word n],[]],_))) = Right (z,n) -- FIXME: Whuh?
+       parseArg (NoSub _ (Just ([[Word z, Word n],[]],_)))  = Right (z,n) -- FIXME: Whuh?
        parseArg  x                                          = error $ "parseArg doesn't understand: " ++ show x
        countRet = return . mkParamList name . map parseArg
 
@@ -451,14 +395,6 @@ bindArgs params@(_,hasArgs,pl) args = do
         badArgs = argErr $ "should be " ++ showParams params
 
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
-
-ifNothing m e = maybe (tclErr e) return m
-
-varGet :: BString -> TclM RetVal
-varGet name = do env <- getFrame
-                 case upped name env of
-                   Nothing    -> Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
-                   Just (i,n) -> uplevel i (varGet n)
                    
 treturn = return . T.mkTclBStr 
 
@@ -483,7 +419,7 @@ parseArrRef str = do start <- B.elemIndex '(' str
 
 run :: TclM RetVal -> Either Err RetVal -> IO Bool
 run t v = do chans <- newIORef Map.empty
-             ret <- liftM fst (runStateT (runErrorT (t)) (TclState chans [baseEnv]))
+             ret <- liftM fst (runTclM t (TclState chans [baseEnv]))
              return (ret == v)
 
 testProcEq = TestList [

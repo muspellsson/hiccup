@@ -40,7 +40,7 @@ safeHead s = guard (not (B.null s)) >> return (B.head s)
 
 wrapInterp str = case getInterp str of
                    Nothing -> Left $! escapeStr str
-                   Just (pr,s,r) -> Right (escapeStr pr, s, r)
+                   Just (pr,s,r) -> Right  $! (escapeStr pr, s, r)
 
 getInterp str = do 
    loc <- B.findIndex (\x -> x == '$' || x == '[') str
