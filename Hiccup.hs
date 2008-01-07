@@ -361,17 +361,12 @@ procProc [name,args,body] = do
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
-parseParams name args = do 
-         pa <- getParsed args
-         case pa of
-           []  -> countRet []
-           [r] -> countRet r
-           _        -> tclErr $ "arg parse failed: " ++ show (T.asBStr args)
- where parseArg (Word s)                                    = Left s
-       parseArg (NoSub _ (Just ([[Word z, Word n]],_)))     = Right (z,n)
-       parseArg (NoSub _ (Just ([[Word z, Word n],[]],_)))  = Right (z,n) -- FIXME: Whuh?
-       parseArg  x                                          = error $ "parseArg doesn't understand: " ++ show x
-       countRet = return . mkParamList name . map parseArg
+parseParams name args = T.asList args >>= countRet
+ where countRet lst = mapM doArg lst >>= return . mkParamList name
+       doArg s = do l <- T.asList s
+                    return $ case l of
+                              [k,v] -> Right (k,v)
+                              _     -> Left s
 
 procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
 procRunner pl body args = 

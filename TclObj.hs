@@ -82,8 +82,8 @@ instance ITObj TclObj where
   
 
 asList obj = case P.parseList (asBStr obj) of
-              Nothing -> fail "list parse failure"
-              Just (lst,_) -> return lst
+              Nothing  -> fail $ "list parse failure: " ++ show (asBStr obj)
+              Just lst -> return lst
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
 

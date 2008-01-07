@@ -444,7 +444,7 @@ test "default proc args" {
     + $x $y
   }
 
-  proc plus3 { {a 5} {b 1} } {
+  proc plus3 { " a 5 " "b 1" } {
     + $a $b
   }
 

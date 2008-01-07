@@ -27,11 +27,16 @@ listDisp str = do h <- safeHead str
                    '"' -> parseStr str >>= \((Word w), r) -> return (w,r)
                    _   -> getListItem str
 
-mkNoSub s = NoSub s (runParse s)
 
 parseArgs = multi (dispatch . dropWhite)
 
-parseList = multi (listDisp . dropWhite)
+parseList s = if onlyWhite s 
+               then return []
+               else do (l,r) <- multi (listDisp . dropWhite) $ s
+                       guard (onlyWhite r)
+                       return l
+ where onlyWhite = B.all (`elem` " \t\n")
+               
 
 runParse :: B.ByteString -> Result
 runParse = multi (mainparse . dropWhite)
@@ -146,6 +151,7 @@ escapeStr = optim
 escaped v s = escaped' v
  where escaped' !i = if (i <= 0) then False else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
+mkNoSub s = NoSub s (runParse s)
 
 nested s = do ind <- match 0 0 False
               let (w,r) = B.splitAt ind s
@@ -268,16 +274,18 @@ parseArgsTests = TestList [
        nosub s = mkNoSub (bp s)
 
 parseListTests = TestList [
-     " x " ~: " x " ?=> ([bp "x"], " ")  
-     ," x y " ~: " x y " ?=> ([bp "x", bp "y"], " ")  
-     ,"x y" ~: "x y" ?=> ([bp "x", bp "y"], "")  
-     ,"x { y 0 }" ~: "x { y 0 }" ?=> ([bp "x", bp " y 0 "], "")  
-     ,"x [puts yay]" ~: "x [puts yay]" ?=> ([bp "x", bp "[puts", bp "yay]"], "")  
-     ," y { \\{ \\{ \\{ } { x }" ~: " y { \\{ \\{ \\{ } { x }" ?=> ([bp "y", bp " \\{ \\{ \\{ ", bp " x "], "")  
+     " x "     ~: " x "   ?=> [bp "x"]
+     ,""       ~: ""      ?=> []
+     ,"\t \t " ~: "\t \t" ?=> []
+     ," x y "  ~: " x y " ?=> [bp "x", bp "y"]
+     ,"x y" ~: "x y" ?=> [bp "x", bp "y"]
+     ,"x { y 0 }" ~: "x { y 0 }" ?=> [bp "x", bp " y 0 "]
+     ,"x [puts yay]" ~: "x [puts yay]" ?=> [bp "x", bp "[puts", bp "yay]"]
+     ," y { \\{ \\{ \\{ } { x }" ~: " y { \\{ \\{ \\{ } { x }" ?=> [bp "y", bp " \\{ \\{ \\{ ", bp " x "]
      , "unmatched fail" ~: fails " { { "
-     ,"x {y 0}" ~: "x {y 0}" ?=> ([bp "x", bp "y 0"], "")  
+     ,"x {y 0}" ~: "x {y 0}" ?=> [bp "x", bp "y 0"]
    ]
- where (?=>) str (res,r) = Just (res, bp r) ~=? parseList (bp str)
+ where (?=>) str res = Just res ~=? parseList (bp str)
        fails str = Nothing ~=? parseList (bp str)
 
 runParseTests = TestList [
