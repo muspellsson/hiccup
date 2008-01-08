@@ -1,4 +1,4 @@
-module IOProcs where
+module IOProcs (ioProcs) where
 import Common
 import Control.Monad (unless)
 import System.IO
@@ -6,6 +6,13 @@ import System.Exit
 import qualified TclObj as T
 import qualified System.IO.Error as IOE 
 import qualified Data.ByteString.Char8 as B
+
+ioProcs :: ProcMap
+ioProcs = makeProcMap $ 
+ [("puts",procPuts),("gets",procGets),
+  ("open", procOpen), ("close", procClose),
+  ("exit", procExit)]
+
 
 procPuts args = case args of
                  [s] -> tPutLn stdout s

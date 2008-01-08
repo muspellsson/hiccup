@@ -1,7 +1,6 @@
 module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
 
 import qualified Data.Map as Map
-import Control.Arrow
 import System.IO
 import Control.Monad.Error
 import Data.IORef
@@ -18,24 +17,21 @@ import Common
 
 coreProcs, baseProcs, mathProcs :: ProcMap
 
-coreProcs = Map.fromList . map (B.pack *** id) $
+coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
   ("uplevel", procUpLevel),("if",procIf),
-  ("while",procWhile),("eval", procEval),("exit",procExit),
+  ("while",procWhile),("eval", procEval),
   ("list",procList),("return",procReturn),
   ("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
-baseProcs = Map.fromList . map (B.pack *** id) $
- [("puts",procPuts),("gets",procGets),
-  ("lindex",procLindex),("llength",procLlength),
+baseProcs = makeProcMap $
+  [("lindex",procLindex),("llength",procLlength),
   ("string", procString), ("append", procAppend), 
-  ("source", procSource), ("incr", procIncr),
-  ("open", procOpen), ("close", procClose)]
+  ("source", procSource), ("incr", procIncr)]
 
-
-mathProcs = Map.fromList . map (B.pack *** procMath) $ 
+mathProcs = makeProcMap . mapSnd procMath $
    [("+",(+)), ("*",(*)), ("-",(-)), 
     ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=)),("!=",toI (/=))]
 
@@ -43,8 +39,7 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
- where procMap = Map.unions [coreProcs, baseProcs, mathProcs]
-
+ where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs]
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -53,7 +48,6 @@ mkInterp = do chans <- newIORef baseChans
               st <- newIORef (TclState chans [baseEnv]) 
               return (Interpreter st)
 
-baseChans = Map.fromList (map (\x -> (T.chanName x, x)) T.tclStdChans )
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
 runInterp s = runInterp' (evalTcl (T.mkTclBStr s))
@@ -139,7 +133,7 @@ procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclIn
 procMath _ _       = argErr "math"
 
 procEql [a,b] = case (T.asInt a, T.asInt b) of
-                  (Just ia, Just ib) -> return $ T.fromBool (ia == ib)
+                  (Just ia, Just ib) -> return $! T.fromBool (ia == ib)
                   _                  -> procEq [a,b]
 procEql _ = argErr "=="
 

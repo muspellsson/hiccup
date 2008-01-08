@@ -24,10 +24,15 @@ type ProcMap = Map.Map BString TclProc
 type VarMap = Map.Map BString T.TclObj
 type ChanMap = Map.Map BString T.TclChan
 
+makeProcMap = Map.fromList . mapFst B.pack
+
+mapSnd f = map (\(a,b) -> (a, f b))
+mapFst f = map (\(a,b) -> (f a, b))
+
 getStack = gets tclStack
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
-modStack f = getStack >>= putStack . f
+modStack f = getStack >>= \s -> let r = f s in r `seq` putStack r
 getFrame = liftM head getStack
 
 {-# INLINE getStack  #-}
@@ -53,6 +58,8 @@ addChan c = do s <- gets tclChans
 
 removeChan c = do s <- gets tclChans
                   io (modifyIORef s (Map.delete (T.chanName c)))
+
+baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
