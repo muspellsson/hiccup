@@ -3,7 +3,8 @@ module Common where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import qualified TclObj as T
-import Data.IORef
+--import Data.IORef
+import Control.Concurrent.MVar
 import Control.Monad.State
 import qualified Data.Map as Map
 
@@ -18,13 +19,15 @@ instance Error Err where
 
 data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
 type TclM = ErrorT Err (StateT TclState IO)
-data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: [TclEnv] }
+data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv] }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
 type VarMap = Map.Map BString T.TclObj
 type ChanMap = Map.Map BString T.TclChan
 
 makeProcMap = Map.fromList . mapFst B.pack
+makeState chans envl = do cm <- newMVar chans
+                          return (TclState cm envl)
 
 mapSnd f = map (\(a,b) -> (a, f b))
 mapFst f = map (\(a,b) -> (f a, b))
@@ -50,14 +53,17 @@ runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
 
 getChan n = do s <- gets tclChans
-               m <- (io . readIORef) s
+               m <- (io . readMVar) s
                return (Map.lookup n m)
 
 addChan c = do s <- gets tclChans
-               io (modifyIORef s (Map.insert (T.chanName c) c))
+               io (modMVar s (Map.insert (T.chanName c) c))
+
+modMVar m f = do v <- takeMVar m
+                 putMVar m (f v)
 
 removeChan c = do s <- gets tclChans
-                  io (modifyIORef s (Map.delete (T.chanName c)))
+                  io (modMVar s (Map.delete (T.chanName c)))
 
 baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 

@@ -44,9 +44,9 @@ baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
 data Interpreter = Interpreter (IORef TclState)
 
 mkInterp :: IO Interpreter
-mkInterp = do chans <- newIORef baseChans
-              st <- newIORef (TclState chans [baseEnv]) 
-              return (Interpreter st)
+mkInterp = do st <- makeState baseChans [baseEnv]
+              stref <- newIORef st
+              return (Interpreter stref)
 
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
@@ -65,7 +65,6 @@ runInterp' t (Interpreter i) = do
         fixErr (Right v) = Right (T.asBStr v)
 
 runTcl v = mkInterp >>= runInterp v
-
 
 evalTcl s = runCmds =<< getParsed s
 
@@ -138,11 +137,9 @@ procEql [a,b] = case (T.asInt a, T.asInt b) of
 procEql _ = argErr "=="
 
 
-procEval [s] = evalTcl s
-procEval x   = tclErr $ "Bad eval args: " ++ show x
-
-
-
+procEval args = case args of
+                 [s] -> evalTcl s
+                 _   -> argErr "eval"
 
 procCatch args = case args of
            [s] -> (procEval [s] >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
@@ -165,7 +162,7 @@ procString (f:s:args)
                                     if ind >= (B.length `onObj` s) || ind < 0 then ret else treturn $ B.singleton (B.index (T.asBStr s) ind)
                           _   -> tclErr $ "Bad args to string index."
  | otherwise            = tclErr $ "Can't do string action: " ++ show f
-procString _ = tclErr $ "Bad string args"
+procString _ = argErr "string"
 
 
 
@@ -204,6 +201,8 @@ procIncr :: TclProc
 procIncr [vname]     = incr vname 1
 procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"
+
+incr :: T.TclObj -> Int -> TclM RetVal
 incr n i =  do v <- varGet bsname
                intval <- T.asInt v
                let res = (T.mkTclInt (intval + i))
@@ -255,7 +254,7 @@ procUpVar args = case args of
      [si,d,s] -> T.asInt si >>= \i -> upvar i d s
      _        -> argErr "upvar"
 
-procGlobal lst@(_:_) = mapM_ inner lst >> ret
+procGlobal args@(_:_) = mapM_ inner args >> ret
  where inner g = do lst <- getStack
                     let len = length lst - 1
                     upvar len g g
@@ -327,6 +326,7 @@ interp str = case wrapInterp str of
 
 -- # TESTS # --
 
+
 parseArrRef str = do start <- B.elemIndex '(' str
                      guard (start /= 0)
                      guard (B.last str == ')')
@@ -335,9 +335,9 @@ parseArrRef str = do start <- B.elemIndex '(' str
 
 
 run :: TclM RetVal -> Either Err RetVal -> IO Bool
-run t v = do chans <- newIORef Map.empty
-             ret <- liftM fst (runTclM t (TclState chans [baseEnv]))
-             return (ret == v)
+run t v = do st <- makeState Map.empty [baseEnv]
+             retv <- liftM fst (runTclM t st)
+             return (retv == v)
 
 testProcEq = TestList [
       "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
