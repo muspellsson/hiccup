@@ -488,6 +488,14 @@ test "array set/get" {
   # Currently faked
   set boo(4) 111
   checkthat "$boo(4)" == 111
+  set boo(5) 112
+  checkthat $boo(5) == 112
+
+  set boo(wallaby) "next tuesday"
+  checkthat $boo(wallaby) eq "next tuesday"
+
+  set "boo( oh no! )" 4
+  checkthat "$boo( oh no! )" == 4
 }
 
 assertErr { proc banana }
