@@ -3,7 +3,6 @@ module Common where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import qualified TclObj as T
---import Data.IORef
 import Control.Concurrent.MVar
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -22,7 +21,7 @@ type TclM = ErrorT Err (StateT TclState IO)
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv] }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
-type VarMap = Map.Map BString T.TclObj
+type VarMap = Map.Map BString (Either T.TclObj (Map.Map BString T.TclObj))
 type ChanMap = Map.Map BString T.TclChan
 
 makeProcMap = Map.fromList . mapFst B.pack
@@ -75,12 +74,31 @@ varSet str v = do when (B.null str) $ tclErr "Empty varname to set!"
                   (env:es) <- getStack
                   case upped str env of
                     Just (i,s) -> uplevel i (varSet s v)
-                    Nothing    -> putStack ((env { vars = Map.insert str v (vars env) }):es)
+                    Nothing    -> putStack ((env { vars = Map.insert str (Left v) (vars env) }):es)
+
+varExists :: BString -> TclM Bool
+varExists name = do
+  env <- getFrame
+  case upped name env of
+     Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
+     Just (i,n) -> return True
+
+varUnset :: BString -> TclM RetVal
+varUnset name = do 
+   (env:es) <- getStack
+   case upped name env of
+      Nothing    -> putStack ((env { vars = Map.delete name (vars env) }):es)
+      Just (i,s) -> do uplevel i (varUnset s)
+                       putStack ((env { upMap = Map.delete name (upMap env) }):es)
+   ret
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- getFrame
                  case upped name env of
-                   Nothing    -> Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+                   Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+                                    case val of
+                                      Left o -> return o
+                                      Right _ -> tclErr "variable is array"
                    Just (i,n) -> uplevel i (varGet n)
 
 uplevel :: Int -> TclM a -> TclM a

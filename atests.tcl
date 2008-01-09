@@ -103,8 +103,11 @@ uptest2 y 3
 assertEq $y 4
 
 proc test {name body} {
-  global current_test
-  set current_test $name
+  proc setname {n} {
+    global current_test
+    set current_test $n
+  }
+  setname $name
   eval $body
 }
 
@@ -482,6 +485,26 @@ test "lone subcommand" {
   [id "set"] x 11
 
   checkthat $x == 11
+}
+
+test "info" {
+  checkthat [info exists x] == 0
+  set x 4
+  checkthat [info exists x] == 1
+  checkthat [info exists current_test] == 0
+  global current_test
+  checkthat [info exists current_test] == 1
+  # TODO: Check upvar'd exists
+}
+
+test "unset" {
+  set x 4
+  checkthat $x == 4
+  checkthat [info exists x] == 1
+  checkthat [unset x] eq ""
+  assertErr { incr x }
+  checkthat [info exists x] == 0
+  # TODO: Add test for upvar'd unset
 }
 
 test "array set/get" {
