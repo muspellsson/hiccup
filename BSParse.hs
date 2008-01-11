@@ -46,7 +46,7 @@ parseList s = if onlyWhite s
                
 
 runParse :: B.ByteString -> Result
-runParse = multi (mainparse . dropWhite)
+runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (filter (not . null) wds, rem)
 
 safeHead s = guard (not (B.null s)) >> return (B.head s)
 {-# INLINE safeHead #-}
@@ -315,9 +315,9 @@ runParseTests = TestList [
      "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
      "multi-line" ~: ([[mkwd "puts", mkwd "44"]],"") ?=? " puts \\\n   44",
      "escaped space" ~: ([[mkwd "puts", mkwd "\\ "]],"") ?=? " puts \\ ",
-     "empty" ~: ([[]],"") ?=? " ",
-     "empty2" ~: ([[]],"") ?=? "",
---     "a b " ~: ([[mkwd "a", mkwd "b"]],"") ?=? "a b ",
+     "empty" ~: ([],"") ?=? " ",
+     "empty2" ~: ([],"") ?=? "",
+     "a b " ~: ([[mkwd "a", mkwd "b"]],"") ?=? "a b ",
      "brack" ~: ([[mkwd "puts", mkwd "${oh no}"]], "") ?=? "puts ${oh no}",
      "arr 1" ~: ([[mkwd "set",mkwd "buggy(4)", mkwd "11"]], "") ?=? "set buggy(4) 11",
      "arr 2" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "11"]], "") ?=? "set buggy($bean) 11",
