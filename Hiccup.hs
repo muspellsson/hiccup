@@ -20,7 +20,7 @@ coreProcs, baseProcs, mathProcs :: ProcMap
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
   ("uplevel", procUpLevel),("if",procIf),
-  ("unset", procUnset),
+  ("unset", procUnset),("dump", procDump),
   ("while",procWhile),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
@@ -112,6 +112,8 @@ procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
      _       -> argErr "unset"
 
+procDump _ = varDump >> ret
+
 procEq args = case args of
                   [a,b] -> return $ T.fromBool (a == b)
                   _     -> argErr "eq"
@@ -161,6 +163,7 @@ procString _ = argErr "string"
 
 procInfo [x]
   | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
+  | x .== "level"    =  getStack >>= return . T.mkTclInt . pred . length
   | x .== "vars"     =  do f <- getFrame 
                            procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)

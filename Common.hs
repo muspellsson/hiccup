@@ -37,7 +37,10 @@ getStack = gets tclStack
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
 modStack f = getStack >>= \s -> let r = f s in r `seq` putStack r
-getFrame = liftM head getStack
+getFrame = do st <- getStack  
+              case st of
+                []    -> tclErr "Aack. Tried to go up too far in the stack."
+                (x:_) -> return x
 
 {-# INLINE getStack  #-}
 {-# INLINE putStack  #-}
@@ -83,20 +86,29 @@ varExists name = do
   env <- getFrame
   case upped name env of
      Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
-     Just (i,n) -> return True
+     Just (i,_) -> return True
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 
    (env:es) <- getStack
    case upped name env of
       Nothing    -> do let vmap = vars env 
-                       unless (Map.member name vmap) (tclErr "variable not found")
+                       verifyNameIn vmap
                        putStack ((env { vars = Map.delete name vmap }):es)
       Just (i,s) -> do uplevel i (varUnset s)
                        let umap = upMap env
-                       unless (Map.member name umap) (tclErr "variable not found")
-                       putStack ((env { upMap = Map.delete name umap }):es)
+                       verifyNameIn umap
+                       (_:es2) <- getStack
+                       putStack ((env { upMap = Map.delete name umap }):es2)
    ret
+ where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
+       verifyNameIn m = unless (Map.member name m) bad
+
+varDump = do env <- getStack
+             io (putStrLn "")
+             io (mapM_ (\(i,a,b) -> (putStrLn (i ++ ":") >> putStrLn a >> putStrLn b))  (map fixit (zip [0..] env)))
+  where fixit (i,s) = (show i, Map.showTree (vars s), Map.showTree (upMap s))
+
 
 varGet :: BString -> TclM RetVal
 varGet name = do env <- getFrame
@@ -158,7 +170,7 @@ runWithEnv env t v =
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
-commonTests = TestList [ setTests, getTests ] where
+commonTests = TestList [ setTests, getTests, unsetTests ] where
 
   b = B.pack
 
@@ -177,9 +189,16 @@ commonTests = TestList [ setTests, getTests ] where
   checkErr a s = errWithEnv [emptyEnv] a >>= \v -> assertEqual "err match" v (Left (EDie s))
   checkNoErr a = errWithEnv [emptyEnv] a >>= \v -> assertBool "err match" (isRight v)
 
-  checkExists a n = do (r,(v:_)) <- evalWithEnv [emptyEnv] a 
+  checkExists a n = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
                        vExists n v
+
   vExists vn env = assert (Map.member (b vn) (vars env))
+
+  checkEq :: TclM t -> String -> T.TclObj -> Assertion
+  checkEq a n val = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
+                       vEq n v val
+
+  vEq vn env val = assert ((Map.lookup (b vn) (vars env)) == (Just (Left val)))
 
   value = int 666
   name = b "varname"
@@ -192,11 +211,16 @@ commonTests = TestList [ setTests, getTests ] where
        "empty name" ~: (varSet (b "") (int 4)) `checkErr` "Empty varname to set!"
        ,"set exists" ~: (varSet (b "x") (int 1)) `checkExists` "x"
        ,"set exists2" ~: (varSet (b "boogie") (int 1)) `checkExists` "boogie"
+       ,"checkeq" ~: checkEq (varSet name value) "varname" value
      ]
 
   getTests = TestList [
-       "non-exist" ~: checkErr (varGet (b "boo")) "can't read \"$boo\": no such variable"
+       "non-exist" ~: (varGet (b "boo")) `checkErr` "can't read \"$boo\": no such variable"
        ,"no err if exists" ~: checkNoErr ((varSet name value) >> varGet name)
+     ]
+
+  unsetTests = TestList [
+       "non-exist" ~: (varUnset (b "boo")) `checkErr` "can't unset \"boo\": no such variable"
      ]
 
 -- # ENDTESTS # --

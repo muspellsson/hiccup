@@ -79,28 +79,7 @@ announce
 assertEq [eval {* 4 4}] 16
 
 
-proc uptest {var v} {
-  upvar $var loc
-  set loc $v
-}
 
-set x 4
-uptest x 3
-assertEq $x 3
-
-proc uptest2 {var2 v} {
-  proc inner {a b} {
-    upvar 2 $b whee 
-    set whee $a
-  }
-  upvar $var2 lark
-  inner $v $var2 
-  incr lark
-}
-
-set y 99 
-uptest2 y 3
-assertEq $y 4
 
 proc test {name body} {
   proc setname {n} {
@@ -108,7 +87,8 @@ proc test {name body} {
     set current_test $n
   }
   setname $name
-  eval $body
+  uplevel "proc test_proc {} {$body}"
+  uplevel test_proc
 }
 
 proc with_test {tn code} {
@@ -117,6 +97,32 @@ proc with_test {tn code} {
   set current_test "$old_test -> $tn"
   uplevel $code
   set current_test $old_test
+}
+
+test "upvar" {
+
+  proc uptest {var v} {
+    upvar $var loc
+    set loc $v
+  }
+
+  set x 4
+  uptest x 3
+  checkthat $x == 3
+
+  proc uptest2 {var2 v} {
+    proc inner {a b} {
+      upvar 2 $b whee 
+      set whee $a
+    }
+    upvar $var2 lark
+    inner $v $var2 
+    incr lark
+  }
+
+  set y 99 
+  uptest2 y 3
+  assertEq $y 4
 }
 
 test "unevaluated blocks aren't parsed" {
@@ -208,24 +214,25 @@ test "test args parameter" {
   assertEq 36 $total
 }
 
-set sval 0
-set sval2 1
-while {<= $sval 10} {
-  incr sval
-  if {<= 8 $sval} {
-    break
+test "basic control flow" {
+  set sval 0
+  set sval2 1
+  while {<= $sval 10} {
+    incr sval
+    if {<= 8 $sval} {
+      break
+    }
+    if {<= 4 $sval} {
+      continue
+    }
+    incr sval2
   }
-  if {<= 4 $sval} {
-    continue
-  }
-  incr sval2
+
+  checkthat $sval == 8
+  checkthat $sval2 == 4
 }
 
-assertEq 8 $sval
-assertEq 4 $sval2
 
-
-assertEq 10 [+ 15 -5] # Check that negatives parse.
 
 test "string methods" {
   assertEq 4 [string length "five"]
@@ -242,29 +249,30 @@ test "string methods" {
 }
 
 
-set somestr "one"
-append somestr " two" " three" " four"
-assertStrEq "one two three four" $somestr
-append avar a b c
-assertStrEq "abc" $avar
-
-set numbers {1 2 3 4 5}
-set result 0
-foreach number $numbers {
-  set result [+ $number $result]
+test "test append" {
+  set somestr "one"
+  append somestr " two" " three" " four"
+  assertStrEq "one two three four" $somestr
+  append avar a b c
+  assertStrEq "abc" $avar
 }
 
-checkthat 1 == 1
+test "foreach" {
+  set numbers {1 2 3 4 5}
+  set result 0
+  foreach number $numbers {
+    set result [+ $number $result]
+  }
 
-assertEq 15 $result
+  assertEq 15 $result
 
-set fer "old"
-foreach feitem {"a b" "c d"} {
-  set fer $feitem
+  set fer "old"
+  foreach feitem {"a b" "c d"} {
+    set fer $feitem
+  }
+
+  checkthat $fer eq "c d" 
 }
-
-checkthat $fer eq "c d" 
-# $fer
 
 test "join and foreach" {
   set misc { 1 2 3 4 5 6 }
@@ -326,32 +334,34 @@ assertErr { error "oh noes" }
 assertEq 1 [catch { puts "$thisdoesntexist" }]
 assertEq 0 [catch { + 1 1 }]
 
+
 set whagganog ""
 set otherthing ""
-
 test "global test" {
-  upvar otherthing ot
-  proc testglobal {bah} {
-    proc modother { m } {
-      global whagganog otherthing
-      set otherthing $whagganog$m
+    upvar otherthing ot
+    proc testglobal {bah} {
+      proc modother { m } {
+        global whagganog otherthing
+        set otherthing $whagganog$m
+      }
+
+      global whagganog
+      append whagganog $bah
+      modother $bah
+      return $whagganog
     }
 
-    global whagganog
-    append whagganog $bah
-    modother $bah
-    return $whagganog
-  }
-
-  checkthat [testglobal 1] == 1
-  checkthat $ot            == 11
-  checkthat [testglobal 2] == 12
-  checkthat $ot            == 122
+    checkthat [testglobal 1] == 1
+    checkthat $ot            == 11
+    checkthat [testglobal 2] == 12
+    checkthat $ot            == 122
 }
 
 
 
 test "parsing corners" {
+  assertEq 10 [+ 15 -5] # Check that negatives parse.
+
   set { shh.. ?} 425
   assertStrEq " 425 " " ${ shh.. ?} "
 
@@ -506,12 +516,12 @@ test "info" {
 }
 
 test "unset" {
-  set x 4
-  checkthat $x == 4
-  checkthat [info exists x] == 1
-  checkthat [unset x] eq ""
-  assertErr { incr x }
-  checkthat [info exists x] == 0
+  set y 4
+  checkthat $y == 4
+  checkthat [info exists y] == 1
+  checkthat [unset y] eq ""
+  assertErr { incr y }
+  checkthat [info exists y] == 0
 }
 
 test "unset with upvar" {
@@ -521,8 +531,6 @@ test "unset with upvar" {
       checkthat [info exists boo] == 1
       checkthat $boo == 0
       unset boo 
-      puts "vars: [info vars]"
-      uplevel {puts "vars: [info vars]"}
       checkthat [info exists boo] == 0
     }
   }
@@ -530,9 +538,17 @@ test "unset with upvar" {
   checkthat $x == 0
   checkthat [info exists x] == 1
   unset_x
-  checkthat $x == 0
-  puts "vars: [info vars]"
   checkthat [info exists x] == 0
+}
+
+test "info level" {
+  checkthat [uplevel {info level}] == 0
+  checkthat [info level] == 1
+  proc getlevel {} {
+    return [info level]
+  }
+
+  checkthat [getlevel] == 2
 }
 
 test "array set/get" {
