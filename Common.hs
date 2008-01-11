@@ -95,11 +95,10 @@ varUnset name = do
       Nothing    -> do let vmap = vars env 
                        verifyNameIn vmap
                        putStack ((env { vars = Map.delete name vmap }):es)
-      Just (i,s) -> do uplevel i (varUnset s)
-                       let umap = upMap env
+      Just (i,s) -> do let umap = upMap env
                        verifyNameIn umap
-                       (_:es2) <- getStack
-                       putStack ((env { upMap = Map.delete name umap }):es2)
+                       putStack ((env { upMap = Map.delete name umap }):es)
+                       uplevel i (varUnset s) >> return ()
    ret
  where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
        verifyNameIn m = unless (Map.member name m) bad
