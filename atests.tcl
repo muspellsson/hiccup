@@ -111,6 +111,14 @@ proc test {name body} {
   eval $body
 }
 
+proc with_test {tn code} {
+  global current_test
+  set old_test $current_test
+  set current_test "$old_test -> $tn"
+  uplevel $code
+  set current_test $old_test
+}
+
 test "unevaluated blocks aren't parsed" {
   if {== 3 4} {
    "This should be no problem. $woo_etcetera.; 
@@ -504,7 +512,27 @@ test "unset" {
   checkthat [unset x] eq ""
   assertErr { incr x }
   checkthat [info exists x] == 0
-  # TODO: Add test for upvar'd unset
+}
+
+test "unset with upvar" {
+  proc unset_x {} { 
+    with_test "in proc" {
+      upvar x boo 
+      checkthat [info exists boo] == 1
+      checkthat $boo == 0
+      unset boo 
+      puts "vars: [info vars]"
+      uplevel {puts "vars: [info vars]"}
+      checkthat [info exists boo] == 0
+    }
+  }
+  set x 0
+  checkthat $x == 0
+  checkthat [info exists x] == 1
+  unset_x
+  checkthat $x == 0
+  puts "vars: [info vars]"
+  checkthat [info exists x] == 0
 }
 
 test "array set/get" {

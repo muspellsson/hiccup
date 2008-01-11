@@ -5,12 +5,12 @@ import System.IO
 import Control.Monad.Error
 import Data.IORef
 import Data.Char (toLower,toUpper)
-import Data.List (intersperse)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
 import IOProcs
+import ListProcs
 import Test.HUnit  -- IGNORE
 
 import Common
@@ -22,14 +22,13 @@ coreProcs = makeProcMap $
   ("uplevel", procUpLevel),("if",procIf),
   ("unset", procUnset),
   ("while",procWhile),("eval", procEval),
-  ("list",procList),("return",procReturn),
-  ("break",procRetv EBreak),("catch",procCatch),
+  ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
+
 baseProcs = makeProcMap $
-  [("lindex",procLindex),("llength",procLlength),
-  ("string", procString), ("append", procAppend), 
+  [("string", procString), ("append", procAppend), 
   ("source", procSource), ("incr", procIncr)]
 
 mathProcs = makeProcMap . mapSnd procMath $
@@ -40,7 +39,7 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
- where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs]
+ where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs, listProcs]
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -87,17 +86,6 @@ doCond str = do
         [x]      -> runCommand x >>= return . T.asBool
         _        -> tclErr "Too many statements in conditional"
 
-withScope :: TclM RetVal -> TclM RetVal
-withScope f = do
-  (o:old) <- getStack
-  putStack $ (baseEnv { procs = procs o }) : o : old
-  f `ensure` (modStack tail)
-
-ensure :: TclM RetVal -> TclM () -> TclM RetVal
-ensure action p = do
-   r <- action `catchError` (\e -> p >> throwError e)
-   p
-   return r
 
 
 getProc str = getFrame >>= (`ifNothing` ("invalid command name " ++ show str)) . Map.lookup str . procs
@@ -173,7 +161,8 @@ procString _ = argErr "string"
 
 procInfo [x]
   | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
-  | x .== "vars"     =  getFrame >>= procList . toObs . Map.keys . vars
+  | x .== "vars"     =  do f <- getFrame 
+                           procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
 procInfo [x,y] 
   | x .== "exists"   =  varExists (T.asBStr y) >>= return . T.fromBool
@@ -187,23 +176,6 @@ procAppend args = case args of
                          procSet [v, oconcat (val:vx)]
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
-
-procList, procLindex, procLlength :: TclProc
-procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
- where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
-
-procLindex args = case args of
-          [l]   -> return l
-          [l,i] -> do items <- T.asList l
-                      ind <- T.asInt i
-                      if ind >= length items then ret else treturn (items !! ind)
-          _     -> argErr "lindex"
-
-procLlength args = case args of
-        [lst] -> if B.null `onObj` lst 
-                        then return T.tclFalse
-                        else liftM (T.mkTclInt . length) (T.asList lst) 
-        _     -> argErr "llength"
 
 procIncr :: TclProc
 procIncr [vname]     = incr vname 1
@@ -320,7 +292,6 @@ bindArgs params@(_,hasArgs,pl) args = do
                                                         else unless (null xl) badArgs
         badArgs = argErr $ "should be " ++ showParams params
 
-joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
                    
 interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
@@ -342,10 +313,7 @@ parseArrRef str = do start <- B.elemIndex '(' str
                      return (pre, B.tail (B.init post))
 
 
-run :: TclM RetVal -> Either Err RetVal -> IO Bool
-run t v = do st <- makeState Map.empty [baseEnv]
-             retv <- liftM fst (runTclM t st)
-             return (retv == v)
+run = runWithEnv [baseEnv]
 
 testProcEq = TestList [
       "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
