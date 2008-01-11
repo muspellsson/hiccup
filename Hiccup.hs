@@ -94,7 +94,7 @@ regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x)
 evalToken :: TclWord -> TclM RetVal
 evalToken (Word s)               = interp s
 evalToken (NoSub s res)          = return $ T.mkTclBStrP s res
-evalToken (Subcommand c)         = runCommand c
+evalToken (Subcommand _ c)         = runCommand c
 
 runCommand :: [TclWord] -> TclM RetVal
 runCommand args = do 
@@ -106,7 +106,7 @@ procProc, procSet, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2 >> return s2
      [s1]    -> varGet (T.asBStr s1)
-     _       -> argErr "set"
+     _       -> argErr ("set " ++ show args ++ " " ++ show (length args))
 
 procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
@@ -198,9 +198,9 @@ procIf (cond:yes:rest) = do
   condVal <- doCond cond
   if condVal then evalTcl yes
     else case rest of
-          [s,blk] -> if s .== "else" then evalTcl blk else tclErr "Invalid If"
-          (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
           []      -> ret
+          [s,blk] -> if (T.asBStr s) == (B.pack "else") then evalTcl blk else tclErr "Invalid If"
+          (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
 procIf _ = argErr "if"
 
 procWhile [cond,body] = loop `catchError` herr
@@ -268,9 +268,10 @@ procProc [name,args,body] = do
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
-parseParams name args = T.asList args >>= countRet
+parseParams name args = strList args >>= countRet
  where countRet lst = mapM doArg lst >>= return . mkParamList name
-       doArg s = do l <- T.asList s
+       strList v = T.asList v
+       doArg s = do l <- strList s
                     return $ case l of
                               [k,v] -> Right (k,v)
                               _     -> Left s
@@ -300,7 +301,10 @@ interp :: BString -> TclM RetVal
 interp str = case wrapInterp str of
                    Left s  -> treturn s
                    Right x -> handle x
- where f (Left match) = varGet match
+ where f (Left match) = case parseArrRef match of 
+                           Nothing      -> varGet match
+                           Just (n,ind) -> do inner <- interp ind
+                                              varGet (B.concat [n,  (B.singleton '('), T.asBStr inner, B.singleton ')'])
        f (Right x)    = runCommand x
        handle (b,m,a) = do mid <- f m
                            let front = B.append b (T.asBStr mid)

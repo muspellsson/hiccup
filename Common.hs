@@ -36,7 +36,7 @@ mapFst f = map (\(a,b) -> (f a, b))
 getStack = gets tclStack
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
-modStack f = getStack >>= \s -> let r = f s in r `seq` putStack r
+modStack f = getStack >>= putStack . f
 getFrame = do st <- getStack  
               case st of
                 []    -> tclErr "Aack. Tried to go up too far in the stack."
@@ -86,7 +86,7 @@ varExists name = do
   env <- getFrame
   case upped name env of
      Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
-     Just (i,_) -> return True
+     Just (i,_) -> return True -- TODO: Don't assume an upref is always correct?
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 

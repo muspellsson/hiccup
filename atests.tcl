@@ -335,6 +335,21 @@ assertEq 1 [catch { puts "$thisdoesntexist" }]
 assertEq 0 [catch { + 1 1 }]
 
 
+test "whitespace escaping" {
+  set x \
+   13
+
+  checkthat $x == 13
+
+  set boo \ redrum
+
+  checkthat $boo eq " redrum"
+
+  set lala \ 
+  checkthat $lala eq " "
+}
+
+
 set whagganog ""
 set otherthing ""
 test "global test" {
@@ -563,6 +578,12 @@ test "array set/get" {
 
   set "boo( oh no! )" 4
   checkthat "$boo( oh no! )" == 4
+
+  proc succ {v} { return [+ $v 1] }
+  set i 0
+  set arr($i) 0
+  set "arr([succ [succ $i]])" 1
+  checkthat "$arr([succ [succ $i]])" == 1
 }
 
 assertErr { proc banana }
