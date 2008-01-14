@@ -23,8 +23,10 @@ type TclM = ErrorT Err (StateT TclState IO)
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv] }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
-type VarMap = Map.Map BString (Either T.TclObj (Map.Map BString T.TclObj))
+type VarMap = Map.Map BString (Either T.TclObj TclArray)
 type ChanMap = Map.Map BString T.TclChan
+
+type TclArray = Map.Map BString T.TclObj
 
 makeProcMap = Map.fromList . mapFst B.pack
 makeState chans envl = do cm <- newMVar chans
@@ -33,7 +35,7 @@ makeState chans envl = do cm <- newMVar chans
 mapSnd f = map (\(a,b) -> (a, f b))
 mapFst f = map (\(a,b) -> (f a, b))
 
-getStack = gets tclStack
+getStack = gets tclStack -- TODO: Guard for empty stack here?
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
 modStack f = getStack >>= putStack . f
@@ -74,12 +76,31 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
+parseArrRef str = do start <- B.elemIndex '(' str
+                     guard (start /= 0)
+                     guard (B.last str == ')')
+                     let (pre,post) = B.splitAt start str
+                     return (pre, B.tail (B.init post))
+
 varSet :: BString -> T.TclObj -> TclM ()
-varSet str v = do when (B.null str) $ tclErr "Empty varname to set!" 
-                  (env:es) <- getStack
-                  case upped str env of
-                    Just (i,s) -> uplevel i (varSet s v)
-                    Nothing    -> putStack ((env { vars = Map.insert str (Left v) (vars env) }):es)
+varSet n v = case parseArrRef (T.asBStr n) of
+              Nothing -> varSet2 n Nothing v
+              Just (an,i) -> varSet2 an (Just i) v
+
+varSet2 :: BString -> Maybe BString -> T.TclObj -> TclM ()
+varSet2 str ind v = do 
+     when (B.null str) (tclErr "Empty varname to set!")
+     (env:es) <- getStack
+     case upped str env of
+         Just (i,s) -> uplevel i (varSet2 s ind v)
+         Nothing    -> modEnv (env:es)
+ where modEnv (env:es) = do
+                let ev = vars env 
+                case ind of
+                  Nothing -> putStack ((env { vars = Map.insert str (Left v) ev }):es)
+                  Just i  -> case Map.findWithDefault (Right Map.empty) i ev of
+                               Left x -> tclErr "wtf?"
+                               Right prev ->  putStack ((env { vars = Map.insert str (Right (Map.insert i v prev)) ev }):es)
 
 varExists :: BString -> TclM Bool
 varExists name = do
@@ -110,13 +131,21 @@ varDump = do env <- getStack
 
 
 varGet :: BString -> TclM RetVal
-varGet name = do env <- getFrame
-                 case upped name env of
-                   Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
-                                    case val of
-                                      Left o -> return o
-                                      Right _ -> tclErr "variable is array"
-                   Just (i,n) -> uplevel i (varGet n)
+varGet n = case parseArrRef (T.asBStr n) of
+              Nothing -> varGet2 n Nothing
+              Just (an,i) -> varGet2 an (Just i)
+
+varGet2 :: BString -> Maybe BString -> TclM RetVal
+varGet2 name ind = do 
+   env <- getFrame
+   case upped name env of
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+                       case (val, ind) of
+                          (Left o, Nothing)  -> return o
+                          (Right _, Nothing) -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable is array"
+                          (Left _, Just _)   -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable isn't array"
+                          (Right m, Just i)  -> Map.lookup i m `ifNothing` ("can't read \"" ++ T.asStr i ++ "\": no such element in array")
+      Just (i,n) -> uplevel i (varGet2 n ind)
 
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do 

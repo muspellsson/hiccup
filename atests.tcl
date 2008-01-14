@@ -567,7 +567,6 @@ test "info level" {
 }
 
 test "array set/get" {
-  # Currently faked
   set boo(4) 111
   checkthat "$boo(4)" == 111
   set boo(5) 112

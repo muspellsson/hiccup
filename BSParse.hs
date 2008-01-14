@@ -26,7 +26,8 @@ handleEsc s = do h <- safeHead s
                     '\n' -> (dispatch . dropWhite) (B.drop 1 s)
                     v    -> do case wordToken (B.drop 1 s) of
                                 Just (Word w, r) -> return (Word (B.concat [B.singleton '\\', B.singleton v, w]), r)
-                                Nothing -> return (Word (B.cons '\\' (B.singleton v)), (B.drop 1 s)) 
+                                Nothing          -> return (Word (B.cons '\\' (B.singleton v)), (B.drop 1 s)) 
+                                _                -> fail "The impossible happened"
 
 listDisp str = do h <- safeHead str
                   case h of
@@ -243,7 +244,8 @@ getInterpTests = TestList [
     "Escaped ["   ~: noInterp "a \\[sub] thing.",
     "Trailing bang" ~: (bp "", mkvar "var", bp "!" ) ?=? "$var!",
     "basic arr" ~: (bp "", mkvar "boo(4)", bp " " ) ?=? "$boo(4) ",
-    "basic arr" ~: (bp "", mkvar "boo( 4,5 )", bp " " ) ?=? "$boo( 4,5 ) ",
+    "basic arr2" ~: (bp " ", mkvar "boo(4)", bp " " ) ?=? " $boo(4) ",
+    "basic arr3" ~: (bp "", mkvar "boo( 4,5 )", bp " " ) ?=? "$boo( 4,5 ) ",
     "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
     "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
     "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
@@ -321,8 +323,11 @@ runParseTests = TestList [
      "brack" ~: ([[mkwd "puts", mkwd "${oh no}"]], "") ?=? "puts ${oh no}",
      "arr 1" ~: ([[mkwd "set",mkwd "buggy(4)", mkwd "11"]], "") ?=? "set buggy(4) 11",
      "arr 2" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "11"]], "") ?=? "set buggy($bean) 11",
-     "arr 3" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "$koo"]], "") ?=? "set buggy($bean) $koo",
-     "arr 4" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "${wow}"]], "") ?=? "set buggy($bean) ${wow}"
+     "arr 3" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "$koo"]], "") ?=? "set buggy($bean) $koo"
+     ,"arr 4" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "${wow}"]], "") ?=? "set buggy($bean) ${wow}"
+     ,"quoted ws arr" ~: ([[mkwd "set",mkwd "arr(1 2)", mkwd "4"]], "") ?=? "set \"arr(1 2)\" 4"
+     -- not yet
+     -- ,"unquoted ws arr" ~: ([[mkwd "set",mkwd "$arr(1 2)", mkwd "4"]], "") ?=? "set $arr(1 2) 4"
   ]
  where badword str = Nothing ~=? runParse (bp str)
        (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)

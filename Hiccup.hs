@@ -302,9 +302,9 @@ interp str = case wrapInterp str of
                    Left s  -> treturn s
                    Right x -> handle x
  where f (Left match) = case parseArrRef match of 
-                           Nothing      -> varGet match
-                           Just (n,ind) -> do inner <- interp ind
-                                              varGet (B.concat [n,  (B.singleton '('), T.asBStr inner, B.singleton ')'])
+                         Nothing      -> varGet2 match Nothing
+                         Just (n,ind) -> do inner <- interp ind
+                                            varGet2 n (Just (T.asBStr inner))
        f (Right x)    = runCommand x
        handle (b,m,a) = do mid <- f m
                            let front = B.append b (T.asBStr mid)
@@ -312,12 +312,6 @@ interp str = case wrapInterp str of
 
 -- # TESTS # --
 
-
-parseArrRef str = do start <- B.elemIndex '(' str
-                     guard (start /= 0)
-                     guard (B.last str == ')')
-                     let (pre,post) = B.splitAt start str
-                     return (pre, B.tail (B.init post))
 
 
 run = runWithEnv [baseEnv]
@@ -346,6 +340,7 @@ testArr = TestList [
    ,"(cujo)" `should_be` Nothing
    ,"de(c)mber" `should_be` Nothing
    ,"a(1)"          ?=> ("a","1")
+   ,"boo(4)"        ?=> ("boo","4")
    ,"xx(september)" ?=> ("xx","september")
    ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
    ,"arr()"         ?=> ("arr","")
