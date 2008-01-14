@@ -93,21 +93,21 @@ varSet2 str ind v = do
      (env:es) <- getStack
      case upped str env of
          Just (i,s) -> uplevel i (varSet2 s ind v)
-         Nothing    -> modEnv (env:es)
- where modEnv (env:es) = do
+         Nothing    -> modEnv env >>= \ne -> putStack (ne:es)
+ where modEnv env = do
                 let ev = vars env 
                 case ind of
-                  Nothing -> putStack ((env { vars = Map.insert str (Left v) ev }):es)
+                  Nothing -> return (env { vars = Map.insert str (Left v) ev })
                   Just i  -> case Map.findWithDefault (Right Map.empty) str ev of
-                               Left x -> tclErr "wtf?"
-                               Right prev ->  putStack ((env { vars = Map.insert str (Right (Map.insert i v prev)) ev }):es)
+                               Left _ -> tclErr $ "Can't set \"" ++ B.unpack str ++ "(" ++ B.unpack i ++ ")\": variable isn't array"
+                               Right prev ->  return (env { vars = Map.insert str (Right (Map.insert i v prev)) ev })
 
 varExists :: BString -> TclM Bool
 varExists name = do
   env <- getFrame
   case upped name env of
      Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
-     Just (i,_) -> return True -- TODO: Don't assume an upref is always correct?
+     Just (_,_) -> return True -- TODO: Don't assume an upref is always correct?
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 

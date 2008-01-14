@@ -61,7 +61,7 @@ proc assertErr code {
   if { == $ret 1 } {
     assertPass
   } else {
-    assertFail "code should've failed: $code"
+    assertFail "code should've failed: $code ($ret)"
   }
 }
 
@@ -329,10 +329,13 @@ test "set returns correctly" {
   assertEq 512 $babytime
 }
 
-assertErr { error "oh noes" }
+test "errors and catch" {
 
-assertEq 1 [catch { puts "$thisdoesntexist" }]
-assertEq 0 [catch { + 1 1 }]
+  assertErr { error "oh noes" }
+
+  assertEq 1 [catch { puts "$thisdoesntexist" }]
+  assertEq 0 [catch { + 1 1 }]
+}
 
 
 test "whitespace escaping" {
@@ -594,10 +597,48 @@ test "array size" {
   checkthat [array size boo] == 3
 }
 
-assertErr { proc banana }
-assertErr { proc banana { puts "banana" } }
-assertNoErr { proc banana { } { puts "banana" } }
-assertNoErr { proc banana {} { puts "banana" } }
+test "array exists" {
+  checkthat [array exists arr1] == 0
+
+  set notarr 44
+  checkthat [array exists notarr] == 0
+
+  set arr1(0) 1
+
+  checkthat [array exists arr1] == 1
+}
+
+test "array vs scalar" {
+  assertErr {
+    set x 4
+    set x(1) 4
+  }
+}
+
+test "array set" {
+  assertErr { 
+    array set arr { x 1 y 2 z }
+  }
+
+  array set arr {
+    1 one
+    2 two
+    3 three
+    4 four
+  }
+
+  checkthat $arr(1) eq one
+  checkthat $arr(2) eq two
+  checkthat $arr(3) eq three
+  checkthat $arr(4) eq four
+}
+
+test "proc must be complete" {
+  assertErr { proc banana }
+  assertErr { proc banana { puts "banana" } }
+  assertNoErr { proc banana { } { puts "banana" } }
+  assertNoErr { proc banana {} { puts "banana" } }
+}
 
 puts ""
 puts stdout "Done. Passed $assertcount checks."

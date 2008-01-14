@@ -40,10 +40,12 @@ parseArgs = multi (dispatch . dropWhite)
 
 parseList s = if onlyWhite s 
                then return []
-               else do (l,r) <- multi (listDisp . dropWhite) $ s
+               else do (l,r) <- multi (listDisp . dWhite) $ s
                        guard (onlyWhite r)
                        return l
- where onlyWhite = B.all (`elem` " \t\n")
+ where onlyWhite = B.all isWhite
+       isWhite = (`elem` " \t\n")
+       dWhite = B.dropWhile isWhite
                
 
 runParse :: B.ByteString -> Result
@@ -309,6 +311,7 @@ parseListTests = TestList [
      ," y { \\{ \\{ \\{ } { x }" ~: " y { \\{ \\{ \\{ } { x }" ?=> [bp "y", bp " \\{ \\{ \\{ ", bp " x "]
      , "unmatched fail" ~: fails " { { "
      ,"x {y 0}" ~: "x {y 0}" ?=> [bp "x", bp "y 0"]
+     ,"with nl" ~: "x  1 \n y 2 \n z 3" ?=> (map bp ["x", "1", "y", "2", "z", "3"])
    ]
  where (?=>) str res = Just res ~=? parseList (bp str)
        fails str = Nothing ~=? parseList (bp str)
