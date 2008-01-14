@@ -8,13 +8,15 @@ import Data.Char (toLower,toUpper)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+import Core
+import Common
+
 import IOProcs
 import ListProcs
 import ArrayProcs
+import ControlProcs
 import Test.HUnit  -- IGNORE
-import Core
 
-import Common
 
 coreProcs, baseProcs, mathProcs :: ProcMap
 
@@ -26,8 +28,6 @@ coreProcs = makeProcMap $
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
-controlProcs = makeProcMap $ 
-  [("while", procWhile), ("if", procIf)]
 
 baseProcs = makeProcMap $
   [("string", procString), ("append", procAppend), 
@@ -73,7 +73,7 @@ procSource args = case args of
                   _   -> argErr "source"
 
 
-procProc, procSet, procIf, procWhile, procReturn, procUpLevel :: TclProc
+procProc, procSet, procReturn, procUpLevel :: TclProc
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2 >> return s2
      [s1]    -> varGet (T.asBStr s1)
@@ -108,7 +108,7 @@ procEval args = case args of
                  _   -> argErr "eval"
 
 procCatch args = case args of
-           [s] -> (procEval [s] >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s] -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
            _   -> argErr "catch"
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
@@ -165,32 +165,6 @@ incr n i =  do v <- varGet bsname
                return res
  where bsname = T.asBStr n
 
-doCond :: T.TclObj -> TclM Bool
-doCond str = do 
-      p <- T.asParsed str
-      case p of
-        [x]      -> runCommand x >>= return . T.asBool
-        _        -> tclErr "Too many statements in conditional"
-
-procIf (cond:yes:rest) = do
-  condVal <- doCond cond
-  if condVal then evalTcl yes
-    else case rest of
-          []      -> ret
-          [s,blk] -> if (T.asBStr s) == (B.pack "else") then evalTcl blk else tclErr "Invalid If"
-          (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
-procIf _ = argErr "if"
-
-procWhile [cond,body] = loop `catchError` herr
- where herr EBreak    = ret
-       herr (ERet s)  = return s
-       herr EContinue = loop `catchError` herr
-       herr x         = throwError x
-       loop = do condVal <- doCond cond
-                 if condVal then evalTcl body >> loop else ret
-
-procWhile _ = argErr "while"
-
 procReturn args = case args of
       [s] -> throwError (ERet s)
       []  -> throwError (ERet T.empty)
@@ -206,7 +180,7 @@ procError [s] = tclErr (T.asStr s)
 procError _   = argErr "error"
 
 procUpLevel args = case args of
-              [p]    -> uplevel 1 (procEval [p])
+              [p]    -> uplevel 1 (evalTcl p)
               (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
 

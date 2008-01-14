@@ -1,4 +1,4 @@
-module Core (evalTcl, runCommand, regProc) where
+module Core (evalTcl, doCond, regProc) where
 
 import Common
 import BSParse (TclWord(..), wrapInterp)
@@ -40,3 +40,10 @@ runCommand args = do
  (name:evArgs) <- mapM evalToken args
  proc <- getProc (T.asBStr name) 
  proc evArgs
+
+doCond :: T.TclObj -> TclM Bool
+doCond str = do 
+      p <- T.asParsed str
+      case p of
+        [x]      -> runCommand x >>= return . T.asBool
+        _        -> tclErr "Too many statements in conditional"
