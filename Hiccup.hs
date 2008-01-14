@@ -11,6 +11,7 @@ import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
 import IOProcs
 import ListProcs
+import ArrayProcs
 import Test.HUnit  -- IGNORE
 
 import Common
@@ -39,7 +40,7 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
- where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs, listProcs]
+ where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs, listProcs, arrayProcs]
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -175,7 +176,7 @@ procInfo _   = argErr "info"
 toObs = map T.mkTclBStr
 
 procAppend args = case args of
-            (v:vx) -> do val <- varGet (T.asBStr v) `catchError` \_ -> ret
+            (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
                          procSet [v, oconcat (val:vx)]
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr

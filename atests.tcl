@@ -585,6 +585,15 @@ test "array set/get" {
   checkthat "$arr([succ [succ $i]])" == 1
 }
 
+test "array size" {
+  checkthat [array size boo] == 0
+  set boo(0) 1
+  set boo(1) 5
+  set boo(2) 2
+
+  checkthat [array size boo] == 3
+}
+
 assertErr { proc banana }
 assertErr { proc banana { puts "banana" } }
 assertNoErr { proc banana { } { puts "banana" } }

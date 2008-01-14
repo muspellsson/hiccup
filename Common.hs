@@ -98,7 +98,7 @@ varSet2 str ind v = do
                 let ev = vars env 
                 case ind of
                   Nothing -> putStack ((env { vars = Map.insert str (Left v) ev }):es)
-                  Just i  -> case Map.findWithDefault (Right Map.empty) i ev of
+                  Just i  -> case Map.findWithDefault (Right Map.empty) str ev of
                                Left x -> tclErr "wtf?"
                                Right prev ->  putStack ((env { vars = Map.insert str (Right (Map.insert i v prev)) ev }):es)
 
@@ -135,6 +135,17 @@ varGet n = case parseArrRef (T.asBStr n) of
               Nothing -> varGet2 n Nothing
               Just (an,i) -> varGet2 an (Just i)
 
+
+getArray :: BString -> TclM TclArray
+getArray name = do
+   env <- getFrame
+   case upped name env of
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+                       case val of
+                          (Right m)  -> return m
+                          (Left _)   -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable isn't array"
+      Just (i,n) -> uplevel i (getArray n)
+
 varGet2 :: BString -> Maybe BString -> TclM RetVal
 varGet2 name ind = do 
    env <- getFrame
@@ -165,6 +176,9 @@ withScope f = do
   (o:old) <- getStack
   putStack $ (emptyEnv { procs = procs o }) : o : old
   f `ensure` (modStack (drop 1))
+
+
+ifFails f v = f `catchError` (\_ -> return v)
 
 ensure :: TclM RetVal -> TclM () -> TclM RetVal
 ensure action p = do
