@@ -7,12 +7,12 @@ import Data.IORef
 import Data.Char (toLower,toUpper)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
-import BSParse (TclWord(..), wrapInterp)
 import qualified TclObj as T
 import IOProcs
 import ListProcs
 import ArrayProcs
 import Test.HUnit  -- IGNORE
+import Core
 
 import Common
 
@@ -20,13 +20,14 @@ coreProcs, baseProcs, mathProcs :: ProcMap
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
-  ("uplevel", procUpLevel),("if",procIf),
-  ("unset", procUnset),("dump", procDump),
-  ("while",procWhile),("eval", procEval),
+  ("uplevel", procUpLevel), ("unset", procUnset),("dump", procDump),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
+
+controlProcs = makeProcMap $ 
+  [("while", procWhile), ("if", procIf)]
 
 baseProcs = makeProcMap $
   [("string", procString), ("append", procAppend), 
@@ -40,7 +41,7 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = emptyEnv { procs = procMap  }
- where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs, listProcs, arrayProcs]
+ where procMap = Map.unions [coreProcs, controlProcs, mathProcs, baseProcs, ioProcs, listProcs, arrayProcs]
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -67,41 +68,10 @@ runInterp' t (Interpreter i) = do
 
 runTcl v = mkInterp >>= runInterp v
 
-evalTcl s = runCmds =<< getParsed s
-
-runCmds = liftM last . mapM runCommand
-
-getParsed :: T.TclObj -> TclM [[TclWord]]
-getParsed str = do p <- T.asParsed str
-                   return $ filter (not . null) p
-
 procSource args = case args of
                   [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
                   _   -> argErr "source"
 
-
-doCond :: T.TclObj -> TclM Bool
-doCond str = do 
-      p <- getParsed str
-      case p of
-        [x]      -> runCommand x >>= return . T.asBool
-        _        -> tclErr "Too many statements in conditional"
-
-
-
-getProc str = getFrame >>= (`ifNothing` ("invalid command name " ++ show str)) . Map.lookup str . procs
-regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
-
-evalToken :: TclWord -> TclM RetVal
-evalToken (Word s)               = interp s
-evalToken (NoSub s res)          = return $ T.mkTclBStrP s res
-evalToken (Subcommand _ c)       = runCommand c
-
-runCommand :: [TclWord] -> TclM RetVal
-runCommand args = do 
- (name:evArgs) <- mapM evalToken args
- proc <- getProc (T.asBStr name) 
- proc evArgs
 
 procProc, procSet, procIf, procWhile, procReturn, procUpLevel :: TclProc
 procSet args = case args of
@@ -195,6 +165,12 @@ incr n i =  do v <- varGet bsname
                return res
  where bsname = T.asBStr n
 
+doCond :: T.TclObj -> TclM Bool
+doCond str = do 
+      p <- T.asParsed str
+      case p of
+        [x]      -> runCommand x >>= return . T.asBool
+        _        -> tclErr "Too many statements in conditional"
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -265,7 +241,7 @@ mkParamList name lst = (name, hasArgs, used)
 procProc [name,args,body] = do
   let pname = T.asBStr name
   params <- parseParams pname args
-  pbody <- getParsed body
+  pbody <- T.asParsed body
   regProc pname (procRunner params pbody)
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
@@ -278,7 +254,6 @@ parseParams name args = strList args >>= countRet
                               [k,v] -> Right (k,v)
                               _     -> Left s
 
-procRunner :: ParamList -> [[TclWord]] -> [T.TclObj] -> TclM RetVal
 procRunner pl body args = 
   withScope $ do 
     bindArgs pl args
@@ -297,20 +272,6 @@ bindArgs params@(_,hasArgs,pl) args = do
         walkBoth []                 xl     = if hasArgs then do procList xl >>= varSet (B.pack "args")
                                                         else unless (null xl) badArgs
         badArgs = argErr $ "should be " ++ showParams params
-
-                   
-interp :: BString -> TclM RetVal
-interp str = case wrapInterp str of
-                   Left s  -> treturn s
-                   Right x -> handle x
- where f (Left match) = case parseArrRef match of 
-                         Nothing      -> varGet2 match Nothing
-                         Just (n,ind) -> do inner <- interp ind
-                                            varGet2 n (Just (T.asBStr inner))
-       f (Right x)    = runCommand x
-       handle (b,m,a) = do mid <- f m
-                           let front = B.append b (T.asBStr mid)
-                           interp a >>= \v -> treturn (B.append front (T.asBStr v))
 
 -- # TESTS # --
 
