@@ -9,7 +9,8 @@ import qualified Data.Map as Map
 import Data.List (intersperse)
 import Test.HUnit 
 
-type BString = B.ByteString
+type BString = T.BString
+
 type RetVal = T.TclObj -- IGNORE
 
 data Err = ERet !RetVal | EBreak | EContinue | EDie String deriving (Eq,Show)

@@ -7,6 +7,8 @@ import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Data.Unique
 
+type BString = BS.ByteString
+
 data TclChan = TclChan { chanHandle :: Handle, chanName :: BS.ByteString } deriving (Eq,Show)
 
 tclStdChans = [ mkChan' stdout "stdout", mkChan' stdin "stdin", mkChan' stderr "stderr" ]
@@ -19,8 +21,8 @@ mkChan h = do n <- uniqueNum
 mkChan' h n = TclChan h (BS.pack n)
 
 
-data TclObj = TclInt !Int BS.ByteString | 
-              TclBStr !BS.ByteString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
+data TclObj = TclInt !Int BString | 
+              TclBStr !BString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
@@ -30,7 +32,7 @@ mkTclBStrP s res = TclBStr s mayint (resultToEither res s)
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
-resultToEither :: Maybe ([[P.TclWord]], BS.ByteString) -> BS.ByteString -> Either String [[P.TclWord]]
+resultToEither :: Maybe ([[P.TclWord]], BString) -> BString -> Either String [[P.TclWord]]
 resultToEither res s = case res of
                         Nothing -> Left $ "parse failed: " ++ show s
                         Just (r,rs) -> if BS.null rs then Right r else Left ("Incomplete parse: " ++ show rs)
@@ -45,14 +47,14 @@ tclFalse = mkTclInt 0
 
 fromBool b = if b then tclTrue else tclFalse
 
-trim :: TclObj -> BS.ByteString
+trim :: TclObj -> BString
 trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite . asBStr
 
 class ITObj o where
   asStr :: o -> String
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
-  asBStr :: o -> BS.ByteString
+  asBStr :: o -> BString
   asParsed :: (Monad m) => o -> m [[P.TclWord]]
 
 instance ITObj BS.ByteString where

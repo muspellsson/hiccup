@@ -39,7 +39,7 @@ mathProcs = makeProcMap . mapSnd procMath $
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
-baseEnv = TclEnv { vars = Map.empty, procs = procMap, upMap = Map.empty }
+baseEnv = emptyEnv { procs = procMap  }
  where procMap = Map.unions [coreProcs, mathProcs, baseProcs, ioProcs, listProcs, arrayProcs]
 
 data Interpreter = Interpreter (IORef TclState)
@@ -95,7 +95,7 @@ regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x)
 evalToken :: TclWord -> TclM RetVal
 evalToken (Word s)               = interp s
 evalToken (NoSub s res)          = return $ T.mkTclBStrP s res
-evalToken (Subcommand _ c)         = runCommand c
+evalToken (Subcommand _ c)       = runCommand c
 
 runCommand :: [TclWord] -> TclM RetVal
 runCommand args = do 
@@ -152,6 +152,7 @@ procString (f:s:args)
  | f .== "trim" = treturn (T.trim s)
  | f .== "tolower" = retmod (B.map toLower) s
  | f .== "toupper" = retmod (B.map toUpper) s
+ | f .== "reverse" = retmod (B.reverse) s
  | f .== "length" = return $ T.mkTclInt (B.length `onObj` s)
  | f .== "index" = case args of 
                           [i] -> do ind <- T.asInt i

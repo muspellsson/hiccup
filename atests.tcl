@@ -246,6 +246,11 @@ test "string methods" {
   assertStrEq "wombat" [string tolower "WOMBAT"]
   assertStrEq "CALCULUS" [string toupper "calculus"]
   assertStrEq "hello" [string trim "  hello  "]
+
+
+  checkthat [string reverse "123"] eq "321"
+  checkthat [string reverse ""] eq ""
+  checkthat [string reverse "X Y"] eq "Y X"
 }
 
 

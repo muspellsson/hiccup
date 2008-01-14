@@ -1,12 +1,23 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
-module Hash where
+module Main where
+import qualified Data.Map as Map
+import Data.List (foldl', nub)
 
 import qualified Data.ByteString.Char8 as B
 import Data.Bits
 import Data.Word
 import Data.Char (ord)
 
-main = B.getContents >>= print . perlhash
+main = B.getContents >>= print . showCollisions . findCollisions .  map (\x -> ((bssum x, perlhash x), x)) . B.words
+
+
+findCollisions :: (Ord a) => [(a, B.ByteString)] -> Map.Map a [B.ByteString]
+findCollisions = foldl' (\m (h,w) -> Map.insertWith' (\a b -> nub (a ++ b)) h [w] m) Map.empty 
+
+showCollisions = filter (\(a,b) -> length b > 1) . Map.toList 
+
+bssum :: B.ByteString -> Word32
+bssum = B.foldl' (\a b -> a + (fromIntegral (ord b))) 0
 
 perlhash :: B.ByteString -> Word32
 perlhash s = v2 + (v2 `shiftL` 15)
