@@ -238,30 +238,14 @@ mkParamList name lst = (name, hasArgs, used)
        used = if hasArgs then init lst else lst
        lastIsArgs = either (== (B.pack "args")) (const False)  . last
 
-procProc [name,args,body] = do
-  let pname = T.asBStr name
-  params <- parseParams pname args
-  pbody <- T.asParsed body
-  regProc pname (procRunner params pbody)
-procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
-parseParams name args = strList args >>= countRet
+parseParams name args = T.asList args >>= countRet
  where countRet lst = mapM doArg lst >>= return . mkParamList name
-       strList v = T.asList v
-       doArg s = do l <- strList s
+       doArg s = do l <- T.asList s
                     return $ case l of
                               [k,v] -> Right (k,v)
                               _     -> Left s
-
-procRunner pl body args = 
-  withScope $ do 
-    bindArgs pl args
-    runCmds body `catchError` herr
- where herr (ERet s)  = return s
-       herr (EDie s)  = tclErr s
-       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
-       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
 
 bindArgs params@(_,hasArgs,pl) args = do
     walkBoth pl args 
@@ -273,8 +257,23 @@ bindArgs params@(_,hasArgs,pl) args = do
                                                         else unless (null xl) badArgs
         badArgs = argErr $ "should be " ++ showParams params
 
--- # TESTS # --
+procProc [name,args,body] = do
+  let pname = T.asBStr name
+  params <- parseParams pname args
+  regProc pname (procRunner params body)
+procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
+procRunner pl body args = 
+  withScope $ do 
+    bindArgs pl args
+    evalTcl body `catchError` herr
+ where herr (ERet s)  = return s
+       herr (EDie s)  = tclErr s
+       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
+       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
+
+
+-- # TESTS # --
 
 
 run = runWithEnv [baseEnv]

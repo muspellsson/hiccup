@@ -1,4 +1,4 @@
-module Core (evalTcl, runCommand, runCmds, regProc) where
+module Core (evalTcl, runCommand, regProc) where
 
 import Common
 import BSParse (TclWord(..), wrapInterp)
