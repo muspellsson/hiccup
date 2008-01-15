@@ -1,27 +1,35 @@
 module TclObj where
 
-import Test.HUnit  -- IGNORE
 
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
+import RToken
+
+import Test.HUnit  -- IGNORE
 
 type BString = BS.ByteString
 
+type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
-              TclBStr !BString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
+              TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
+
+fromBlock s p = TclBStr s mayint p
+  where mayint = case BS.readInt (P.dropWhite s) of
+                   Nothing -> Nothing
+                   Just (i,_) -> Just i
 
 mkTclBStrP s res = TclBStr s mayint (resultToEither res s)
   where mayint = case BS.readInt (P.dropWhite s) of
                    Nothing -> Nothing
                    Just (i,_) -> Just i
 
-resultToEither :: Maybe ([[P.TclWord]], BString) -> BString -> Either String [[P.TclWord]]
+resultToEither :: P.Result -> BString -> Either String Parsed
 resultToEither res s = case res of
                         Nothing -> Left $ "parse failed: " ++ show s
-                        Just (r,rs) -> if BS.null rs then Right r else Left ("Incomplete parse: " ++ show rs)
+                        Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
 mkTclInt i = TclInt i bsval
  where bsval = BS.pack (show i)
@@ -42,7 +50,7 @@ class ITObj o where
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
-  asParsed :: (Monad m) => o -> m [[P.TclWord]]
+  asParsed :: (Monad m) => o -> m Parsed
 
 instance ITObj BS.ByteString where
   asStr = BS.unpack

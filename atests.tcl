@@ -184,7 +184,7 @@ test "list test" {
 
   checkthat [llength [list [list 1 2 3] [list 3 4 5]]] == 2
   assertEq [lindex 4] 4
-  assertStrEq [lindex $bean 8] "" 
+  checkthat [lindex $bean 8] eq "" 
 
 }
 

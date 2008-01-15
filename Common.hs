@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import Data.List (intersperse)
 import qualified TclChan as T
 import Test.HUnit 
+import BSParse (parseArrRef)
 
 type BString = T.BString
 
@@ -78,12 +79,13 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
+{-
 parseArrRef str = do start <- B.elemIndex '(' str
                      guard (start /= 0)
                      guard (B.last str == ')')
                      let (pre,post) = B.splitAt start str
                      return (pre, B.tail (B.init post))
-
+-}
 varSet :: BString -> T.TclObj -> TclM ()
 varSet n v = case parseArrRef n of
               Nothing -> varSet2 n Nothing v
@@ -215,7 +217,29 @@ runWithEnv env t v =
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
-commonTests = TestList [ setTests, getTests, unsetTests ] where
+errWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a)
+errWithEnv env t = 
+    do st <- makeState Map.empty env
+       retv <- liftM fst (runTclM t st)
+       return retv
+
+emptyEval = errWithEnv [emptyEnv]
+
+commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
+  testArr = TestList [
+     "december" `should_be` Nothing
+     ,"dec(mber" `should_be` Nothing
+     ,"dec)mber" `should_be` Nothing
+     ,"(cujo)" `should_be` Nothing
+     ,"de(c)mber" `should_be` Nothing
+     ,"a(1)"          ?=> ("a","1")
+     ,"boo(4)"        ?=> ("boo","4")
+     ,"xx(september)" ?=> ("xx","september")
+     ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
+     ,"arr()"         ?=> ("arr","")
+   ]
+   where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
+         should_be x r =  (x ++ " should be " ++ show r) ~: parseArrRef (B.pack x) ~=? r
 
   b = B.pack
 
@@ -225,11 +249,6 @@ commonTests = TestList [ setTests, getTests, unsetTests ] where
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
-  errWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a)
-  errWithEnv env t = 
-    do st <- makeState Map.empty env
-       retv <- liftM fst (runTclM t st)
-       return retv
 
   checkErr a s = errWithEnv [emptyEnv] a >>= \v -> assertEqual "err match" v (Left (EDie s))
   checkNoErr a = errWithEnv [emptyEnv] a >>= \v -> assertBool "err match" (isRight v)

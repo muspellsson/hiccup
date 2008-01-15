@@ -270,20 +270,6 @@ testProcEq = TestList [
        int i = T.mkTclInt i
        str s = T.mkTclStr s
 
-testArr = TestList [
-   "december" `should_be` Nothing
-   ,"dec(mber" `should_be` Nothing
-   ,"dec)mber" `should_be` Nothing
-   ,"(cujo)" `should_be` Nothing
-   ,"de(c)mber" `should_be` Nothing
-   ,"a(1)"          ?=> ("a","1")
-   ,"boo(4)"        ?=> ("boo","4")
-   ,"xx(september)" ?=> ("xx","september")
-   ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
-   ,"arr()"         ?=> ("arr","")
- ]
- where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (B.pack a) ~=? Just (B.pack b1, B.pack b2)
-       should_be x r =  (x ++ " should be " ++ show r) ~: parseArrRef (B.pack x) ~=? r
-hiccupTests = TestList [ testProcEq, testArr ]
+hiccupTests = TestList [ testProcEq ]
 
 -- # ENDTESTS # --

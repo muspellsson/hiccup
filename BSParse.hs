@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
 
 module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite, parseList
+            ,Result
+            ,TokCmd
+            ,parseArrRef
+            ,BString
             ,bsParseTests 
   ) where
 
@@ -9,9 +13,13 @@ import Control.Monad
 import Data.Ix
 import Test.HUnit  -- IGNORE
 
-type Result = Maybe ([[TclWord]], B.ByteString)
+type Result = Maybe ([TokCmd], BString)
 
-data TclWord = Word !B.ByteString | Subcommand !B.ByteString [TclWord] | NoSub !B.ByteString Result deriving (Show,Eq)
+type TokCmd = (TclWord, [TclWord])
+
+type BString = B.ByteString
+
+data TclWord = Word !B.ByteString | Subcommand !B.ByteString TokCmd | NoSub !B.ByteString Result deriving (Show,Eq)
 
 dispatch str = do h <- safeHead str
                   case h of
@@ -49,7 +57,9 @@ parseList s = if onlyWhite s
                
 
 runParse :: B.ByteString -> Result
-runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (filter (not . null) wds, rem)
+runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
+
+asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
 safeHead s = guard (not (B.null s)) >> return (B.head s)
 {-# INLINE safeHead #-}
@@ -106,7 +116,9 @@ parseSub s = do guard (B.head s == '[')
                 (p,r) <- parseArgs (B.tail s)
                 loc <- B.elemIndex ']' r
                 let (pre,aft) = B.splitAt loc r -- TODO: Ignores unparsed.. tsk tsk.
-                return (Subcommand pre p, B.tail aft)
+                case p of
+                   [] -> fail "empty subcommand"
+                   (ph:pt) -> return (Subcommand pre (ph,pt), B.tail aft)
 
 eatcomment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
 
@@ -191,6 +203,11 @@ nested s = do ind <- match 0 0 False
             '\\' -> match c nexti (not esc)
             _    -> match c nexti False
 
+parseArrRef str = do start <- B.elemIndex '(' str
+                     guard (start /= 0)
+                     guard (B.last str == ')')
+                     let (pre,post) = B.splitAt start str
+                     return (pre, B.tail (B.init post))
  
 -- # TESTS # --
 
@@ -254,7 +271,7 @@ getInterpTests = TestList [
     "unescaped $ after esc works" ~: 
           (bp "a \\$", mkvar "variable", bp "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
-       (bp "a ",Right [mkwd "sub",mklit "quail [puts 1]"], bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
+       (bp "a ",Right (mkwd "sub",[mklit "quail [puts 1]"]), bp " thing.") ?=? "a [sub \"quail [puts 1]\"] thing."
   ]
  where noInterp str = Nothing ~=? getInterp (bp str)
        (?=?) res str = Just res ~=? getInterp (bp str)
@@ -265,6 +282,7 @@ wrapInterpTests = TestList [
     "brace escape"  ~: "oh [ yeah" ?!= "oh \\[ yeah",
     "tab escape"     ~: "a \t tab"  ?!= "a \\t tab",
     "slash escape"     ~: "slash \\\\ party"  ?!= "slash \\\\\\\\ party",
+    "subcom"   ~: (bp "some ", Right (mkwd "cmd", []), bp "") ?=? "some [cmd]",
     "newline escape" ~: "\nline\n"  ?!= "\\nline\\n"
   ]
  where (?=?) res str = Right res ~=? wrapInterp (bp str)
@@ -317,29 +335,29 @@ parseListTests = TestList [
        fails str = Nothing ~=? parseList (bp str)
 
 runParseTests = TestList [
-     "one token" ~: ([[mkwd "exit"]],"") ?=? "exit",
-     "multi-line" ~: ([[mkwd "puts", mkwd "44"]],"") ?=? " puts \\\n   44",
-     "escaped space" ~: ([[mkwd "puts", mkwd "\\ "]],"") ?=? " puts \\ ",
+     "one token" ~: (pr ["exit"]) ?=? "exit",
+     "multi-line" ~: (pr ["puts", "44"]) ?=? " puts \\\n   44",
+     "escaped space" ~: (pr ["puts", "\\ "]) ?=? " puts \\ ",
      "empty" ~: ([],"") ?=? " ",
      "empty2" ~: ([],"") ?=? "",
-     "a b " ~: ([[mkwd "a", mkwd "b"]],"") ?=? "a b ",
-     "brack" ~: ([[mkwd "puts", mkwd "${oh no}"]], "") ?=? "puts ${oh no}",
-     "arr 1" ~: ([[mkwd "set",mkwd "buggy(4)", mkwd "11"]], "") ?=? "set buggy(4) 11",
-     "arr 2" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "11"]], "") ?=? "set buggy($bean) 11",
-     "arr 3" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "$koo"]], "") ?=? "set buggy($bean) $koo"
-     ,"arr 4" ~: ([[mkwd "set",mkwd "buggy($bean)", mkwd "${wow}"]], "") ?=? "set buggy($bean) ${wow}"
-     ,"quoted ws arr" ~: ([[mkwd "set",mkwd "arr(1 2)", mkwd "4"]], "") ?=? "set \"arr(1 2)\" 4"
+     "unmatched" ~: badword "{ { }",
+     "a b " ~: (pr ["a", "b"]) ?=? "a b ",
+     "brack" ~: (pr ["puts", "${oh no}"]) ?=? "puts ${oh no}",
+     "arr 1" ~: (pr ["set","buggy(4)", "11"]) ?=? "set buggy(4) 11",
+     "arr 2" ~: (pr ["set","buggy($bean)", "11"]) ?=? "set buggy($bean) 11",
+     "arr 3" ~: (pr ["set","buggy($bean)", "$koo"]) ?=? "set buggy($bean) $koo"
+     ,"arr 4" ~: (pr ["set","buggy($bean)", "${wow}"]) ?=? "set buggy($bean) ${wow}"
+     ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
      -- not yet
      -- ,"unquoted ws arr" ~: ([[mkwd "set",mkwd "$arr(1 2)", mkwd "4"]], "") ?=? "set $arr(1 2) 4"
   ]
  where badword str = Nothing ~=? runParse (bp str)
        (?=?) (res,r) str = Just (res, bp r) ~=? runParse (bp str)
+       pr (x:xs) = ([(mkwd x, map mkwd xs)], "")
+       pr []     = error "bad test!"
 
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
                    parseArgsTests, parseListTests, runParseTests ]
-
-runUnit = runTestTT bsParseTests
-
 
 -- # ENDTESTS # --

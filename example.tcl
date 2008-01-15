@@ -7,19 +7,6 @@ proc decr { v { i -1 } } {
 }
 
 proc memfib x {
-  set loc {1 1}
-  set ctr 2
-  while { <= $ctr $x } {
-    set v1 [lindex $loc [- $ctr 1]]
-    set v2 [lindex $loc [- $ctr 2]]
-    set {the sum} [+ $v1 $v2]
-    set loc "$loc ${the sum}"
-    incr ctr
-  }
-  return [lindex $loc $x]
-}
-
-proc memfib2 x {
   set loc(0) 1
   set loc(1) 1
   set ctr 2
@@ -37,7 +24,6 @@ set fcount 21
 puts "First $fcount fibonacci numbers in descending order:"
 while {<= 2 $fcount} {
   puts -nonewline "[memfib $fcount] "
-  puts -nonewline "[memfib2 $fcount] "
   decr fcount
 }
 puts "\nDone."
