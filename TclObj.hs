@@ -4,22 +4,8 @@ import Test.HUnit  -- IGNORE
 
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
-import System.IO
-import Data.Unique
 
 type BString = BS.ByteString
-
-data TclChan = TclChan { chanHandle :: Handle, chanName :: BS.ByteString } deriving (Eq,Show)
-
-tclStdChans = [ mkChan' stdout "stdout", mkChan' stdin "stdin", mkChan' stderr "stderr" ]
-
-
-mkChan h = do n <- uniqueNum
-              return (mkChan' h ("file" ++ show n))
- where uniqueNum = newUnique >>= return . hashUnique
-
-mkChan' h n = TclChan h (BS.pack n)
-
 
 data TclObj = TclInt !Int BString | 
               TclBStr !BString (Maybe Int) (Either String [[P.TclWord]]) deriving (Show,Eq)
@@ -39,6 +25,7 @@ resultToEither res s = case res of
 
 mkTclInt i = TclInt i bsval
  where bsval = BS.pack (show i)
+{-# INLINE mkTclInt #-}
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
 
@@ -66,10 +53,10 @@ instance ITObj BS.ByteString where
 
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
-  asStr (TclBStr bs _ _) = asStr bs
+  asStr (TclBStr bs _ _) =  BS.unpack bs
 
   asBool (TclInt i _) = i /= 0
-  asBool (TclBStr bs _ _) = asBool bs
+  asBool (TclBStr bs _ _) = bs `elem` trueValues
 
   asInt (TclInt i _) = return i
   asInt (TclBStr _ (Just i) _) = return i
@@ -83,9 +70,11 @@ instance ITObj TclObj where
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   
 
+asList :: (Monad m, ITObj o) => o -> m [BString]
 asList obj = case P.parseList (asBStr obj) of
-              Nothing  -> fail $ "list parse failure: " ++ show (asBStr obj)
-              Just lst -> return lst
+               Nothing  -> fail $ "list parse failure: " ++ show (asBStr obj)
+               Just lst -> return lst
+
 
 trueValues = map BS.pack ["1", "true", "yes", "on"]
 

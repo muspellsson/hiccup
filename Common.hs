@@ -7,6 +7,7 @@ import Control.Concurrent.MVar
 import Control.Monad.State
 import qualified Data.Map as Map
 import Data.List (intersperse)
+import qualified TclChan as T
 import Test.HUnit 
 
 type BString = T.BString
@@ -84,7 +85,7 @@ parseArrRef str = do start <- B.elemIndex '(' str
                      return (pre, B.tail (B.init post))
 
 varSet :: BString -> T.TclObj -> TclM ()
-varSet n v = case parseArrRef (T.asBStr n) of
+varSet n v = case parseArrRef n of
               Nothing -> varSet2 n Nothing v
               Just (an,i) -> varSet2 an (Just i) v
 
@@ -132,31 +133,30 @@ varDump = do env <- getStack
 
 
 varGet :: BString -> TclM RetVal
-varGet n = case parseArrRef (T.asBStr n) of
+varGet n = case parseArrRef n of
               Nothing -> varGet2 n Nothing
               Just (an,i) -> varGet2 an (Just i)
-
 
 getArray :: BString -> TclM TclArray
 getArray name = do
    env <- getFrame
    case upped name env of
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ B.unpack name ++ "\": no such variable")
                        case val of
                           (Right m)  -> return m
-                          (Left _)   -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable isn't array"
+                          (Left _)   -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
       Just (i,n) -> uplevel i (getArray n)
 
 varGet2 :: BString -> Maybe BString -> TclM RetVal
 varGet2 name ind = do 
    env <- getFrame
    case upped name env of
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ T.asStr name ++ "\": no such variable")
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++  B.unpack name ++ "\": no such variable")
                        case (val, ind) of
                           (Left o, Nothing)  -> return o
-                          (Right _, Nothing) -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable is array"
-                          (Left _, Just _)   -> tclErr $ "can't read \"" ++ T.asStr name ++ "\": variable isn't array"
-                          (Right m, Just i)  -> Map.lookup i m `ifNothing` ("can't read \"" ++ T.asStr i ++ "\": no such element in array")
+                          (Right _, Nothing) -> tclErr $ "can't read \"" ++ B.unpack name ++ "\": variable is array"
+                          (Left _, Just _)   -> tclErr $ "can't read \"" ++ B.unpack name ++ "\": variable isn't array"
+                          (Right m, Just i)  -> Map.lookup i m `ifNothing` ("can't read \"" ++ B.unpack i ++ "\": no such element in array")
       Just (i,n) -> uplevel i (varGet2 n ind)
 
 uplevel :: Int -> TclM a -> TclM a
@@ -171,6 +171,7 @@ uplevel i p = do
 upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
                  ret
+{-# INLINE upvar #-}
 
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
@@ -192,6 +193,7 @@ ifNothing m e = maybe (tclErr e) return m
 
 ret :: TclM RetVal
 ret = return T.empty
+{-# INLINE ret #-}
 
 treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr 

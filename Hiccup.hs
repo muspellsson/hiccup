@@ -96,6 +96,7 @@ procNe args = case args of
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
 procMath _ _       = argErr "math"
+{-# INLINE procMath #-}
 
 procEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia == ib)
