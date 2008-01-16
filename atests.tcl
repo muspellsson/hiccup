@@ -253,6 +253,18 @@ test "string methods" {
   checkthat [string reverse "X Y"] eq "Y X"
 }
 
+test "string match" {
+  checkthat [string match aa aa] == 1
+  checkthat [string match aa ab] == 0
+  checkthat [string match "WOW" "wow"] == 0
+  checkthat [string match -nocase "WOW" "wow"] == 1
+
+  checkthat [string match "a*e" "awesome"] == 1
+  checkthat [string match "?arry" "Larry"] == 1
+  checkthat [string match "?arry" "Larr?"] == 0
+  checkthat [string match "L??ry" "Leary"] == 1
+}
+
 
 test "test append" {
   set somestr "one"

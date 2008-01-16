@@ -4,7 +4,6 @@ import qualified Data.Map as Map
 import System.IO
 import Control.Monad.Error
 import Data.IORef
-import Data.Char (toLower,toUpper)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
@@ -15,6 +14,7 @@ import IOProcs
 import ListProcs
 import ArrayProcs
 import ControlProcs
+import StringProcs
 import Test.HUnit  -- IGNORE
 
 
@@ -31,8 +31,7 @@ coreProcs = makeProcMap $
 
 
 baseProcs = makeProcMap $
-  [("string", procString), ("append", procAppend), 
-  ("source", procSource), ("incr", procIncr)]
+  [("source", procSource), ("incr", procIncr)]
 
 mathProcs = makeProcMap . mapSnd procMath $
    [("+",(+)), ("*",(*)), ("-",(-)), 
@@ -42,7 +41,8 @@ toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
 baseEnv = emptyEnv { procs = procMap  }
- where procMap = Map.unions [coreProcs, controlProcs, mathProcs, baseProcs, ioProcs, listProcs, arrayProcs]
+ where procMap = Map.unions [coreProcs, controlProcs, 
+                   mathProcs, baseProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -119,25 +119,6 @@ procCatch args = case args of
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
 
-retmod f = \v -> treturn (f `onObj` v)
-
-onObj f o = (f (T.asBStr o))
-
-procString :: TclProc
-procString (f:s:args) 
- | f .== "trim" = treturn (T.trim s)
- | f .== "tolower" = retmod (B.map toLower) s
- | f .== "toupper" = retmod (B.map toUpper) s
- | f .== "reverse" = retmod (B.reverse) s
- | f .== "length" = return $ T.mkTclInt (B.length `onObj` s)
- | f .== "index" = case args of 
-                          [i] -> do ind <- T.asInt i
-                                    if ind >= (B.length `onObj` s) || ind < 0 then ret else treturn $ B.singleton (B.index (T.asBStr s) ind)
-                          _   -> tclErr $ "Bad args to string index."
- | otherwise            = tclErr $ "Can't do string action: " ++ show f
-procString _ = argErr "string"
-
-
 
 procInfo [x]
   | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
@@ -152,11 +133,6 @@ procInfo _   = argErr "info"
 
 toObs = map T.mkTclBStr
 
-procAppend args = case args of
-            (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
-                         procSet [v, oconcat (val:vx)]
-            _  -> argErr "append"
- where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 
 procIncr :: TclProc
 procIncr [vname]     = incr vname 1
