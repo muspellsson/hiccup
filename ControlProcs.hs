@@ -7,7 +7,7 @@ import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 
 controlProcs = makeProcMap $ 
-  [("while", procWhile), ("if", procIf)]
+  [("while", procWhile), ("if", procIf), ("for", procFor)]
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -28,3 +28,15 @@ procWhile [cond,body] = loop `catchError` herr
 
 procWhile _ = argErr "while"
 
+procFor args = case args of
+   [start,test,next,body] -> do evalTcl start
+                                loop test next body `catchError` herr (loop test next body)
+                                
+   _                      -> argErr "for"
+ where herr _ EBreak  = ret 
+       herr f EContinue = f `catchError` (herr f)
+       herr _ e       = throwError e
+       loop test next body = do
+         c <- doCond test
+         if c then evalTcl body >> evalTcl next >> loop test next body
+              else ret

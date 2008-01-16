@@ -7,11 +7,6 @@ proc foreach {vname lst what} {
   }
 }
 
-proc for {start test next body} {
-  uplevel $start
-  uplevel "while {$test} { eval {$body}; eval {$next} }"
-}
-
 proc decr v {
   upvar $v loc
   incr loc -1

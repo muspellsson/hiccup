@@ -656,5 +656,20 @@ test "rename" {
   assertErr { one_ }
 }
 
+test "for loop" {
+  set val 0
+  for {set x 1} {< $x 10} {incr x} {
+    set val $x
+  } 
+  checkthat $val == 9
+  checkthat $x == 10
+
+  for {set x 1} {< $x 10} {incr x} {
+    break
+  } 
+
+  checkthat $x == 1
+}
+
 puts ""
 puts stdout "Done. Passed $assertcount checks."
