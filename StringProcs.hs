@@ -33,11 +33,13 @@ string_Match args = case map T.asBStr args of
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
 string_Index args = case args of
-                     [s,i] -> do ind <- T.asInt i
+                     [s,i] -> do ind <- toInd s i
                                  if ind >= (B.length `onObj` s) || ind < 0 
                                   then ret 
                                   else treturn $ B.singleton (B.index (T.asBStr s) ind)
                      _   -> argErr "string index"
+ where toInd s i = (T.asInt i) `orElse` tryEnd s i
+       tryEnd s i = if i .== "end" then return ((B.length `onObj` s) - 1) else tclErr "bad index"
 
 match :: Bool -> BString -> BString -> Bool
 match nocase pat str = inner 0 0

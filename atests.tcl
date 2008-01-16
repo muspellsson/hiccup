@@ -253,6 +253,16 @@ test "string methods" {
   checkthat [string reverse "X Y"] eq "Y X"
 }
 
+test "string index" {
+  set fst [string index "whee" 1]
+  checkthat $fst eq "h"
+
+  checkthat [string index "what" end] eq "t"
+
+  checkthat [string index "" end] eq ""
+  checkthat [string index "hi" 10] eq ""
+}
+
 test "string match" {
   checkthat [string match aa aa] == 1
   checkthat [string match aa ab] == 0

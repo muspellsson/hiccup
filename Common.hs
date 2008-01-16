@@ -198,6 +198,8 @@ withScope f = do
 
 ifFails f v = f `catchError` (\_ -> return v)
 
+orElse f f2 = f `catchError` (\_ -> f2)
+
 ensure :: TclM RetVal -> TclM () -> TclM RetVal
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
