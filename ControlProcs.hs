@@ -7,7 +7,7 @@ import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 
 controlProcs = makeProcMap $ 
-  [("while", procWhile), ("if", procIf), ("for", procFor)]
+  [("while", procWhile), ("if", procIf), ("for", procFor), ("foreach", procForEach)]
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -20,7 +20,6 @@ procIf _ = argErr "if"
 
 procWhile [cond,body] = loop `catchError` herr
  where herr EBreak    = ret
-       herr (ERet s)  = return s
        herr EContinue = loop `catchError` herr
        herr x         = throwError x
        loop = do condVal <- doCond cond
@@ -28,16 +27,30 @@ procWhile [cond,body] = loop `catchError` herr
 
 procWhile _ = argErr "while"
 
+eatErr v e = if v == e then ret else throwError e
+
 procFor args = case args of
    [start,test,next,body] -> do evalTcl start
-                                loop test next body `catchError` herr (loop test next body)
+                                loop test next body `catchError` eatErr EBreak
                                 
    _                      -> argErr "for"
- where herr _ EBreak  = ret 
-       herr _ e       = throwError e
-       eatContinue EContinue = ret
-       eatContinue v         = throwError v
-       loop test next body = do
+ where loop test next body = do
          c <- doCond test
-         if c then (evalTcl body `catchError` eatContinue) >> evalTcl next >> loop test next body
+         if c then (evalTcl body `catchError` eatErr EContinue) >> evalTcl next >> loop test next body
               else ret
+
+procForEach args = 
+   case args of
+    [vl_,l_,block] -> do vl <- T.asList vl_
+                         l <- T.asList l_
+                         let chunks = l `chunkBy` (length vl)
+                         liftM tryLast (mapM (doChunk vl block) chunks) `catchError` (eatErr EBreak)
+                         ret
+    _            -> argErr "foreach"
+ where doChunk vl block items = do zipWithM_ (\a b -> varSet a b) vl (map T.mkTclBStr items ++ repeat (T.empty)) 
+                                   evalTcl block `catchError` (eatErr EContinue)
+       tryLast [] = T.empty
+       tryLast v  = last v
+
+chunkBy lst n = let (a,r) = splitAt n lst  
+                in a : (if null r then [] else r `chunkBy` n)

@@ -291,6 +291,34 @@ test "foreach" {
   checkthat $fer eq "c d" 
 }
 
+test "foreach multi-bind" {
+  foreach {x y z} [list 1 2 3] {}
+  checkthat $x == 1
+  checkthat $y == 2
+  checkthat $z == 3
+  foreach {x y z} [list 1 2 3 4] {}
+  checkthat $x == 4
+  checkthat $y eq ""
+  checkthat $z eq ""
+}
+
+test "foreach break and continue" {
+  set v 0
+  foreach x { 1 2 3 4 5 } {
+    set v $x
+    continue
+    set v 0
+  } 
+  checkthat $v == 5
+
+  set v 0
+  foreach x { 1 2 3 4 5 } {
+    set v $x
+    break
+  } 
+  checkthat $v == 1
+}
+
 test "join and foreach" {
   set misc { 1 2 3 4 5 6 }
   proc join { lsx mid } {

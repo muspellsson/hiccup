@@ -84,7 +84,7 @@ getProc str = getFrame >>= getProc' str
 
 getProc' str e = let pr = procs e 
                  in case Map.lookup str pr of
-                       Nothing -> tclErr ("invalid command name" ++ show str)
+                       Nothing -> tclErr ("invalid command name " ++ show str)
                        Just v  -> return v
 
 
