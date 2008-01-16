@@ -645,5 +645,16 @@ test "proc must be complete" {
   assertNoErr { proc banana {} { puts "banana" } }
 }
 
+test "rename" {
+  assertErr { rename one one_ }
+  proc one {} { return 1 }
+  checkthat [one] == 1
+  rename one one_
+  assertErr { one }
+  checkthat [one_] == 1
+  rename one_ ""
+  assertErr { one_ }
+}
+
 puts ""
 puts stdout "Done. Passed $assertcount checks."

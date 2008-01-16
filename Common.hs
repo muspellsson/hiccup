@@ -79,13 +79,21 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-{-
-parseArrRef str = do start <- B.elemIndex '(' str
-                     guard (start /= 0)
-                     guard (B.last str == ')')
-                     let (pre,post) = B.splitAt start str
-                     return (pre, B.tail (B.init post))
--}
+getProc :: BString -> TclM TclProc
+getProc str = getFrame >>= getProc' str
+
+getProc' str e = let pr = procs e 
+                 in case Map.lookup str pr of
+                       Nothing -> tclErr ("invalid command name" ++ show str)
+                       Just v  -> return v
+
+
+rmProc :: BString -> TclM ()
+rmProc name = modStack (\(x:xs) -> (x { procs = Map.delete name (procs x) }):xs)
+
+regProc :: BString -> TclProc -> TclM RetVal
+regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
+
 varSet :: BString -> T.TclObj -> TclM ()
 varSet n v = case parseArrRef n of
               Nothing -> varSet2 n Nothing v
@@ -112,6 +120,12 @@ varExists name = do
   case upped name env of
      Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
      Just (_,_) -> return True -- TODO: Don't assume an upref is always correct?
+
+varRename :: BString -> BString -> TclM RetVal
+varRename old new = do
+  pr <- getProc old
+  rmProc old  
+  if (not (B.null new)) then regProc new pr else ret
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 

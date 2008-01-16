@@ -1,4 +1,4 @@
-module Core (evalTcl, doCond, regProc, coreTests) where
+module Core (evalTcl, doCond, coreTests) where
 
 import Common
 import qualified Data.Map as Map
@@ -15,8 +15,6 @@ evalTcl s = runCmds =<< T.asParsed s
 
 runCmds = liftM last . mapM runCmd
 
-getProc str = getFrame >>= (`ifNothing` ("invalid command name " ++ show str)) . Map.lookup str . procs
-regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
 
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s) = return $ T.mkTclBStr s

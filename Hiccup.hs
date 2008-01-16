@@ -22,6 +22,7 @@ coreProcs, baseProcs, mathProcs :: ProcMap
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
+  ("rename", procRename),
   ("uplevel", procUpLevel), ("unset", procUnset),("dump", procDump),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
@@ -82,6 +83,10 @@ procSet args = case args of
 procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
      _       -> argErr "unset"
+
+procRename args = case args of
+    [old,new] -> varRename (T.asBStr old) (T.asBStr new)
+    _         -> argErr "rename"
 
 procDump _ = varDump >> ret
 
