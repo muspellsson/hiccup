@@ -34,9 +34,10 @@ procFor args = case args of
                                 
    _                      -> argErr "for"
  where herr _ EBreak  = ret 
-       herr f EContinue = f `catchError` (herr f)
        herr _ e       = throwError e
+       eatContinue EContinue = ret
+       eatContinue v         = throwError v
        loop test next body = do
          c <- doCond test
-         if c then evalTcl body >> evalTcl next >> loop test next body
+         if c then (evalTcl body `catchError` eatContinue) >> evalTcl next >> loop test next body
               else ret

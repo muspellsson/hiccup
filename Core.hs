@@ -1,9 +1,8 @@
 module Core (evalTcl, doCond, coreTests) where
 
 import Common
-import qualified Data.Map as Map
 import qualified TclObj as T
-import Control.Monad
+import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as B
 import RToken
 
@@ -17,12 +16,12 @@ runCmds = liftM last . mapM runCmd
 
 
 evalRToken :: RToken -> TclM T.TclObj
-evalRToken (Lit s) = return $ T.mkTclBStr s
-evalRToken (CmdTok t) = runCmd t
-evalRToken (VarRef n) = varGet2 n Nothing
+evalRToken (Lit s)      = return $ T.mkTclBStr s
+evalRToken (CmdTok t)   = runCmd t
+evalRToken (VarRef n)   = varGet2 n Nothing
 evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet2 n (Just (T.asBStr ni))
-evalRToken (CatLst l) = {-# SCC "evalcatlist" #-} mapM evalRToken l >>= treturn . B.concat . map T.asBStr
-evalRToken (Block s p) = return $ T.fromBlock s p
+evalRToken (CatLst l)   = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
+evalRToken (Block s p)  = return $ T.fromBlock s p
 
 runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do 

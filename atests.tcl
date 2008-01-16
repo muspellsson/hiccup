@@ -656,7 +656,7 @@ test "rename" {
   assertErr { one_ }
 }
 
-test "for loop" {
+test "for loop 2" {
   set val 0
   for {set x 1} {< $x 10} {incr x} {
     set val $x
@@ -669,6 +669,13 @@ test "for loop" {
   } 
 
   checkthat $x == 1
+
+  set val -1
+  for {set x 1} {< $x 10} {incr x} {
+    continue
+    set val $x
+  } 
+  checkthat $val == -1
 }
 
 puts ""

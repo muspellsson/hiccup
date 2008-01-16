@@ -21,7 +21,7 @@ compile str = case wrapInterp str of
                          Just (n,ind) -> ArrRef n (compile ind)
        f (Right x)    = compCmd x
        handle (b,m,a) = let front = [Lit b, f m]
-                        in let lst = (filter (not . isEmpty) (front ++ [compile a]))
+                        in let lst = filter (not . isEmpty) (front ++ [compile a])
                            in case lst of 
                                 [a] -> a
                                 _   -> CatLst lst
