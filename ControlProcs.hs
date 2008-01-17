@@ -66,6 +66,7 @@ procSwitch args = case args of
 doSwitch str lst = do pl <- (toPairs . map T.mkTclBStr) lst
                       switcher str pl False
  where
+       switcher _ []      _       = tclErr "impossible condition in \"switch\""
        switcher f [(k,v)] useNext = do
          if f == k || useNext || k .== "default"
              then if v .== "-" then tclErr $ "no body specified for pattern " ++ show k

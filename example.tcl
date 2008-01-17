@@ -15,7 +15,7 @@ proc memfib x {
     set {the sum} [+ $v1 $v2]
     set loc($ctr) ${the sum}
   }
-  return "$loc($x)"
+  return $loc($x)
 }
 
 set fcount 21
