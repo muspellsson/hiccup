@@ -14,7 +14,7 @@ procList, procLindex, procLlength :: TclProc
 procList = treturn . fromList . map T.asBStr
 
 fromList l = (map escape l)  `joinWith` ' '
- where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
+ where escape s = if B.elem ' ' s || B.null s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
 procLindex args = case args of
           [l]   -> return l

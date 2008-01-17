@@ -184,6 +184,9 @@ test "list test" {
   assertEq [lindex 4] 4
   checkthat [lindex $bean 8] eq "" 
 
+  set boo [list {} {} {} {}]
+  checkthat [llength $boo] == 4
+
 }
 
 test "lappend" {
