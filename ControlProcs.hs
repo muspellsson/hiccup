@@ -7,7 +7,8 @@ import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 
 controlProcs = makeProcMap $ 
-  [("while", procWhile), ("if", procIf), ("for", procFor), ("foreach", procForEach)]
+  [("while", procWhile), ("if", procIf), ("for", procFor), 
+   ("foreach", procForEach), ("switch", procSwitch)]
 
 procIf (cond:yes:rest) = do
   condVal <- doCond cond
@@ -54,3 +55,27 @@ procForEach args =
 
 chunkBy lst n = let (a,r) = splitAt n lst  
                 in a : (if null r then [] else r `chunkBy` n)
+
+procSwitch args = case args of
+   [str,pairlst]     -> T.asList pairlst >>= doSwitch str 
+   [opt,str,pairlst] -> if opt .== "--" 
+                         then T.asList pairlst >>= doSwitch str
+                         else argErr "switch"
+   _                 -> argErr "switch"
+
+doSwitch str lst = do pl <- (toPairs . map T.mkTclBStr) lst
+                      switcher str pl False
+ where
+       switcher f [(k,v)] useNext = do
+         if f == k || useNext || k .== "default"
+             then if v .== "-" then tclErr $ "no body specified for pattern " ++ show k
+                               else evalTcl v
+             else ret
+       switcher f ((k,v):xs) useNext = do
+         if f == k || useNext
+             then if v .== "-" then switcher f xs True else evalTcl v
+             else switcher f xs False
+
+toPairs [a,b]   = return [(a,b)]
+toPairs (a:b:r) = liftM ((a,b):) (toPairs r)
+toPairs _       = tclErr "list must have even number of elements"

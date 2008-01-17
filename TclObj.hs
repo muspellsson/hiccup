@@ -17,14 +17,10 @@ mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
 
 fromBlock s p = TclBStr s mayint p
-  where mayint = case BS.readInt (P.dropWhite s) of
-                   Nothing -> Nothing
-                   Just (i,_) -> Just i
+  where mayint = asInt (btrim s)
 
 mkTclBStrP s res = TclBStr s mayint (resultToEither res s)
-  where mayint = case BS.readInt (P.dropWhite s) of
-                   Nothing -> Nothing
-                   Just (i,_) -> Just i
+  where mayint = asInt (btrim s)
 
 resultToEither :: P.Result -> BString -> Either String Parsed
 resultToEither res s = case res of
@@ -43,7 +39,9 @@ tclFalse = mkTclInt 0
 fromBool b = if b then tclTrue else tclFalse
 
 trim :: TclObj -> BString
-trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite . asBStr
+trim = btrim . asBStr
+
+btrim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
 
 class ITObj o where
   asStr :: o -> String
@@ -55,7 +53,9 @@ class ITObj o where
 instance ITObj BS.ByteString where
   asStr = BS.unpack
   asBool bs = (bs `elem` trueValues)
-  asInt bs = maybe (fail ("Bad int: " ++ show bs)) (return . fst) (BS.readInt bs)
+  asInt bs = case BS.readInt bs of
+               Nothing    -> fail ("Bad int: " ++ show bs)
+               Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
   asBStr = id
   asParsed s = either fail return (resultToEither (P.runParse s) s)
 

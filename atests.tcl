@@ -79,8 +79,6 @@ announce
 assertEq [eval {* 4 4}] 16
 
 
-
-
 proc test {name body} {
   proc setname {n} {
     global current_test
@@ -172,7 +170,7 @@ test "list test" {
 
   assertEq [llength $bean] 6
   assertEq [lindex $bean 3] 4
-  assertEq [lindex $bean 5] {6 7 8}
+  checkthat [lindex $bean 5] eq {6 7 8}
 
   checkthat [llength "peanut"] == 1
   checkthat [llength "peanut ontology"] == 2
@@ -186,6 +184,14 @@ test "list test" {
   assertEq [lindex 4] 4
   checkthat [lindex $bean 8] eq "" 
 
+}
+
+test "lappend" {
+  set x {}
+  lappend x 1
+  lappend x 2 3 "entropy kills"
+  checkthat [llength $x] == 4
+  checkthat $x eq "1 2 3 {entropy kills}"
 }
 
 test "test if, elseif, else" {
@@ -367,7 +373,7 @@ test "for loop" {
 
 
 proc expr { a1 args } { 
-  if { != [llength $args] 0 } {  
+  if { != [llength $args] 0} {  
     eval "[lindex $args 0] $a1 [lindex $args 1]"
   } else {
     eval "expr $a1"
@@ -405,6 +411,10 @@ test "whitespace escaping" {
 
   set lala \ 
   checkthat $lala eq " "
+}
+
+test "int parsing" {
+  checkthat 1 != "1 2 3 4"
 }
 
 
@@ -643,6 +653,7 @@ test "array set/get" {
   checkthat "$arr([succ [succ $i]])" == 1
 }
 
+
 test "array size" {
   checkthat [array size boo] == 0
   set boo(0) 1
@@ -701,6 +712,7 @@ test "proc must be complete" {
   assertNoErr { proc banana {} { puts "banana" } }
 }
 
+
 test "rename" {
   assertErr { rename one one_ }
   proc one {} { return 1 }
@@ -734,10 +746,7 @@ test "for loop 2" {
   checkthat $val == -1
 }
 
-proc ignore block {
-  # ignore it
-  return {}
-}
+proc ignore _ { return {} }
 
 ignore {
   test "global ns proc" {
@@ -745,6 +754,57 @@ ignore {
     # checkthat [::+ 1 1] == 2
     checkthat [+ 1 1] == 2
   }
+}
+
+test "switch" {
+  set x 4
+  switch $x {
+    1 { assertFail "bad switch" }
+    3 { assertFail "bad switch" }
+    4 { assertPass  }
+  }
+}
+
+test "switch fallthrough" {
+  set x 4
+  switch $x {
+    1 { assertFail "bad switch" }
+    3 { assertFail "bad switch" }
+    4 -
+    5 { assertPass }
+    4 { assertFail "bad switch" }
+  }
+
+  set val 0
+  switch $x {
+    1 - 2 - 3 - 4 - 5 { incr val }
+  }
+  checkthat $val == 1
+}
+
+test "switch default" {
+  set res "failed"
+  set x 4
+  switch $x {
+    1 { assertFail "bad switch" }
+    3 { assertFail "bad switch" }
+    default { set res "worked" }
+  }
+
+  checkthat $res eq "worked"
+}
+
+test "switch return" {
+  set x 2
+  set result \
+    [switch $x {
+      1 { + 1 2 }
+      2 { + 2 2 }
+      3 { + 3 2 }
+    }]
+
+ checkthat $result == 4
+
 }
 
 puts ""

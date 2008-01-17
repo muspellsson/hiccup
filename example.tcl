@@ -34,3 +34,16 @@ proc say_i_havent_been_to { args } {
 
 say_i_havent_been_to Spain China Russia Argentina "North Dakota"
 
+proc is v {
+  return $v
+}
+
+foreach num {0 1 2 3 4 5 6 7 8 9} {
+  set type [switch -- $num {
+    1 - 9         {is odd}
+    2 - 3 - 5 - 7 {is prime}
+    0 - 4 - 6 - 8 {is even}
+    default       {is unknown}
+  }]
+  puts "$num is $type"
+}

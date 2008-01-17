@@ -25,7 +25,7 @@ coreProcs = makeProcMap $
   ("rename", procRename),
   ("uplevel", procUpLevel), ("unset", procUnset),("dump", procDump),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
-  ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),
+  ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
@@ -34,7 +34,7 @@ baseProcs = makeProcMap $
 
 mathProcs = makeProcMap . mapSnd procMath $
    [("+",(+)), ("*",(*)), ("-",(-)), 
-    ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=)),("!=",toI (/=))]
+    ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=))]
 
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
@@ -101,6 +101,11 @@ procMath :: (Int -> Int -> Int) -> TclProc
 procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
 procMath _ _       = argErr "math"
 {-# INLINE procMath #-}
+
+procNotEql [a,b] = case (T.asInt a, T.asInt b) of
+                  (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
+                  _                  -> procNe [a,b]
+procNotEql _ = argErr "!="
 
 procEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia == ib)

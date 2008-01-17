@@ -6,7 +6,7 @@ import Control.Monad
 
 listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
-   ("llength",procLlength)]
+   ("llength",procLlength), ("lappend", procLappend)]
 
 onObj f o = (f (T.asBStr o))
 
@@ -29,3 +29,11 @@ procLlength args = case args of
                         else liftM (T.mkTclInt . length) (T.asList lst) 
         _     -> argErr "llength"
 
+procLappend args = case args of
+        (n:news) -> do old <- varGet (T.asBStr n) 
+                       items <- T.asList old
+                       let nl = T.mkTclBStr $ fromList (items ++ (map T.asBStr news))
+                       varSet (T.asBStr n) nl
+                       return nl
+        _        -> argErr "lappend"
+                   
