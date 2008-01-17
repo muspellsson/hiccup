@@ -9,7 +9,7 @@ import qualified Data.Map as Map
 import Data.List (intersperse)
 import qualified TclChan as T
 import Test.HUnit 
-import BSParse (parseArrRef)
+import BSParse (parseArrRef,parseNS)
 
 type BString = T.BString
 
@@ -79,8 +79,18 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
+getProcRaw :: BString ->TclM TclProc
+getProcRaw str = eatGlobal str >>= getProc
+
+eatGlobal str = case parseNS str of 
+                   Left str    -> return str
+                   Right [a,b] -> if B.null a then return b else nsError
+                   _           -> nsError
+ where nsError = tclErr $ "can't lookup " ++ show str ++ ", namespaces not yet supported"
+
 getProc :: BString -> TclM TclProc
-getProc str = getFrame >>= getProc' str
+getProc str = getFrame >>= getProc' str 
+
 
 getProc' str e = let pr = procs e 
                  in case Map.lookup str pr of
@@ -123,7 +133,7 @@ varExists name = do
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
-  pr <- getProc old
+  pr <- getProcRaw old
   rmProc old  
   if (not (B.null new)) then regProc new pr else ret
 
@@ -196,7 +206,7 @@ withScope f = do
   f `ensure` (modStack (drop 1))
 
 
-ifFails f v = f `catchError` (\_ -> return v)
+ifFails f v = f `orElse` (return v)
 
 orElse f f2 = f `catchError` (\_ -> f2)
 

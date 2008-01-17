@@ -25,10 +25,11 @@ evalRToken (Block s p)  = return $ T.fromBlock s p
 
 runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do 
- name <- evalRToken n
- evArgs <- mapM evalRToken args
- proc <- getProc (T.asBStr name) 
- proc evArgs
+  evArgs <- mapM evalRToken args
+  proc <- getCmd n
+  proc evArgs
+ where getCmd (Lit s) = getProc s
+       getCmd rt      = evalRToken rt >>= getProc .T.asBStr
 
 doCond :: T.TclObj -> TclM Bool
 doCond str = do 

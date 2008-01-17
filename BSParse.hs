@@ -4,6 +4,7 @@ module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite, parseList
             ,Result
             ,TokCmd
             ,parseArrRef
+            ,parseNS
             ,BString
             ,bsParseTests 
   ) where
@@ -130,7 +131,7 @@ wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
   (ord '0' <= ci  && ci <= ord '9') || (c == '_') -}
 --wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  || c == '_'
-wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
+wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_' || c == ':')
 
 parseWord s = getword s >>= \(w,r) -> return (Word w, r)
 
@@ -208,6 +209,21 @@ parseArrRef str = do start <- B.elemIndex '(' str
                      guard (B.last str == ')')
                      let (pre,post) = B.splitAt start str
                      return (pre, B.tail (B.init post))
+
+parseNS str = 
+  case str `splitWith` (B.pack "::") of
+    [str] -> Left str
+    nsr   -> Right nsr
+
+splitWith :: BString -> BString -> [BString]
+splitWith str sep = 
+    case B.findSubstrings sep str of
+        []     -> [str]
+        il     -> extract il str
+ where slen             = B.length sep 
+       extract [] s     = [s]
+       extract (i:ix) s = let (b,a) = B.splitAt i s 
+                          in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
  
 -- # TESTS # --
 
@@ -248,6 +264,7 @@ getInterpTests = TestList [
     "Bracket interp 1" ~: (bp "", mkvar "booga", bp "") ?=? "${booga}",
     "Bracket interp 2" ~: (bp "", mkvar "oh yeah!", bp "") ?=? "${oh yeah!}",
     "Bracket interp 3" ~: (bp " ", mkvar " !?! ", bp " ") ?=? " ${ !?! } ",
+    "global namespace" ~: (bp "", mkvar "::booga", bp "") ?=? "$::booga",
     "unescaped $ works" ~: 
           (bp "a ", mkvar "variable", bp "")  ?=? "a $variable",
     "escaped $ works" ~: 
@@ -356,8 +373,18 @@ runParseTests = TestList [
        pr (x:xs) = ([(mkwd x, map mkwd xs)], "")
        pr []     = error "bad test!"
 
+splitWithTests = TestList [
+    ("one::two","::") `splitsTo` ["one","two"]
+    ,("::x","::") `splitsTo` ["","x"]
+    ,("wonderdragon","::") `splitsTo` ["wonderdragon"]
+    ,("","::") `splitsTo` [""]
+    ,("::","::") `splitsTo` ["", ""]
+  ]
+ where splitsTo (a,b) r = map bp r ~=? ((bp a) `splitWith` (bp b))
+
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
-                   parseArgsTests, parseListTests, runParseTests ]
+                   parseArgsTests, parseListTests, runParseTests,
+                   splitWithTests ]
 
 -- # ENDTESTS # --

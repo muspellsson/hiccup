@@ -1,5 +1,6 @@
 module ArrayProcs (arrayProcs) where
 import Common
+import ListProcs (fromList)
 
 import qualified TclObj as T
 import Control.Monad
@@ -21,6 +22,7 @@ procArray args = case args of
                               return . T.mkTclInt $ Map.size arr
          | a1 .== "exists" = do b <- (getArray (T.asBStr a2) >> return True) `ifFails` False
                                 return (T.fromBool b)
+         | a1 .== "get" = arrayGet a2
          | otherwise = badOpt a1
        threeArgs a1 a2 a3 
          | a1 .== "set" = do l <- T.asList a3
@@ -34,3 +36,7 @@ arrSet n i v = varSet2 n (Just i) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs [] = []
 toPairs _ = [] 
+
+
+arrayGet name = do arr <- getArray (T.asBStr name) `ifFails` Map.empty
+                   treturn . fromList $ concatMap (\(k,v) -> [k,T.asBStr v]) (Map.toList arr)

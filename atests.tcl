@@ -688,6 +688,12 @@ test "array set" {
   checkthat $arr(4) eq four
 }
 
+test "array get" {
+  array set arr { x "1 2" y {2 3} "handy man" 3 }
+
+  checkthat [llength [array get arr]] == 6
+}
+
 test "proc must be complete" {
   assertErr { proc banana }
   assertErr { proc banana { puts "banana" } }
@@ -726,6 +732,19 @@ test "for loop 2" {
     set val $x
   } 
   checkthat $val == -1
+}
+
+proc ignore block {
+  # ignore it
+  return {}
+}
+
+ignore {
+  test "global ns proc" {
+    # not yet
+    # checkthat [::+ 1 1] == 2
+    checkthat [+ 1 1] == 2
+  }
 }
 
 puts ""

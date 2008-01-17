@@ -29,7 +29,6 @@ coreProcs = makeProcMap $
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
-
 baseProcs = makeProcMap $
   [("source", procSource), ("incr", procIncr)]
 
@@ -60,11 +59,11 @@ runInterp' t (Interpreter i) = do
                  (r,i') <- runTclM t bEnv 
                  writeIORef i i'
                  return (fixErr r)
-  where perr (EDie s)    = B.pack s
-        perr (ERet v)    = T.asBStr v
-        perr EBreak      = B.pack $ "invoked \"break\" outside of a loop"
-        perr EContinue   = B.pack $ "invoked \"continue\" outside of a loop"
-        fixErr (Left x)  = Left (perr x)
+  where perr (EDie s)    = Left $ B.pack s
+        perr (ERet v)    = Right $ T.asBStr v
+        perr EBreak      = Left . B.pack $ "invoked \"break\" outside of a loop"
+        perr EContinue   = Left . B.pack $ "invoked \"continue\" outside of a loop"
+        fixErr (Left x)  = perr x
         fixErr (Right v) = Right (T.asBStr v)
 
 runTcl v = mkInterp >>= runInterp v
@@ -224,9 +223,9 @@ procRunner pl body args =
     bindArgs pl args
     evalTcl body `catchError` herr
  where herr (ERet s)  = return s
-       herr (EDie s)  = tclErr s
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
+       herr e         = throwError e
 
 
 -- # TESTS # --

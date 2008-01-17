@@ -1,4 +1,4 @@
-module ListProcs (listProcs,procList) where
+module ListProcs (listProcs,procList,fromList) where
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
@@ -11,7 +11,9 @@ listProcs = makeProcMap $
 onObj f o = (f (T.asBStr o))
 
 procList, procLindex, procLlength :: TclProc
-procList a = treturn $ (map (escape . T.asBStr) a) `joinWith` ' '
+procList = treturn . fromList . map T.asBStr
+
+fromList l = (map escape l)  `joinWith` ' '
  where escape s = if B.elem ' ' s then B.concat [B.singleton '{', s, B.singleton '}'] else s
 
 procLindex args = case args of
