@@ -22,6 +22,23 @@ type BString = B.ByteString
 
 data TclWord = Word !B.ByteString | Subcommand !B.ByteString TokCmd | NoSub !B.ByteString Result deriving (Show,Eq)
 
+runParse :: B.ByteString -> Result
+runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
+
+asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
+
+mainparse str = if B.null str 
+                   then return ([], B.empty) 
+                   else do
+                       h <- safeHead str
+                       case h of 
+                        ';'  -> return ([], B.tail str) 
+                        '\n' -> return ([], B.tail str)
+                        '#'  -> eatcomment str
+                        _    -> parseArgs str
+
+parseArgs = multi (dispatch . dropWhite)
+
 dispatch str = do h <- safeHead str
                   case h of
                    '{' -> parseNoSub str 
@@ -38,14 +55,8 @@ handleEsc s = do h <- safeHead s
                                 Nothing          -> return (Word (B.cons '\\' (B.singleton v)), (B.drop 1 s)) 
                                 _                -> fail "The impossible happened"
 
-listDisp str = do h <- safeHead str
-                  case h of
-                   '{' -> nested str
-                   '"' -> parseStr str >>= \((Word w), r) -> return (w,r)
-                   _   -> getListItem str
 
 
-parseArgs = multi (dispatch . dropWhite)
 
 parseList s = if onlyWhite s 
                then return []
@@ -55,12 +66,26 @@ parseList s = if onlyWhite s
  where onlyWhite = B.all isWhite
        isWhite = (`elem` " \t\n")
        dWhite = B.dropWhile isWhite
+
+listDisp str = do h <- safeHead str
+                  case h of
+                   '{' -> nested str
+                   '"' -> parseStr str >>= \((Word w), r) -> return (w,r)
+                   _   -> getListItem str
                
+getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
+ where (w,n) = B.splitAt (listItemEnd s) s
 
-runParse :: B.ByteString -> Result
-runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
+listItemEnd s = inner 0 False
+ where inner i esc = if i == B.length s
+                      then i
+                      else if esc then inner (i+1) False
+                                  else case B.index s i of
+                                         '\\' -> inner (i+1) True
+                                         v  -> if v `B.elem` (B.pack "{}\" \t\n") then i else inner (i+1) False
+                                         
+                             
 
-asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
 safeHead s = guard (not (B.null s)) >> return (B.head s)
 {-# INLINE safeHead #-}
@@ -98,15 +123,12 @@ getInd str
 orElse a b = \v -> (a v) `mplus` (b v)
 {-# INLINE orElse #-}
 
-mainparse str = if B.null str 
-                   then return ([], B.empty) 
-                   else do
-                       h <- safeHead str
-                       case h of 
-                        ';'  -> return ([], B.tail str) 
-                        '\n' -> return ([], B.tail str)
-                        '#'  -> eatcomment str
-                        _    -> parseArgs str
+tryWord w s = do let wlen = B.length w
+                 let slen = B.length s
+                 if wlen <= slen && w == B.take wlen s
+                    then return (w, B.drop wlen s)
+                    else fail "didn't match"
+
 
 multi p s = do (w,r) <- p s
                if B.null r 
@@ -145,8 +167,6 @@ getword s = if B.null w then fail "can't parse word" else return (w,n)
 getvar s = if B.null w then fail "can't parse var name" else return $! (w,n)
  where (w,n) = B.span wordChar s
 
-getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
- where (w,n) = B.span (`B.notElem` (B.pack " \t\n{}\"")) s
 
 
 wordToken s = do hv <- safeHead s
@@ -163,13 +183,7 @@ brackVar x = do hv <- safeHead x
                 guard (hv == '{')
                 nested x
 
-tryWord w s = do let wlen = B.length w
-                 let slen = B.length s
-                 if wlen <= slen && w == B.take wlen s
-                    then return (w, B.drop wlen s)
-                    else fail "didn't match"
 
-getNS :: BString -> Maybe (BString, BString)
 getNS x = do (w0,r) <- tryWord (B.pack "::") x
              (w,r2) <- parseVarRef r
              return (B.append w0 w, r2)
@@ -282,6 +296,8 @@ getInterpTests = TestList [
     "Bracket interp 2" ~: (bp "", mkvar "oh yeah!", bp "") ?=? "${oh yeah!}",
     "Bracket interp 3" ~: (bp " ", mkvar " !?! ", bp " ") ?=? " ${ !?! } ",
     "global namespace" ~: (bp "", mkvar "::booga", bp "") ?=? "$::booga",
+    ":::"              ~: noInterp "$:::booga",
+    -- "some namespace" ~: (bp "", mkvar "log::booga", bp "") ?=? "$log::booga",
     "unescaped $ works" ~: 
           (bp "a ", mkvar "variable", bp "")  ?=? "a $variable",
     "escaped $ works" ~: 
@@ -364,6 +380,7 @@ parseListTests = TestList [
      , "unmatched fail" ~: fails " { { "
      ,"x {y 0}" ~: "x {y 0}" ?=> [bp "x", bp "y 0"]
      ,"with nl" ~: "x  1 \n y 2 \n z 3" ?=> (map bp ["x", "1", "y", "2", "z", "3"])
+     ,"escaped1" ~: "x \\{ z" ?=> (map bp ["x", "\\{", "z"])
    ]
  where (?=>) str res = Just res ~=? parseList (bp str)
        fails str = Nothing ~=? parseList (bp str)

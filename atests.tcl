@@ -837,7 +837,7 @@ test "switch return" {
 
 test "list escaping" {
   set x [list 1 2 3 \{ \} 6]
-  #checkthat [llength $x] == 6
+  checkthat [llength $x] == 6
 }
 
 test "namespaces" {

@@ -75,8 +75,7 @@ instance ITObj TclObj where
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   
-fromList l = (map escape l)  `joinWith` ' '
- where escape s = if BS.elem ' ' s || BS.null s then BS.concat [BS.singleton '{', s, BS.singleton '}'] else s
+fromList l = (map listEscape l)  `joinWith` ' '
 
 asList :: (Monad m, ITObj o) => o -> m [BString]
 asList obj = case P.parseList (asBStr obj) of
