@@ -76,7 +76,7 @@ getInterp str = do
      then dorestfrom loc locval
      else let (pre,aft) = B.splitAt loc str in
           let res = case locval of
-                     '$' -> do (s, rest) <- (brackVar `orElse` getvar) (B.tail aft)
+                     '$' -> do (s, rest) <- parseVarRef (B.tail aft)
                                case getInd rest of
                                  Nothing    -> return (pre, Left s, rest)
                                  Just (i,r) -> return (pre, Left (B.append s i), r)
@@ -87,6 +87,8 @@ getInterp str = do
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
+parseVarRef s = (getvar `orElse` brackVar `orElse` getNS) s
+
 getInd str  
   | B.null str || B.head str /= '(' = Nothing
   | otherwise                       = do ind <- B.elemIndex ')' str
@@ -94,6 +96,7 @@ getInd str
                                          return (pre, post)
            
 orElse a b = \v -> (a v) `mplus` (b v)
+{-# INLINE orElse #-}
 
 mainparse str = if B.null str 
                    then return ([], B.empty) 
@@ -129,9 +132,10 @@ dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 wordChar ' ' = False
 wordChar !c = let ci = ord c in
   (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') || 
-  (ord '0' <= ci  && ci <= ord '9') || (c == '_') -}
---wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  || c == '_'
-wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_' || c == ':')
+  (ord '0' <= ci  && ci <= ord '9') || (c == '_') 
+wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  || c == '_'
+-}
+wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
 parseWord s = getword s >>= \(w,r) -> return (Word w, r)
 
@@ -158,6 +162,19 @@ parseVar s = do hv <- safeHead s
 brackVar x = do hv <- safeHead x
                 guard (hv == '{')
                 nested x
+
+tryWord w s = do let wlen = B.length w
+                 let slen = B.length s
+                 if wlen <= slen && w == B.take wlen s
+                    then return (w, B.drop wlen s)
+                    else fail "didn't match"
+
+getNS :: BString -> Maybe (BString, BString)
+getNS x = do (w0,r) <- tryWord (B.pack "::") x
+             (w,r2) <- parseVarRef r
+             return (B.append w0 w, r2)
+             
+             
 
 parseStr s = do loc <- B.elemIndex '"' str
                 let (w,r) = B.splitAt loc str 

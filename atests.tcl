@@ -206,6 +206,7 @@ test "list test" {
 
 }
 
+
 test "lappend" {
   set x {}
   lappend x 1
@@ -479,6 +480,9 @@ test "parsing corners" {
   assertNoErr { 
     if { == 3 3 } { } else { die "bad" } 
   }
+
+  set x four 
+  checkthat "$x: 4" eq "four: 4"
 }
 
 
@@ -829,6 +833,16 @@ test "switch return" {
 
  checkthat $result == 4
 
+}
+
+test "list escaping" {
+  set x [list 1 2 3 \{ \} 6]
+  #checkthat [llength $x] == 6
+}
+
+test "namespaces" {
+  set ::x 4
+  checkthat $::x == 4
 }
 
 puts ""

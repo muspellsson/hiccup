@@ -3,7 +3,6 @@ module TclChan ( TclChan(..), mkChan, tclStdChans ) where
 import Data.Unique
 import Util
 
-import TclObj
 import System.IO
 import qualified Data.ByteString.Char8 as BS
 

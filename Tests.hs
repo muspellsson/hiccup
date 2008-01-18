@@ -6,9 +6,11 @@ import Common (commonTests)
 import StringProcs (stringTests)
 import Core (coreTests)
 import RToken (rtokenTests)
+import Util (utilTests)
 import Test.HUnit  
 
-allTests = TestList [ bsParseTests, hiccupTests, tclObjTests, commonTests, coreTests, rtokenTests, stringTests ]
+allTests = TestList [ bsParseTests, utilTests, hiccupTests, tclObjTests, commonTests, 
+                      coreTests, rtokenTests, stringTests ]
 runUnit = runTestTT allTests
 
 main = runUnit
