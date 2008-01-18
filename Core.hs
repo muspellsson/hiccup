@@ -1,4 +1,4 @@
-module Core (evalTcl, doCond, coreTests) where
+module Core (evalTcl, doCond, coreTests, tryLast) where
 
 import Common
 import qualified TclObj as T
@@ -12,8 +12,10 @@ evalTcl :: T.TclObj -> TclM RetVal
 evalTcl s = runCmds =<< T.asParsed s
 {-# INLINE evalTcl #-}
 
-runCmds = liftM last . mapM runCmd
+runCmds = liftM tryLast . mapM runCmd
 
+tryLast [] = T.empty
+tryLast v  = last v
 
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)      = return $ T.mkTclBStr s
@@ -39,4 +41,10 @@ doCond str = do
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
 
-coreTests = TestList [] 
+coreTests = TestList [ tryLastTests ] 
+
+tryLastTests = TestList [
+   T.empty ~=? tryLast [] 
+   ,T.tclTrue ~=? tryLast [T.tclTrue] 
+   ,T.tclTrue ~=? tryLast [T.tclFalse, T.tclTrue] 
+ ]

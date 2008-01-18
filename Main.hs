@@ -11,8 +11,8 @@ main = do args <- getArgs
           hSetBuffering stdout NoBuffering
           case args of
              []  -> mkInterp >>= runRepl
-             [f] -> B.readFile f >>= runTcl >>= (`unlessErr` (\_ -> return ()))
-             _   -> error "too many args"
+             (f:fs) -> do fdata <- B.readFile f 
+                          runTclWithArgs fdata (map B.pack fs) >>= (`unlessErr` (\_ -> return ()))
  where unlessErr x f = either (\e -> putStrLn ("error: " ++ B.unpack e)) f x
        runRepl i = do mline <- readline "hiccup> "
                       case mline of

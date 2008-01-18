@@ -1,4 +1,4 @@
-module ListProcs (listProcs,procList,fromList) where
+module ListProcs (listProcs,procList) where
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
@@ -11,10 +11,7 @@ listProcs = makeProcMap $
 onObj f o = (f (T.asBStr o))
 
 procList, procLindex, procLlength :: TclProc
-procList = treturn . fromList . map T.asBStr
-
-fromList l = (map escape l)  `joinWith` ' '
- where escape s = if B.elem ' ' s || B.null s then B.concat [B.singleton '{', s, B.singleton '}'] else s
+procList = return . T.mkTclList . map T.asBStr
 
 procLindex args = case args of
           [l]   -> return l
@@ -32,7 +29,7 @@ procLlength args = case args of
 procLappend args = case args of
         (n:news) -> do old <- varGet (T.asBStr n) 
                        items <- T.asList old
-                       let nl = T.mkTclBStr $ fromList (items ++ (map T.asBStr news))
+                       let nl = T.mkTclList (items ++ (map T.asBStr news))
                        varSet (T.asBStr n) nl
                        return nl
         _        -> argErr "lappend"

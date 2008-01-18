@@ -1,6 +1,5 @@
 module ArrayProcs (arrayProcs) where
 import Common
-import ListProcs (fromList)
 
 import qualified TclObj as T
 import Control.Monad
@@ -39,4 +38,4 @@ toPairs _ = []
 
 
 arrayGet name = do arr <- getArray (T.asBStr name) `ifFails` Map.empty
-                   treturn . fromList $ concatMap (\(k,v) -> [k,T.asBStr v]) (Map.toList arr)
+                   return . T.mkTclList $ concatMap (\(k,v) -> [k,T.asBStr v]) (Map.toList arr)

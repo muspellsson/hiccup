@@ -1,4 +1,4 @@
-module Hiccup (runTcl, mkInterp, runInterp, hiccupTests) where
+module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
 import qualified Data.Map as Map
 import System.IO
@@ -9,6 +9,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Core
 import Common
+import Util
 
 import IOProcs
 import ListProcs
@@ -33,7 +34,7 @@ baseProcs = makeProcMap $
   [("source", procSource), ("incr", procIncr)]
 
 mathProcs = makeProcMap . mapSnd procMath $
-   [("+",(+)), ("*",(*)), ("-",(-)), 
+   [("+",(+)), ("*",(*)), ("-",(-)), ("pow", (^)),
     ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=))]
 
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
@@ -43,10 +44,19 @@ baseEnv = emptyEnv { procs = procMap  }
  where procMap = Map.unions [coreProcs, controlProcs, 
                    mathProcs, baseProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
+envWithArgs al = baseEnv { vars = Map.fromList [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)] } 
+  where (*) name val = (pack name, Left val)
+
 data Interpreter = Interpreter (IORef TclState)
 
 mkInterp :: IO Interpreter
 mkInterp = do st <- makeState baseChans [baseEnv]
+              stref <- newIORef st
+              return (Interpreter stref)
+
+mkInterpWithArgs :: [BString] -> IO Interpreter
+mkInterpWithArgs args = do 
+              st <- makeState baseChans [envWithArgs args]
               stref <- newIORef st
               return (Interpreter stref)
 
@@ -59,14 +69,15 @@ runInterp' t (Interpreter i) = do
                  (r,i') <- runTclM t bEnv 
                  writeIORef i i'
                  return (fixErr r)
-  where perr (EDie s)    = Left $ B.pack s
+  where perr (EDie s)    = Left $ pack s
         perr (ERet v)    = Right $ T.asBStr v
-        perr EBreak      = Left . B.pack $ "invoked \"break\" outside of a loop"
-        perr EContinue   = Left . B.pack $ "invoked \"continue\" outside of a loop"
+        perr EBreak      = Left . pack $ "invoked \"break\" outside of a loop"
+        perr EContinue   = Left . pack $ "invoked \"continue\" outside of a loop"
         fixErr (Left x)  = perr x
         fixErr (Right v) = Right (T.asBStr v)
 
 runTcl v = mkInterp >>= runInterp v
+runTclWithArgs v args = mkInterpWithArgs args >>= runInterp v
 
 procSource args = case args of
                   [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
@@ -196,7 +207,7 @@ mkParamList :: BString -> ArgList -> ParamList
 mkParamList name lst = (name, hasArgs, used)
  where hasArgs = (not . null) lst && (lastIsArgs lst)
        used = if hasArgs then init lst else lst
-       lastIsArgs = either (== (B.pack "args")) (const False)  . last
+       lastIsArgs = either (== (pack "args")) (const False)  . last
 
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
@@ -209,11 +220,11 @@ parseParams name args = T.asList args >>= countRet
 
 bindArgs params@(_,hasArgs,pl) args = do
     walkBoth pl args 
-  where walkBoth ((Left v):xs)      (a:as) = varSet v a >> walkBoth xs as
+  where walkBoth ((Left v):xs)      (a:as) = varSetVal v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
-        walkBoth ((Right (k,_)):xs) (a:as) = varSet k a >> walkBoth xs as
-        walkBoth ((Right (k,v)):xs) []     = varSet k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSet (B.pack "args")
+        walkBoth ((Right (k,_)):xs) (a:as) = varSetVal k a >> walkBoth xs as
+        walkBoth ((Right (k,v)):xs) []     = varSetVal k (T.mkTclBStr v) >> walkBoth xs []
+        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSetVal (pack "args")
                                                         else unless (null xl) badArgs
         badArgs = argErr $ "should be " ++ showParams params
 

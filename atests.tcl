@@ -123,6 +123,18 @@ test "upvar" {
   assertEq $y 4
 }
 
+test "upvar create" {
+  proc xxx {} { upvar up local; set local 5 }
+  checkthat [info exists up] == 0
+  xxx
+  checkthat $up == 5
+
+  proc xxx2 {} { upvar up2 local }
+  checkthat [info exists up2] == 0
+  xxx2
+  checkthat [info exists up2] == 0
+}
+
 test "unevaluated blocks aren't parsed" {
   if {== 3 4} {
    "This should be no problem. $woo_etcetera.; 
@@ -163,6 +175,11 @@ test "incr test" {
   decr count
 
   assertEq $count 0
+}
+
+test "math test" { 
+  checkthat [pow 2 2] == 4
+  checkthat [pow 2 10] == 1024
 }
 
 test "list test" {
@@ -374,6 +391,10 @@ test "for loop" {
   checkthat $val == 20
 }
 
+test "empty eval" {
+  assertNoErr { eval "" }
+  assertNoErr { eval " " }
+}
 
 proc expr { a1 args } { 
   if { != [llength $args] 0} {  

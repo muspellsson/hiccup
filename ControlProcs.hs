@@ -33,7 +33,6 @@ eatErr v e = if v == e then ret else throwError e
 procFor args = case args of
    [start,test,next,body] -> do evalTcl start
                                 loop test next body `catchError` eatErr EBreak
-                                
    _                      -> argErr "for"
  where loop test next body = do
          c <- doCond test
@@ -50,8 +49,6 @@ procForEach args =
     _            -> argErr "foreach"
  where doChunk vl block items = do zipWithM_ (\a b -> varSet a b) vl (map T.mkTclBStr items ++ repeat (T.empty)) 
                                    evalTcl block `catchError` (eatErr EContinue)
-       tryLast [] = T.empty
-       tryLast v  = last v
 
 chunkBy lst n = let (a,r) = splitAt n lst  
                 in a : (if null r then [] else r `chunkBy` n)

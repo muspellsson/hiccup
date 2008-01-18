@@ -1,13 +1,11 @@
 module TclObj where
 
-
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
 import RToken
+import Util
 
 import Test.HUnit  -- IGNORE
-
-type BString = BS.ByteString
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
@@ -16,11 +14,14 @@ data TclObj = TclInt !Int BString |
 mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
 
-fromBlock s p = TclBStr s mayint p
-  where mayint = asInt (btrim s)
+mkTclList = mkTclBStr . fromList
+fromBlock s p = TclBStr s (maybeInt s) p
 
-mkTclBStrP s res = TclBStr s mayint (resultToEither res s)
-  where mayint = asInt (btrim s)
+maybeInt s = case BS.readInt (P.dropWhite s) of
+                Nothing    -> Nothing
+                Just (i,r) -> if BS.null r || BS.null (P.dropWhite r) then Just i else Nothing
+
+mkTclBStrP s res = TclBStr s (maybeInt s) (resultToEither res s)
 
 resultToEither :: P.Result -> BString -> Either String Parsed
 resultToEither res s = case res of
@@ -38,10 +39,7 @@ tclFalse = mkTclInt 0
 
 fromBool b = if b then tclTrue else tclFalse
 
-trim :: TclObj -> BString
-trim = btrim . asBStr
-
-btrim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
+trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
 
 class ITObj o where
   asStr :: o -> String
@@ -77,6 +75,8 @@ instance ITObj TclObj where
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
   
+fromList l = (map escape l)  `joinWith` ' '
+ where escape s = if BS.elem ' ' s || BS.null s then BS.concat [BS.singleton '{', s, BS.singleton '}'] else s
 
 asList :: (Monad m, ITObj o) => o -> m [BString]
 asList obj = case P.parseList (asBStr obj) of
@@ -97,8 +97,8 @@ testTrim = TestList [
      trim (str "     10 ") ?=> "10"
    ]
  where (?=>) s e = s ~=? (BS.pack e)
-       int i = mkTclInt i
-       str s = mkTclStr s
+       int = asBStr . mkTclInt
+       str = asBStr . mkTclStr
 
 testAsBool = TestList [
    tclTrue `is` True,

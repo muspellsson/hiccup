@@ -7,6 +7,7 @@ import qualified TclObj as T
 import qualified TclChan as T
 import qualified System.IO.Error as IOE 
 import qualified Data.ByteString.Char8 as B
+import Util
 
 ioProcs :: ProcMap
 ioProcs = makeProcMap $ 

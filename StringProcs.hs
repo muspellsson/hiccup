@@ -1,6 +1,7 @@
 module StringProcs (stringProcs, stringTests ) where
 
 import Common
+import Util
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper)
@@ -14,7 +15,7 @@ onObj f o = (f (T.asBStr o))
 
 procString :: TclProc
 procString (f:s:args) 
- | f .== "trim"    = treturn (T.trim s)
+ | f .== "trim"    = retmod T.trim s
  | f .== "tolower" = retmod (B.map toLower) s
  | f .== "toupper" = retmod (B.map toUpper) s
  | f .== "reverse" = retmod (B.reverse) s
@@ -28,7 +29,7 @@ procString _ = argErr "string"
 
 string_Match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
-   [nocase,s1,s2] -> if nocase == B.pack "-nocase" then domatch True s1 s2 else argErr "string"
+   [nocase,s1,s2] -> if nocase == pack "-nocase" then domatch True s1 s2 else argErr "string"
    _              -> argErr "string match"
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 

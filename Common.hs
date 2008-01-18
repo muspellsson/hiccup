@@ -6,12 +6,11 @@ import qualified TclObj as T
 import Control.Concurrent.MVar
 import Control.Monad.State
 import qualified Data.Map as Map
-import Data.List (intersperse)
 import qualified TclChan as T
 import Test.HUnit 
 import BSParse (parseArrRef,parseNS)
+import Util
 
-type BString = T.BString
 
 type RetVal = T.TclObj -- IGNORE
 
@@ -79,7 +78,7 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-getProcRaw :: BString ->TclM TclProc
+getProcRaw :: BString -> TclM TclProc
 getProcRaw str = eatGlobal str >>= getProc
 
 eatGlobal str = case parseNS str of 
@@ -108,6 +107,10 @@ varSet :: BString -> T.TclObj -> TclM ()
 varSet n v = case parseArrRef n of
               Nothing -> varSet2 n Nothing v
               Just (an,i) -> varSet2 an (Just i) v
+
+varSetVal :: BString -> T.TclObj -> TclM ()
+varSetVal n v = varSet2 n Nothing v 
+{-# INLINE varSetVal #-}
 
 varSet2 :: BString -> Maybe BString -> T.TclObj -> TclM ()
 varSet2 str ind v = do 
@@ -233,7 +236,6 @@ treturn = return . T.mkTclBStr
 
 emptyEnv = TclEnv { vars = Map.empty, procs = Map.empty, upMap = Map.empty }
 
-joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 
 -- # TESTS # --
 
