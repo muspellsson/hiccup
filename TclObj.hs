@@ -9,12 +9,14 @@ import Test.HUnit  -- IGNORE
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
+              TclList [TclObj] BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
 
-mkTclList = mkTclBStr . fromList
+mkTclList l = TclList l (fromList (map asBStr l))
+
 fromBlock s p = TclBStr s (maybeInt s) p
 
 maybeInt s = case BS.readInt (P.dropWhite s) of
@@ -47,6 +49,8 @@ class ITObj o where
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
   asParsed :: (Monad m) => o -> m Parsed
+  asList   :: (Monad m) => o -> m [o]
+
 
 instance ITObj BS.ByteString where
   asStr = BS.unpack
@@ -56,30 +60,39 @@ instance ITObj BS.ByteString where
                Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
   asBStr = id
   asParsed s = either fail return (resultToEither (P.runParse s) s)
+  asList = asListS
 
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
   asStr (TclBStr bs _ _) =  BS.unpack bs
+  asStr (TclList _ bs) =  BS.unpack bs
 
+  asBool (TclList _ bs) = bs `elem` trueValues
   asBool (TclInt i _) = i /= 0
   asBool (TclBStr bs _ _) = bs `elem` trueValues
 
   asInt (TclInt i _) = return i
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
+  asInt (TclList _ v)         = asInt v
   
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
+  asBStr (TclList _ b) = b
+  
+  asList i@(TclInt _ _) = return [i]
+  asList (TclBStr s _ _) = asListS s >>= return . map mkTclBStr
+  asList (TclList l _)   = return l
 
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _) = fail "Can't parse an int value"
+  asParsed (TclList _ _) = fail "Can't parse a list value (for now)"
   
 fromList l = (map listEscape l)  `joinWith` ' '
 
-asList :: (Monad m, ITObj o) => o -> m [BString]
-asList obj = case P.parseList (asBStr obj) of
-               Nothing  -> fail $ "list parse failure: " ++ show (asBStr obj)
+asListS s = case P.parseList s of
+               Nothing  -> fail $ "list parse failure: " ++ show s
                Just lst -> return lst
 
 

@@ -27,7 +27,7 @@ procArray args = case args of
          | a1 .== "set" = do l <- T.asList a3
                              let len = length l
                              if even len 
-                                 then mapM_ (\(a,b) -> arrSet (T.asBStr a2) a (T.mkTclBStr b)) (toPairs l) >> ret
+                                 then mapM_ (\(a,b) -> arrSet (T.asBStr a2) (T.asBStr a) b) (toPairs l) >> ret
                                  else tclErr "list must have even number of elements"
          | otherwise    = badOpt a1
 
@@ -38,4 +38,4 @@ toPairs _ = []
 
 
 arrayGet name = do arr <- getArray (T.asBStr name) `ifFails` Map.empty
-                   return . T.mkTclList $ concatMap (\(k,v) -> [k,T.asBStr v]) (Map.toList arr)
+                   return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (Map.toList arr)

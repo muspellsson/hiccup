@@ -48,6 +48,7 @@ getFrame = do st <- getStack
 
 {-# INLINE getStack  #-}
 {-# INLINE putStack  #-}
+{-# INLINE getFrame  #-}
 
 io :: IO a -> TclM a
 io = liftIO

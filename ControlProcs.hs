@@ -47,7 +47,7 @@ procForEach args =
                          liftM tryLast (mapM (doChunk vl block) chunks) `catchError` (eatErr EBreak)
                          ret
     _            -> argErr "foreach"
- where doChunk vl block items = do zipWithM_ (\a b -> varSet a b) vl (map T.mkTclBStr items ++ repeat (T.empty)) 
+ where doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty) 
                                    evalTcl block `catchError` (eatErr EContinue)
 
 chunkBy lst n = let (a,r) = splitAt n lst  
@@ -60,7 +60,7 @@ procSwitch args = case args of
                          else argErr "switch"
    _                 -> argErr "switch"
 
-doSwitch str lst = do pl <- (toPairs . map T.mkTclBStr) lst
+doSwitch str lst = do pl <- toPairs lst
                       switcher str pl False
  where
        switcher _ []      _       = tclErr "impossible condition in \"switch\""

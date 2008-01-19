@@ -56,7 +56,7 @@ mkInterp = do st <- makeState baseChans [baseEnv]
 
 mkInterpWithArgs :: [BString] -> IO Interpreter
 mkInterpWithArgs args = do 
-              st <- makeState baseChans [envWithArgs args]
+              st <- makeState baseChans [envWithArgs (map T.mkTclBStr args)]
               stref <- newIORef st
               return (Interpreter stref)
 
@@ -211,7 +211,7 @@ mkParamList name lst = (name, hasArgs, used)
 
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
-parseParams name args = T.asList args >>= countRet
+parseParams name args = T.asList (T.asBStr args) >>= countRet
  where countRet lst = mapM doArg lst >>= return . mkParamList name
        doArg s = do l <- T.asList s
                     return $ case l of
