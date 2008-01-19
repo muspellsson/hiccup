@@ -2,20 +2,24 @@ module TclObj where
 
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
+import Control.Monad
 import RToken
 import Util
+import qualified Data.Sequence as S
+import qualified Data.Foldable as F
 
 import Test.HUnit  -- IGNORE
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
-              TclList [TclObj] BString |
+              TclList (S.Seq TclObj) BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (BS.pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
 
-mkTclList l = TclList l (fromList (map asBStr l))
+mkTclList l = TclList (S.fromList l) (fromList (map asBStr l))
+mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
 
 fromBlock s p = TclBStr s (maybeInt s) p
 
@@ -49,7 +53,7 @@ class ITObj o where
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
   asParsed :: (Monad m) => o -> m Parsed
-  asList   :: (Monad m) => o -> m [o]
+  asSeq   :: (Monad m) => o -> m (S.Seq o)
 
 
 instance ITObj BS.ByteString where
@@ -60,7 +64,9 @@ instance ITObj BS.ByteString where
                Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
   asBStr = id
   asParsed s = either fail return (resultToEither (P.runParse s) s)
-  asList = asListS
+  asSeq st = liftM S.fromList (asListS st)
+
+asList o = liftM F.toList (asSeq o)
 
 instance ITObj TclObj where
   asStr (TclInt _ b) = BS.unpack b
@@ -80,9 +86,9 @@ instance ITObj TclObj where
   asBStr (TclInt _ b) = b
   asBStr (TclList _ b) = b
   
-  asList i@(TclInt _ _) = return [i]
-  asList (TclBStr s _ _) = asListS s >>= return . map mkTclBStr
-  asList (TclList l _)   = return l
+  asSeq i@(TclInt _ _) = return (S.singleton i)
+  asSeq (TclBStr s _ _) = asSeq s >>= return . fmap mkTclBStr
+  asSeq (TclList l _)   = return l
 
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
