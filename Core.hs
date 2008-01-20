@@ -20,8 +20,8 @@ tryLast v  = last v
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)      = return $ T.mkTclBStr s
 evalRToken (CmdTok t)   = runCmd t
-evalRToken (VarRef n)   = varGet2 n Nothing
-evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet2 n (Just (T.asBStr ni))
+evalRToken (VarRef n)   = varGet' n Nothing
+evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet' n (Just (T.asBStr ni))
 evalRToken (CatLst l)   = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
 evalRToken (Block s p)  = return $ T.fromBlock s p
 

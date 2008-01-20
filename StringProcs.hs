@@ -37,7 +37,7 @@ string_Index args = case args of
                      [s,i] -> do ind <- toInd s i
                                  if ind >= (B.length `onObj` s) || ind < 0 
                                   then ret 
-                                  else treturn $ B.singleton (B.index (T.asBStr s) ind)
+                                  else treturn $ B.take 1 (B.drop ind (T.asBStr s))
                      _   -> argErr "string index"
  where toInd s i = (T.asInt i) `orElse` tryEnd s i
        tryEnd s i = if i .== "end" then return ((B.length `onObj` s) - 1) else tclErr "bad index"
@@ -56,9 +56,9 @@ match nocase pat str = inner 0 0
                        v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
 
 procAppend args = case args of
-            (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
+            (v:vx) -> do val <- varGetRaw (T.asBStr v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
-                         varSet (T.asBStr v) cated >> return cated
+                         varSet (T.asBStr v) cated
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 

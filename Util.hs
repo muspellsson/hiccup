@@ -9,6 +9,7 @@ joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 {-# INLINE joinWith #-}
 pack = B.pack
 {-# INLINE pack #-}
+unpack = B.unpack
 
 listEscape s = if (B.elem ' ' s && not hasBracks) || B.null s 
                  then B.concat [B.singleton '{', s, B.singleton '}'] 

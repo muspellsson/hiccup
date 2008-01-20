@@ -10,8 +10,6 @@ listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lset", procLset)]
 
-onObj f o = (f (T.asBStr o))
-
 procList, procLindex, procLlength :: TclProc
 procList = return . T.mkTclList
 
@@ -23,27 +21,22 @@ procLindex args = case args of
           _     -> argErr "lindex"
 
 procLlength args = case args of
-        [lst] -> if B.null `onObj` lst 
-                        then return T.tclFalse
-                        else liftM (T.mkTclInt . length) (T.asList lst) 
+        [lst] -> T.asList lst >>= return . T.mkTclInt . length
         _     -> argErr "llength"
 
 procLset args = case args of
-        [name,ind,val] -> do old <- varGet (T.asBStr name)
+        [name,ind,val] -> do old <- varGetRaw (T.asBStr name)
                              items <- T.asSeq old
                              i <- T.asInt ind
                              let nl = T.mkTclList' (S.update i val items)
                              varSet (T.asBStr name) nl
-                             return nl
         _              -> argErr "lset"
                               
 
 
 procLappend args = case args of
-        (n:news) -> do old <- varGet (T.asBStr n) 
-                       items <- T.asSeq old
-                       let nl = T.mkTclList' (items >< (S.fromList news))
-                       varSet (T.asBStr n) nl
-                       return nl
+        (n:news) -> varModify (T.asBStr n)  $
+                \old -> do items <- T.asSeq old
+                           return $ T.mkTclList' (items >< (S.fromList news))
         _        -> argErr "lappend"
 

@@ -86,8 +86,8 @@ procSource args = case args of
 
 procProc, procSet, procReturn, procUpLevel :: TclProc
 procSet args = case args of
-     [s1,s2] -> varSet (T.asBStr s1) s2 >> return s2
-     [s1]    -> varGet (T.asBStr s1)
+     [s1,s2] -> varSet (T.asBStr s1) s2
+     [s1]    -> varGetRaw (T.asBStr s1)
      _       -> argErr ("set " ++ show args ++ " " ++ show (length args))
 
 procUnset args = case args of
@@ -155,12 +155,9 @@ procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"
 
 incr :: T.TclObj -> Int -> TclM RetVal
-incr n i =  do v <- varGet bsname
-               intval <- T.asInt v
-               let res = (T.mkTclInt (intval + i))
-               varSet bsname res
-               return res
- where bsname = T.asBStr n
+incr n i =  varModify (T.asBStr n) $ 
+                 \v -> do ival <- T.asInt v 
+                          return (T.mkTclInt (ival + i))
 
 procReturn args = case args of
       [s] -> throwError (ERet s)
@@ -225,7 +222,7 @@ bindArgs params@(_,hasArgs,pl) args = do
         walkBoth ((Right (k,_)):xs) (a:as) = varSetVal k a >> walkBoth xs as
         walkBoth ((Right (k,v)):xs) []     = varSetVal k (T.mkTclBStr v) >> walkBoth xs []
         walkBoth []                 xl     = if hasArgs then do procList xl >>= varSetVal (pack "args")
-                                                        else unless (null xl) badArgs
+                                                        else if (null xl) then ret else badArgs
         badArgs = argErr $ "should be " ++ showParams params
 
 procProc [name,args,body] = do
