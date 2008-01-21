@@ -24,7 +24,7 @@ procArray :: TclProc
 procArray args = case args of
                   (x:xs) -> case Map.lookup (T.asBStr x) arraySubs of
                               Nothing -> tclErr $ "bad option " ++ show (T.asBStr x) 
-                              Just f  -> f xs
+                              Just f  -> (procFunction f) xs
                   _  -> argErr "array"
 
 arraySubs = makeProcMap $ [("get", array_Get), ("size", array_Size), ("exists", array_Exists), ("set", array_Set) ]

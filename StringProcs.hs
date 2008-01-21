@@ -8,7 +8,7 @@ import Data.Char (toLower,toUpper)
 
 import Test.HUnit
 
-stringProcs = makeProcMap [("string", procString), ("append", procAppend)]
+stringProcs = makeProcMap [("string", procString), ("append", procAppend), ("split", procSplit)]
 
 retmod f = \v -> treturn (f `onObj` v)
 onObj f o = (f (T.asBStr o))
@@ -61,6 +61,15 @@ procAppend args = case args of
                          varSet (T.asBStr v) cated
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
+
+procSplit args = case args of
+        [str]       -> dosplit (T.asBStr str)  (pack "\t\n ")
+        [str,chars] -> let splitChars = T.asBStr chars 
+                       in if B.null splitChars then return $ (T.mkTclList . map (T.mkTclBStr . B.singleton) . unpack) (T.asBStr str)
+                                               else dosplit (T.asBStr str) splitChars
+        _           -> argErr "split"
+
+ where dosplit str chars = return $ T.mkTclList (map T.mkTclBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
 stringTests = TestList [ matchTests ]
 matchTests = TestList [

@@ -793,7 +793,7 @@ proc ignore _ { return {} }
 ignore {
   test "global ns proc" {
     # not yet
-    # checkthat [::+ 1 1] == 2
+    checkthat [::+ 1 1] == 2
     checkthat [+ 1 1] == 2
   }
 }
@@ -854,6 +854,18 @@ test "list escaping" {
   checkthat [llength $x] == 6
 }
 
+test "split" {
+  set res [split "one two three four"]
+  checkthat [llength $res] == 4
+
+  set res [split "comp.lang.misc.fuzzyx" ".x"]
+  checkthat [lindex $res 2] eq "misc"
+  checkthat [llength $res] == 5
+
+
+  checkthat [llength [split "Hey you" {}]] == 7
+}
+
 test "namespaces" {
   set ::x 4
   checkthat $::x == 4
@@ -872,6 +884,12 @@ test "unknown" {
   checkthat $oops == 1
   checkthat $missed eq banana
   rename unknown ""
+}
+
+test "uplevel issue" {
+  set level [info level]
+  catch { uplevel { error "Oh no" } }
+  checkthat [info level] == $level
 }
 
 puts ""

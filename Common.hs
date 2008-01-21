@@ -24,16 +24,19 @@ type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS { nsName :: BString, nsProcs :: ProcMap, nsVars :: VarMap, nsChildren :: Map.Map BString Namespace }
 
+data TclProcT = TclProcT { procName :: BString, procFunction :: TclProc }
+
 data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
-type ProcMap = Map.Map BString TclProc
+type ProcMap = Map.Map BString TclProcT
 type VarMap = Map.Map BString (Either T.TclObj TclArray)
 type ChanMap = Map.Map BString T.TclChan
 
 type TclArray = Map.Map BString T.TclObj
 
-makeProcMap = Map.fromList . mapFst pack
+makeProcMap = Map.fromList . map toTclProcT . mapFst pack
+toTclProcT (n,v) = (n, TclProcT n v)
 makeState chans envl procs = do cm <- newMVar chans
                                 return (TclState cm envl procs)
 
@@ -84,7 +87,6 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-getProcRaw :: BString -> TclM (Maybe TclProc)
 getProcRaw str = eatGlobal str >>= getProc
 
 eatGlobal str = case parseNS str of 
@@ -93,11 +95,11 @@ eatGlobal str = case parseNS str of
                    _           -> nsError
  where nsError = tclErr $ "can't lookup " ++ show str ++ ", namespaces not yet supported"
 
-getProc :: BString -> TclM (Maybe TclProc)
+getProc :: BString -> TclM (Maybe TclProcT)
 getProc str = getProcMap >>= \m -> return (getProc' str m)
 
 
-getProc' :: BString -> ProcMap -> Maybe TclProc
+getProc' :: BString -> ProcMap -> Maybe TclProcT
 getProc' str m = Map.lookup str m
 
 
@@ -105,7 +107,7 @@ rmProc :: BString -> TclM ()
 rmProc name = getProcMap >>= putProcMap . Map.delete name
 
 regProc :: BString -> TclProc -> TclM RetVal
-regProc name pr = (getProcMap >>= putProcMap . Map.insert name pr) >> ret
+regProc name pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name pr)) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet n v = case parseArrRef n of
@@ -178,7 +180,7 @@ varRename old new = do
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old  
-                 if not (B.null new) then regProc new pr else ret
+                 if not (B.null new) then regProc new (procFunction pr) else ret
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 
@@ -252,7 +254,6 @@ ifFails f v = f `orElse` (return v)
 
 orElse f f2 = f `catchError` (\_ -> f2)
 
---ensure :: TclM RetVal -> TclM () -> TclM RetVal
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
    p
