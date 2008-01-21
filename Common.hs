@@ -24,8 +24,8 @@ type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS { nsName :: BString, nsProcs :: ProcMap, nsVars :: VarMap, nsChildren :: Map.Map BString Namespace }
 
-data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
-data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv] }
+data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
+data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
 type VarMap = Map.Map BString (Either T.TclObj TclArray)
@@ -34,13 +34,15 @@ type ChanMap = Map.Map BString T.TclChan
 type TclArray = Map.Map BString T.TclObj
 
 makeProcMap = Map.fromList . mapFst pack
-makeState chans envl = do cm <- newMVar chans
-                          return (TclState cm envl)
+makeState chans envl procs = do cm <- newMVar chans
+                                return (TclState cm envl procs)
 
 mapSnd f = map (\(a,b) -> (a, f b))
 mapFst f = map (\(a,b) -> (f a, b))
 
 getStack = gets tclStack -- TODO: Guard for empty stack here?
+getProcMap = gets tclProcs
+putProcMap p = modify (\v -> v { tclProcs = p })
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
 modStack f = getStack >>= putStack . f
@@ -92,19 +94,18 @@ eatGlobal str = case parseNS str of
  where nsError = tclErr $ "can't lookup " ++ show str ++ ", namespaces not yet supported"
 
 getProc :: BString -> TclM (Maybe TclProc)
-getProc str = getFrame >>= \e -> return (getProc' str e)
+getProc str = getProcMap >>= \m -> return (getProc' str m)
 
 
-getProc' :: BString -> TclEnv -> Maybe TclProc
-getProc' str e = let pr = procs e  :: ProcMap
-                 in Map.lookup str pr
+getProc' :: BString -> ProcMap -> Maybe TclProc
+getProc' str m = Map.lookup str m
 
 
 rmProc :: BString -> TclM ()
-rmProc name = modStack (\(x:xs) -> (x { procs = Map.delete name (procs x) }):xs)
+rmProc name = getProcMap >>= putProcMap . Map.delete name
 
 regProc :: BString -> TclProc -> TclM RetVal
-regProc name pr = modStack (\(x:xs) -> (x { procs = Map.insert name pr (procs x) }):xs) >> ret
+regProc name pr = (getProcMap >>= putProcMap . Map.insert name pr) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet n v = case parseArrRef n of
@@ -231,8 +232,7 @@ uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do 
   (curr,new) <- liftM (splitAt i) getStack
   putStack new
-  res <- p
-  modStack (curr ++)
+  res <- p `ensure` (modStack (curr ++))
   return res
 {-# INLINE uplevel #-}
 
@@ -244,7 +244,7 @@ upvar n d s = do (e:es) <- getStack
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
   (o:old) <- getStack
-  putStack $ (emptyEnv { procs = procs o }) : o : old
+  putStack $ emptyEnv : o : old
   f `ensure` (modStack (drop 1))
 
 
@@ -252,7 +252,7 @@ ifFails f v = f `orElse` (return v)
 
 orElse f f2 = f `catchError` (\_ -> f2)
 
-ensure :: TclM RetVal -> TclM () -> TclM RetVal
+--ensure :: TclM RetVal -> TclM () -> TclM RetVal
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
    p
@@ -273,20 +273,20 @@ treturn = return . T.mkTclBStr
 (.==) bs str = (T.asBStr bs) == pack str
 {-# INLINE (.==) #-}
 
-emptyEnv = TclEnv { vars = Map.empty, procs = Map.empty, upMap = Map.empty }
+emptyEnv = TclEnv { vars = Map.empty, upMap = Map.empty }
 
 
 -- # TESTS # --
 
 runWithEnv :: [TclEnv] -> TclM RetVal -> Either Err RetVal -> IO Bool
 runWithEnv env t v = 
-  do st <- makeState Map.empty env
+  do st <- makeState Map.empty env Map.empty
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
 errWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a)
 errWithEnv env t = 
-    do st <- makeState Map.empty env
+    do st <- makeState Map.empty env Map.empty
        retv <- liftM fst (runTclM t st)
        return retv
 
@@ -313,7 +313,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
 
   evalWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a, [TclEnv])
   evalWithEnv env t = 
-    do st <- makeState Map.empty env
+    do st <- makeState Map.empty env Map.empty
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 

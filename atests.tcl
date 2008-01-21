@@ -92,7 +92,8 @@ proc test {name body} {
   }
   setname $name
   uplevel "proc test_proc {} {$body}"
-  uplevel test_proc
+  set ret [catch { uplevel test_proc } retval]
+  if { == $ret 1 } { puts "Err in test {$name}: $retval" }
 }
 
 proc with_test {tn code} {
@@ -861,6 +862,7 @@ test "namespaces" {
 test "unknown" {
   set oops 0
   set missed {}
+  rename banana ""
   proc unknown {name args} {
     uplevel {incr oops}
     uplevel "set missed $name"
@@ -869,7 +871,7 @@ test "unknown" {
   banana 44
   checkthat $oops == 1
   checkthat $missed eq banana
-
+  rename unknown ""
 }
 
 puts ""

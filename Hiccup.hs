@@ -27,11 +27,8 @@ coreProcs = makeProcMap $
   ("uplevel", procUpLevel), ("unset", procUnset),("dump", procDump),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
-  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
-
-
-baseProcs = makeProcMap $
-  [("source", procSource), ("incr", procIncr)]
+  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
+  ("source", procSource), ("incr", procIncr)]
 
 mathProcs = makeProcMap . mapSnd procMath $
    [("+",(+)), ("*",(*)), ("-",(-)), ("pow", (^)),
@@ -40,9 +37,9 @@ mathProcs = makeProcMap . mapSnd procMath $
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
-baseEnv = emptyEnv { procs = procMap  }
- where procMap = Map.unions [coreProcs, controlProcs, 
-                   mathProcs, baseProcs, ioProcs, listProcs, arrayProcs, stringProcs]
+baseEnv = emptyEnv 
+baseProcs = Map.unions [coreProcs, controlProcs, 
+                   mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
 envWithArgs al = baseEnv { vars = Map.fromList [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)] } 
   where (*) name val = (pack name, Left val)
@@ -50,13 +47,13 @@ envWithArgs al = baseEnv { vars = Map.fromList [("argc" * T.mkTclInt (length al)
 data Interpreter = Interpreter (IORef TclState)
 
 mkInterp :: IO Interpreter
-mkInterp = do st <- makeState baseChans [baseEnv]
+mkInterp = do st <- makeState baseChans [baseEnv] baseProcs
               stref <- newIORef st
               return (Interpreter stref)
 
 mkInterpWithArgs :: [BString] -> IO Interpreter
 mkInterpWithArgs args = do 
-              st <- makeState baseChans [envWithArgs (map T.mkTclBStr args)]
+              st <- makeState baseChans [envWithArgs (map T.mkTclBStr args)] baseProcs
               stref <- newIORef st
               return (Interpreter stref)
 
@@ -140,7 +137,7 @@ procCatch args = case args of
                          
 
 procInfo [x]
-  | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs
+  | x .== "commands" =  getProcMap >>= procList . toObs . Map.keys
   | x .== "level"    =  getStack >>= return . T.mkTclInt . pred . length
   | x .== "vars"     =  do f <- getFrame 
                            procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
