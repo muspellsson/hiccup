@@ -129,11 +129,15 @@ procEval args = case args of
                  _   -> argErr "eval"
 
 procCatch args = case args of
-           [s] -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s]        -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
+           [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> procReturn [T.tclFalse]) `catchError` (\e -> retReason result e >> return (catchRes e))
            _   -> argErr "catch"
  where catchRes (EDie _) = T.tclTrue
        catchRes _        = T.tclFalse
-
+       retReason v e = case e of
+                         EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return ()
+                         _      -> return ()
+                         
 
 procInfo [x]
   | x .== "commands" =  getFrame >>= procList . toObs . Map.keys . procs

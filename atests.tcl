@@ -17,16 +17,6 @@ proc assertEq {a b} {
   }
 }
 
-
-proc checkthat { var op r } {
-  set res [eval "$op {$var} {$r}"]
-  if { == $res 1 } {
-    assertPass
-  } else {
-    assertFail "\"$var $op $r\" was not true"
-  }
-}
-
 proc assertPass {} {
   global assertcount
   puts -nonewline "."
@@ -37,6 +27,17 @@ proc assertFail why {
   global current_test
   die "'$current_test' failed: $why"
 }
+
+
+proc checkthat { var op r } {
+  set res [eval "$op {$var} {$r}"]
+  if { == $res 1 } {
+    assertPass
+  } else {
+    assertFail "\"$var $op $r\" was not true"
+  }
+}
+
 
 proc assertStrEq {a b} {
   global current_test
@@ -63,6 +64,11 @@ proc assertErr code {
   } else {
     assertFail "code should've failed: $code ($ret)"
   }
+}
+
+proc get_err code { 
+  catch $code errstr
+  return $errstr
 }
 
 proc announce { } { 
@@ -421,6 +427,13 @@ test "errors and catch" {
 
   assertEq 1 [catch { puts "$thisdoesntexist" }]
   assertEq 0 [catch { + 1 1 }]
+
+  catch { set x [+ $x 4] } reason
+  checkthat $reason eq {can't read "$x": no such variable}
+
+  set x 4
+  catch { incr x } result
+  checkthat $result == 5
 }
 
 
@@ -843,6 +856,20 @@ test "list escaping" {
 test "namespaces" {
   set ::x 4
   checkthat $::x == 4
+}
+
+test "unknown" {
+  set oops 0
+  set missed {}
+  proc unknown {name args} {
+    uplevel {incr oops}
+    uplevel "set missed $name"
+  }
+  checkthat $oops == 0
+  banana 44
+  checkthat $oops == 1
+  checkthat $missed eq banana
+
 }
 
 puts ""

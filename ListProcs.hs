@@ -1,7 +1,6 @@
 module ListProcs (listProcs,procList) where
 import Common
 import qualified TclObj as T
-import qualified Data.ByteString.Char8 as B
 import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))

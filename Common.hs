@@ -20,8 +20,11 @@ instance Error Err where
  noMsg    = EDie "An error occurred."
  strMsg s = EDie s
 
-data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
 type TclM = ErrorT Err (StateT TclState IO)
+
+data Namespace = TclNS { nsName :: BString, nsProcs :: ProcMap, nsVars :: VarMap, nsChildren :: Map.Map BString Namespace }
+
+data TclEnv = TclEnv { vars :: VarMap, procs :: ProcMap, upMap :: Map.Map BString (Int,BString) } 
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv] }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProc
@@ -79,7 +82,7 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-getProcRaw :: BString -> TclM TclProc
+getProcRaw :: BString -> TclM (Maybe TclProc)
 getProcRaw str = eatGlobal str >>= getProc
 
 eatGlobal str = case parseNS str of 
@@ -88,14 +91,13 @@ eatGlobal str = case parseNS str of
                    _           -> nsError
  where nsError = tclErr $ "can't lookup " ++ show str ++ ", namespaces not yet supported"
 
-getProc :: BString -> TclM TclProc
-getProc str = getFrame >>= getProc' str 
+getProc :: BString -> TclM (Maybe TclProc)
+getProc str = getFrame >>= \e -> return (getProc' str e)
 
 
-getProc' str e = let pr = procs e 
-                 in case Map.lookup str pr of
-                       Nothing -> tclErr ("invalid command name " ++ show str)
-                       Just v  -> return v
+getProc' :: BString -> TclEnv -> Maybe TclProc
+getProc' str e = let pr = procs e  :: ProcMap
+                 in Map.lookup str pr
 
 
 rmProc :: BString -> TclM ()
@@ -154,14 +156,11 @@ varMod' str ind f = do
                                              v <- f p2
                                              return ((env { vars = Map.insert str (Right (Map.insert i v prev)) ev }), v)
 
+{-# INLINE varMod' #-}
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
 varModify n f = case parseArrRef n of
-      Nothing     -> do v <- varGet' n Nothing
-                        v2 <- f v
-                        varSet' n Nothing v2
-      Just (an,i) -> do v <- varGet' an (Just i)
-                        v2 <- f v
-                        varSet' an (Just i) v2
+      Nothing     -> varMod' n Nothing f
+      Just (an,i) -> varMod' an (Just i) f
 {-# INLINE varModify #-}
 
 
@@ -174,9 +173,11 @@ varExists name = do
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
-  pr <- getProcRaw old
-  rmProc old  
-  if (not (B.null new)) then regProc new pr else ret
+  mpr <- getProcRaw old
+  case mpr of
+   Nothing -> tclErr $ "bad command " ++ show old
+   Just pr -> do rmProc old  
+                 if not (B.null new) then regProc new pr else ret
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 
@@ -217,7 +218,7 @@ getArray name = do
 varGet' :: BString -> Maybe BString -> TclM RetVal
 varGet' name ind = do 
    env <- getFrame
-   case upped name env of -- TODO: this ifNothing should be handled by the 'case' statement.
+   case upped name env of 
       Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++  unpack name ++ "\": no such variable")
                        case (val, ind) of
                           (Left o, Nothing)  -> return o

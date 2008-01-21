@@ -5,6 +5,7 @@ import qualified TclObj as T
 import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as B
 import RToken
+import Util
 
 import Test.HUnit
 
@@ -28,10 +29,18 @@ evalRToken (Block s p)  = return $ T.fromBlock s p
 runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do 
   evArgs <- mapM evalRToken args
-  proc <- getCmd n
-  proc evArgs
- where getCmd (Lit s) = getProc s
-       getCmd rt      = evalRToken rt >>= getProc .T.asBStr
+  runCmd n evArgs
+ where runCmd (Lit s) a = callProc s a
+       runCmd rt      a = evalRToken rt >>= \pn -> callProc (T.asBStr pn) a
+
+callProc pn args =  do
+   mproc <- getProc pn
+   case mproc of
+     Nothing   -> do ukproc <- getProc (pack "unknown")
+                     case ukproc of
+                       Nothing -> tclErr $ "invalid command name " ++ show pn
+                       Just uk -> uk ((T.mkTclBStr pn):args)
+     Just proc -> proc args
 
 doCond :: T.TclObj -> TclM Bool
 doCond str = do 
