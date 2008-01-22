@@ -175,14 +175,12 @@ incr n i =  varModify (T.asBStr n) $
                           return (T.mkTclInt (ival + i))
 
 
-elseErr c err = if c then ret else tclErr err
-
 procTime args =  
    case args of
      [code]     -> do tspan <- dotime code
                       return (T.mkTclStr (show tspan))
      [code,cnt] -> do count <- T.asInt cnt
-                      (count > 0) `elseErr` "invalid number of iterations in time"
+                      unless (count > 0) (tclErr "invalid number of iterations in time")
                       ts <- mapM (\_ -> dotime code) [1..count]
                       let str = show ((sum ts) / fromIntegral (length ts))
                       return (T.mkTclStr (str ++ " per iteration"))
