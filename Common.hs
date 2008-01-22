@@ -150,8 +150,8 @@ varMod' str ind f = do
                   (Just os, Nothing) -> case os of
                                              Right _ -> tclErr $ "can't read " ++ show str ++ ", variable is array"
                                              Left val -> do
-                                                 val2 <- f val 
-                                                 return ((env { vars = Map.insert str (Left val2) ev }), val2)
+                                                    val2 <- f val 
+                                                    return ((env { vars = Map.insert str (Left val2) ev }), val2)
                   (Just oa, Just i)  -> case oa of
                                          Left _ -> tclErr $ "Can't set \"" ++ unpack str ++ "(" ++ unpack i ++ ")\": variable isn't array"
                                          Right prev -> do  

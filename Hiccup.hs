@@ -136,16 +136,21 @@ procCatch args = case args of
                          _      -> return ()
                          
 
-procInfo [x]
-  | x .== "commands" =  getProcMap >>= procList . toObs . Map.keys
-  | x .== "level"    =  getStack >>= return . T.mkTclInt . pred . length
-  | x .== "vars"     =  do f <- getFrame 
-                           procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
-  | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
-procInfo [x,y] 
-  | x .== "exists"   =  varExists (T.asBStr y) >>= return . T.fromBool
+procInfo (x:xs)
+  | x .== "commands" =  info_commands
+  | x .== "level"    =  info_level
+  | x .== "vars"     =  info_vars
+  | x .== "exists"   =  info_exists xs
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
 procInfo _   = argErr "info"
+
+info_commands = getProcMap >>= procList . toObs . Map.keys
+info_level = getStack >>= return . T.mkTclInt . pred . length
+info_vars = do f <- getFrame
+               procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
+info_exists args = case args of
+        [n] -> varExists (T.asBStr n) >>= return . T.fromBool
+        _   -> argErr "info exists"
 
 toObs = map T.mkTclBStr
 
