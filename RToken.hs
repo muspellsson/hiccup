@@ -17,8 +17,8 @@ compile str = case wrapInterp str of
                    Left s  -> Lit s
                    Right x -> handle x
  where f (Left match) = case parseArrRef match of 
-                         Nothing      -> VarRef match
-                         Just (n,ind) -> ArrRef n (compile ind)
+                         (_, Nothing)  -> VarRef match
+                         (n, Just ind) -> ArrRef n (compile ind)
        f (Right x)    = compCmd x
        handle (b,m,a) = let front = [Lit b, f m]
                         in let lst = filter (not . isEmpty) (front ++ [compile a])

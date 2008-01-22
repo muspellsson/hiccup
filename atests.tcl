@@ -430,7 +430,7 @@ test "errors and catch" {
   assertEq 0 [catch { + 1 1 }]
 
   catch { set x [+ $x 4] } reason
-  checkthat $reason eq {can't read "$x": no such variable}
+  checkthat $reason eq {can't read "x": no such variable}
 
   set x 4
   catch { incr x } result

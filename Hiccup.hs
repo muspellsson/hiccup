@@ -141,6 +141,8 @@ procInfo (x:xs)
   | x .== "commands" =  info_commands
   | x .== "level"    =  info_level
   | x .== "vars"     =  info_vars
+  | x .== "locals"   =  info_locals
+  | x .== "globals"  =  info_globals xs
   | x .== "exists"   =  info_exists xs
   | x .== "body"     =  info_body xs
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
@@ -150,10 +152,14 @@ info_commands = getProcMap >>= procList . toObs . Map.keys
 info_level = getStack >>= return . T.mkTclInt . pred . length
 info_vars = do f <- getFrame
                procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
+info_locals = getFrame >>= procList . toObs . Map.keys . vars
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
 
+info_globals args = case args of
+          [] -> getStack >>= procList . toObs . Map.keys . vars . last
+          _  -> argErr "info globals"
 info_body args = case args of
        [n] -> do p <- getProcRaw (T.asBStr n)
                  case p of 

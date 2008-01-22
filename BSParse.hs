@@ -235,11 +235,12 @@ nested s = do ind <- match 0 0 False
             '\\' -> match c nexti (not esc)
             _    -> match c nexti False
 
-parseArrRef str = do start <- B.elemIndex '(' str
-                     guard (start /= 0)
-                     guard (B.last str == ')')
-                     let (pre,post) = B.splitAt start str
-                     return (pre, B.tail (B.init post))
+parseArrRef str = case B.elemIndex '(' str of
+             Nothing    -> (str, Nothing)
+             Just start -> if (start /= 0) && B.last str == ')' 
+                             then let (pre,post) = B.splitAt start str
+                                  in (pre, Just (B.tail (B.init post)))
+                             else (str, Nothing)
 
 parseNS str = 
   case str `splitWith` (B.pack "::") of

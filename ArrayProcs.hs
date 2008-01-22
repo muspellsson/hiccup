@@ -29,7 +29,7 @@ procArray args = case args of
 
 arraySubs = makeProcMap $ [("get", array_Get), ("size", array_Size), ("exists", array_Exists), ("set", array_Set) ]
 
-arrSet n i v = varSet' n (Just i) v
+arrSet n i v = varSet' (n,Just i) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs [] = []
 toPairs _ = [] 

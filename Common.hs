@@ -22,7 +22,12 @@ instance Error Err where
 
 type TclM = ErrorT Err (StateT TclState IO)
 
-data Namespace = TclNS { nsName :: BString, nsProcs :: ProcMap, nsVars :: VarMap, nsChildren :: Map.Map BString Namespace }
+data Namespace = TclNS { 
+         nsName :: BString, 
+         nsProcs :: ProcMap, 
+         nsVars :: VarMap, 
+         nsParent :: Maybe Namespace,
+         nsChildren :: Map.Map BString Namespace } -- Ok.. and how do we use this?
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
@@ -30,10 +35,13 @@ data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) }
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProcT
-type VarMap = Map.Map BString (Either T.TclObj TclArray)
+type VarMap = Map.Map BString TclVar
+type TclVar = Either T.TclObj TclArray
 type ChanMap = Map.Map BString T.TclChan
 
 type TclArray = Map.Map BString T.TclObj
+
+type VarName = (BString, Maybe BString) 
 
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 toTclProcT (n,v) = (n, TclProcT n errStr v)
@@ -111,19 +119,18 @@ regProc :: BString -> BString -> TclProc -> TclM RetVal
 regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name body pr)) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
-varSet n v = case parseArrRef n of
-              Nothing -> varSet' n Nothing v
-              Just (an,i) -> varSet' an (Just i) v
+varSet n v = let p = parseArrRef n 
+             in varSet' p v
 
 varSetVal :: BString -> T.TclObj -> TclM RetVal
-varSetVal n v = varSet' n Nothing v 
+varSetVal n v = varSet' (n,Nothing) v 
 {-# INLINE varSetVal #-}
 
-varSet' :: BString -> Maybe BString -> T.TclObj -> TclM RetVal
-varSet' str ind v = do 
+varSet' :: VarName -> T.TclObj -> TclM RetVal
+varSet' (str,ind) v = do 
      (env:es) <- getStack
      case upped str env of
-         Just (i,s) -> uplevel i (varSet' s ind v)
+         Just (i,s) -> uplevel i (varSet' (s,ind) v)
          Nothing    -> do ne <- modEnv env 
                           putStack (ne:es)
                           return v
@@ -135,11 +142,11 @@ varSet' str ind v = do
                                Left _     -> tclErr $ "Can't set \"" ++ unpack str ++ "(" ++ unpack i ++ ")\": variable isn't array"
                                Right prev ->  return (env { vars = Map.insert str (Right (Map.insert i v prev)) ev })
 
-varMod' :: BString -> Maybe BString -> (T.TclObj -> TclM RetVal) -> TclM RetVal
-varMod' str ind f = do 
+varMod' :: VarName -> (T.TclObj -> TclM RetVal) -> TclM RetVal
+varMod' (str,ind) f = do 
      (env:es) <- getStack
      case upped str env of
-         Just (i,s) -> uplevel i (varMod' s ind f)
+         Just (i,s) -> uplevel i (varMod' (s,ind) f)
          Nothing    -> do (ne,v) <- modEnv env 
                           putStack (ne:es)
                           return v
@@ -162,9 +169,7 @@ varMod' str ind f = do
 
 {-# INLINE varMod' #-}
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
-varModify n f = case parseArrRef n of
-      Nothing     -> varMod' n Nothing f
-      Just (an,i) -> varMod' an (Just i) f
+varModify n f = varMod' (parseArrRef n) f
 {-# INLINE varModify #-}
 
 
@@ -205,31 +210,50 @@ varDump = do env <- getStack
 
 
 varGetRaw :: BString -> TclM RetVal
-varGetRaw n = case parseArrRef n of
-               Nothing -> varGet' n Nothing
-               Just (an,i) -> varGet' an (Just i)
+varGetRaw n = varGet' (parseArrRef n)
 
 getArray :: BString -> TclM TclArray
 getArray name = do
    env <- getFrame
    case upped name env of
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++ unpack name ++ "\": no such variable")
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read " ++ show name ++ ": no such variable")
                        case val of
                           (Right m)  -> return m
                           (Left _)   -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
       Just (i,n) -> uplevel i (getArray n)
 
-varGet' :: BString -> Maybe BString -> TclM RetVal
-varGet' name ind = do 
+varGet' :: VarName -> TclM RetVal
+varGet' (name,ind) = do 
    env <- getFrame
    case upped name env of 
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read \"$" ++  unpack name ++ "\": no such variable")
+      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read " ++ show name ++ ": no such variable")
                        case (val, ind) of
                           (Left o, Nothing)  -> return o
                           (Right _, Nothing) -> tclErr $ "can't read \"" ++ unpack name ++ "\": variable is array"
                           (Left _, Just _)   -> tclErr $ "can't read \"" ++ unpack name ++ "\": variable isn't array"
                           (Right m, Just i)  -> Map.lookup i m `ifNothing` ("can't read \"" ++ unpack i ++ "\": no such element in array")
-      Just (i,n) -> uplevel i (varGet' n ind)
+      Just (i,n) -> uplevel i (varGet' (n,ind))
+
+varGet2 :: BString -> TclM (Maybe TclVar)
+varGet2 name = do 
+   env <- getFrame
+   case upped name env of 
+      Nothing    -> return (Map.lookup name (vars env))
+      Just (i,n) -> uplevel i (varGet2 n)
+
+varGet2' :: VarName -> TclM RetVal
+varGet2' (name,ind) = do
+  var <- varGet2 name
+  case var of
+   Nothing -> cantReadErr name ind
+   Just (Left o)  -> case ind of 
+                      Nothing -> return o
+                      _       -> tclErr $ "can't read " ++ show name ++ ": variable is array"
+   Just (Right a) -> case ind of
+                      Nothing -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
+                      Just i  -> Map.lookup i a `ifNothing` ("can't read " ++ show i ++ ": no such element in array")
+ where cantReadErr name Nothing  = tclErr $ "can't read " ++ show name ++ ": no such variable"
+       cantReadErr name (Just i) = tclErr $ "can't read \"" ++ unpack name ++ "(" ++ unpack i ++ ")" ++ "\": no such variable"
 
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do 
@@ -307,8 +331,8 @@ commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
      ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
      ,"arr()"         ?=> ("arr","")
    ]
-   where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (bp a) ~=? Just (bp b1, bp b2)
-         should_be x r =  (x ++ " should be " ++ show r) ~: parseArrRef (bp x) ~=? r
+   where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (bp a) ~=? ((bp b1), Just (bp b2))
+         should_be x _ =  (x ++ " should be " ++ show (bp x)) ~: parseArrRef (bp x) ~=? (bp x, Nothing)
 
   b = B.pack
   bp = B.pack
@@ -320,7 +344,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
        return (retv, tclStack resStack)
 
 
-  checkErr a s = errWithEnv [emptyEnv] a >>= \v -> assertEqual "err match" v (Left (EDie s))
+  checkErr a s = errWithEnv [emptyEnv] a >>= \v -> assertEqual "err match" (Left (EDie s)) v
   checkNoErr a = errWithEnv [emptyEnv] a >>= \v -> assertBool "err match" (isRight v)
 
   checkExists a n = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
@@ -348,7 +372,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
      ]
 
   getTests = TestList [
-       "non-exist" ~: (varGetRaw (b "boo")) `checkErr` "can't read \"$boo\": no such variable"
+       "non-exist" ~: (varGetRaw (b "boo")) `checkErr` "can't read \"boo\": no such variable"
        ,"no err if exists" ~: checkNoErr ((varSet name value) >> varGetRaw name)
      ]
 
