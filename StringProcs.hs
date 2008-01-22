@@ -1,4 +1,4 @@
-module StringProcs (stringProcs, stringTests ) where
+module StringProcs (stringProcs, stringTests) where
 
 import Common
 import Util
@@ -10,22 +10,26 @@ import Test.HUnit
 
 stringProcs = makeProcMap [("string", procString), ("append", procAppend), ("split", procSplit)]
 
-retmod f = \v -> treturn (f `onObj` v)
-onObj f o = (f (T.asBStr o))
-
 procString :: TclProc
-procString (f:s:args) 
- | f .== "trim"    = retmod T.trim s
- | f .== "tolower" = retmod (B.map toLower) s
- | f .== "toupper" = retmod (B.map toUpper) s
- | f .== "reverse" = retmod (B.reverse) s
- | f .== "length"  = return $ T.mkTclInt (B.length `onObj` s)
- | f .== "match"   = string_Match (s:args)
- | f .== "index"   = string_Index (s:args)
+procString (f:fs) 
+ | f .== "trim"    = string_Op "trim" T.trim fs
+ | f .== "tolower" = string_Op "tolower" (B.map toLower) fs
+ | f .== "toupper" = string_Op "toupper" (B.map toUpper) fs
+ | f .== "reverse" = string_Op "reverse" B.reverse fs
+ | f .== "length"  = string_length fs
+ | f .== "match"   = string_Match fs
+ | f .== "index"   = string_Index fs
  | otherwise       = tclErr $ "Can't do string action: " ++ show f
  
 procString _ = argErr "string"
 
+string_Op name op args = case args of
+   [s] -> treturn $! op (T.asBStr s)
+   _   -> argErr $ "string " ++ name
+
+string_length args = case args of
+    [s] -> return $ T.mkTclInt (B.length (T.asBStr s))
+    _   -> argErr "string length"
 
 string_Match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
@@ -34,13 +38,14 @@ string_Match args = case map T.asBStr args of
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
 string_Index args = case args of
-                     [s,i] -> do ind <- toInd s i
-                                 if ind >= (B.length `onObj` s) || ind < 0 
+                     [s,i] -> do let str = T.asBStr s
+                                 ind <- toInd str i
+                                 if ind >= (B.length str) || ind < 0 
                                   then ret 
-                                  else treturn $ B.take 1 (B.drop ind (T.asBStr s))
+                                  else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
  where toInd s i = (T.asInt i) `orElse` tryEnd s i
-       tryEnd s i = if i .== "end" then return ((B.length `onObj` s) - 1) else tclErr "bad index"
+       tryEnd s i = if i .== "end" then return ((B.length s) - 1) else tclErr "bad index"
 
 match :: Bool -> BString -> BString -> Bool
 match nocase pat str = inner 0 0

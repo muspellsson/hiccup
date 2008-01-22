@@ -28,27 +28,37 @@ procWhile [cond,body] = loop `catchError` herr
 
 procWhile _ = argErr "while"
 
-eatErr v e = if v == e then ret else throwError e
+eatErr f v = (f >> ret) `catchError` \e -> if v == e then ret else throwError e
 
 procFor args = case args of
    [start,test,next,body] -> do evalTcl start
-                                loop test next body `catchError` eatErr EBreak
+                                loop test next body `eatErr` EBreak
+                                ret
    _                      -> argErr "for"
  where loop test next body = do
          c <- doCond test
-         if c then (evalTcl body `catchError` eatErr EContinue) >> evalTcl next >> loop test next body
+         if c then (evalTcl body `eatErr` EContinue) >> evalTcl next >> loop test next body
               else ret
 
 procForEach args = 
    case args of
-    [vl_,l_,block] -> do vl <- T.asList vl_
-                         l <- T.asList l_
-                         let chunks = l `chunkBy` (length vl)
-                         liftM tryLast (mapM (doChunk vl block) chunks) `catchError` (eatErr EBreak)
-                         ret
+    [vl_,l_,block] -> do 
+               vl <- T.asList vl_
+               l <- T.asList l_
+               let vllen = length vl
+               if vllen == 1 
+                   then 
+                      allowBreak (mapM_ (doSingl (head vl) block) l)
+                   else do
+                      let chunks = l `chunkBy` vllen
+                      allowBreak (mapM_ (doChunk vl block) chunks) 
+               ret
     _            -> argErr "foreach"
- where doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty) 
-                                   evalTcl block `catchError` (eatErr EContinue)
+ where allowBreak f = f `eatErr` EBreak
+       doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty) 
+                                   evalTcl block `eatErr` EContinue
+       doSingl v block i = do varSet (T.asBStr v) i
+                              evalTcl block `eatErr` EContinue
 
 chunkBy lst n = let (a,r) = splitAt n lst  
                 in a : (if null r then [] else r `chunkBy` n)

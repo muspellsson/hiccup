@@ -24,7 +24,7 @@ type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS { nsName :: BString, nsProcs :: ProcMap, nsVars :: VarMap, nsChildren :: Map.Map BString Namespace }
 
-data TclProcT = TclProcT { procName :: BString, procFunction :: TclProc }
+data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
 data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
 data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
@@ -36,7 +36,8 @@ type ChanMap = Map.Map BString T.TclChan
 type TclArray = Map.Map BString T.TclObj
 
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
-toTclProcT (n,v) = (n, TclProcT n v)
+toTclProcT (n,v) = (n, TclProcT n errStr v)
+ where errStr = pack $ show n ++ " isn't a procedure"
 makeState chans envl procs = do cm <- newMVar chans
                                 return (TclState cm envl procs)
 
@@ -106,8 +107,8 @@ getProc' str m = Map.lookup str m
 rmProc :: BString -> TclM ()
 rmProc name = getProcMap >>= putProcMap . Map.delete name
 
-regProc :: BString -> TclProc -> TclM RetVal
-regProc name pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name pr)) >> ret
+regProc :: BString -> BString -> TclProc -> TclM RetVal
+regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name body pr)) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet n v = case parseArrRef n of
@@ -180,7 +181,7 @@ varRename old new = do
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old  
-                 if not (B.null new) then regProc new (procFunction pr) else ret
+                 if not (B.null new) then regProc new (procBody pr) (procFunction pr) else ret
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do 

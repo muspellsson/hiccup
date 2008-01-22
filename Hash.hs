@@ -8,8 +8,11 @@ import Data.Bits
 import Data.Word
 import Data.Char (ord)
 
-main = B.getContents >>= print . showCollisions . findCollisions .  map (\x -> ((bssum x, perlhash x), x)) . B.words
+main = B.getContents >>= print . showCollisions . findCollisions .  map (\x -> (perlhash x, x)) 
+       . andRevs  . B.words
 
+
+andRevs = concatMap (\v -> [v, B.reverse v])
 
 findCollisions :: (Ord a) => [(a, B.ByteString)] -> Map.Map a [B.ByteString]
 findCollisions = foldl' (\m (h,w) -> Map.insertWith' (\a b -> nub (a ++ b)) h [w] m) Map.empty 

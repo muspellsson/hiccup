@@ -10,6 +10,7 @@ import qualified TclObj as T
 import Core
 import Common
 import Util
+import Data.Time.Clock (diffUTCTime,getCurrentTime) 
 
 import IOProcs
 import ListProcs
@@ -19,7 +20,7 @@ import StringProcs
 import Test.HUnit  -- IGNORE
 
 
-coreProcs, baseProcs, mathProcs :: ProcMap
+coreProcs, mathProcs :: ProcMap
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
@@ -28,7 +29,7 @@ coreProcs = makeProcMap $
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
-  ("source", procSource), ("incr", procIncr)]
+  ("source", procSource), ("incr", procIncr), ("time", procTime)]
 
 mathProcs = makeProcMap . mapSnd procMath $
    [("+",(+)), ("*",(*)), ("-",(-)), ("pow", (^)),
@@ -141,6 +142,7 @@ procInfo (x:xs)
   | x .== "level"    =  info_level
   | x .== "vars"     =  info_vars
   | x .== "exists"   =  info_exists xs
+  | x .== "body"     =  info_body xs
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
 procInfo _   = argErr "info"
 
@@ -151,6 +153,13 @@ info_vars = do f <- getFrame
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
+
+info_body args = case args of
+       [n] -> do p <- getProcRaw (T.asBStr n)
+                 case p of 
+                   Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
+                   Just p  -> treturn (procBody p)
+       _   -> argErr "info body"
 
 toObs = map T.mkTclBStr
 
@@ -164,6 +173,17 @@ incr :: T.TclObj -> Int -> TclM RetVal
 incr n i =  varModify (T.asBStr n) $ 
                  \v -> do ival <- T.asInt v 
                           return (T.mkTclInt (ival + i))
+
+
+procTime args =  
+   case args of
+     [code] -> do startt <- io getCurrentTime
+                  evalTcl code
+                  endt <- io getCurrentTime
+                  let tspan = diffUTCTime endt startt
+                  return (T.mkTclStr (show tspan))
+     _      -> argErr "time"
+ 
 
 procReturn args = case args of
       [s] -> throwError (ERet s)
@@ -234,7 +254,7 @@ bindArgs params@(_,hasArgs,pl) args = do
 procProc [name,args,body] = do
   let pname = T.asBStr name
   params <- parseParams pname args
-  regProc pname (procRunner params body)
+  regProc pname (T.asBStr body) (procRunner params body)
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 procRunner pl body args = 
