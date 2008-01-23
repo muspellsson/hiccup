@@ -20,7 +20,7 @@ procLindex args = case args of
           _     -> argErr "lindex"
 
 procLlength args = case args of
-        [lst] -> T.asList lst >>= return . T.mkTclInt . length
+        [lst] -> T.asSeq lst >>= return . T.mkTclInt . S.length
         _     -> argErr "llength"
 
 procLset args = case args of

@@ -23,7 +23,7 @@ instance Error Err where
 type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS { 
-         nsName :: BString, 
+         nsName :: String, 
          nsProcs :: ProcMap, 
          nsVars :: VarMap, 
          nsParent :: Maybe Namespace,
@@ -70,7 +70,7 @@ getFrame = do st <- getStack
 io :: IO a -> TclM a
 io = liftIO
 
-tclErr:: String -> TclM a
+tclErr :: String -> TclM a
 tclErr = throwError . EDie
 
 argErr s = tclErr ("wrong # of args: " ++ s)

@@ -12,13 +12,13 @@ import Test.HUnit  -- IGNORE
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
-              TclList (S.Seq TclObj) BString |
+              TclList !(S.Seq TclObj) BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
-mkTclStr s  = mkTclBStr (BS.pack s)
+mkTclStr s  = mkTclBStr (pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
 
-mkTclList l = TclList (S.fromList l) (fromList (map asBStr l))
+mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
 mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
 
 fromBlock s p = TclBStr s (maybeInt s) p
@@ -35,7 +35,7 @@ resultToEither res s = case res of
                         Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
 mkTclInt i = TclInt i bsval
- where bsval = BS.pack (show i)
+ where bsval = pack (show i)
 {-# INLINE mkTclInt #-}
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
@@ -69,9 +69,9 @@ instance ITObj BS.ByteString where
 asList o = liftM F.toList (asSeq o)
 
 instance ITObj TclObj where
-  asStr (TclInt _ b) = BS.unpack b
-  asStr (TclBStr bs _ _) =  BS.unpack bs
-  asStr (TclList _ bs) =  BS.unpack bs
+  asStr (TclInt _ b)     = unpack b
+  asStr (TclBStr bs _ _) = unpack bs
+  asStr (TclList _ bs)   = unpack bs
 
   asBool (TclList _ bs) = bs `elem` trueValues
   asBool (TclInt i _) = i /= 0
@@ -92,7 +92,7 @@ instance ITObj TclObj where
 
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
-  asParsed (TclInt _ _) = fail "Can't parse an int value"
+  asParsed (TclInt _ _)  = fail "Can't parse an int value"
   asParsed (TclList _ _) = fail "Can't parse a list value (for now)"
   
 fromList l = (map listEscape l)  `joinWith` ' '
@@ -102,7 +102,7 @@ asListS s = case P.parseList s of
                Just lst -> return lst
 
 
-trueValues = map BS.pack ["1", "true", "yes", "on"]
+trueValues = map pack ["1", "true", "yes", "on"]
 
 -- # TESTS # --
 
