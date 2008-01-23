@@ -892,5 +892,11 @@ test "uplevel issue" {
   checkthat [info level] == $level
 }
 
+set a_global 9
+test "global namespace" {
+  checkthat [info exists a_global] == 0
+  checkthat $::a_global == 9
+}
+
 puts ""
 puts stdout "Done. Passed $assertcount checks."

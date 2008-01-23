@@ -5,6 +5,7 @@ import Util
 import qualified TclObj as T
 import Control.Monad
 import qualified Data.Map as Map
+import VarName
 import Text.Printf
 
 arrayProcs = makeProcMap $
@@ -29,7 +30,7 @@ procArray args = case args of
 
 arraySubs = makeProcMap $ [("get", array_Get), ("size", array_Size), ("exists", array_Exists), ("set", array_Set) ]
 
-arrSet n i v = varSet' (n,Just i) v
+arrSet n i v = varSet' (VarName n (Just i)) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs [] = []
 toPairs _ = [] 

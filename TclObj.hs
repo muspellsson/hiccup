@@ -74,7 +74,7 @@ instance ITObj TclObj where
   asStr (TclList _ bs)   = unpack bs
 
   asBool (TclList _ bs) = bs `elem` trueValues
-  asBool (TclInt i _) = i /= 0
+  asBool (TclInt i _)     = i /= 0
   asBool (TclBStr bs _ _) = bs `elem` trueValues
 
   asInt (TclInt i _) = return i

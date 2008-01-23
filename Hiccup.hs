@@ -43,7 +43,7 @@ baseProcs = Map.unions [coreProcs, controlProcs,
                    mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
 envWithArgs al = baseEnv { vars = Map.fromList [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)] } 
-  where (*) name val = (pack name, Left val)
+  where (*) name val = (pack name, ScalarVar val)
 
 data Interpreter = Interpreter (IORef TclState)
 

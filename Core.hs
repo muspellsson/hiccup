@@ -6,6 +6,7 @@ import Control.Monad (liftM)
 import qualified Data.ByteString.Char8 as B
 import RToken
 import Util
+import VarName
 
 import Test.HUnit
 
@@ -21,8 +22,8 @@ tryLast v  = last v
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)      = return $ T.mkTclBStr s
 evalRToken (CmdTok t)   = runCmd t
-evalRToken (VarRef n)   = varGet' (n,Nothing)
-evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet' (n, Just (T.asBStr ni))
+evalRToken (VarRef vn)  = varGetNS vn
+evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet' (VarName n (Just (T.asBStr ni)))
 evalRToken (CatLst l)   = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
 evalRToken (Block s p)  = return $ T.fromBlock s p
 

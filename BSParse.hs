@@ -3,8 +3,6 @@
 module BSParse ( runParse, wrapInterp, TclWord(..), dropWhite, parseList
             ,Result
             ,TokCmd
-            ,parseArrRef
-            ,parseNS
             ,BString
             ,bsParseTests 
   ) where
@@ -235,27 +233,6 @@ nested s = do ind <- match 0 0 False
             '\\' -> match c nexti (not esc)
             _    -> match c nexti False
 
-parseArrRef str = case B.elemIndex '(' str of
-             Nothing    -> (str, Nothing)
-             Just start -> if (start /= 0) && B.last str == ')' 
-                             then let (pre,post) = B.splitAt start str
-                                  in (pre, Just (B.tail (B.init post)))
-                             else (str, Nothing)
-
-parseNS str = 
-  case str `splitWith` (B.pack "::") of
-    [str] -> Left str
-    nsr   -> Right nsr
-
-splitWith :: BString -> BString -> [BString]
-splitWith str sep = 
-    case B.findSubstrings sep str of
-        []     -> [str]
-        il     -> extract il str
- where slen             = B.length sep 
-       extract [] s     = [s]
-       extract (i:ix) s = let (b,a) = B.splitAt i s 
-                          in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
  
 -- # TESTS # --
 
@@ -408,18 +385,8 @@ runParseTests = TestList [
        pr (x:xs) = ([(mkwd x, map mkwd xs)], "")
        pr []     = error "bad test!"
 
-splitWithTests = TestList [
-    ("one::two","::") `splitsTo` ["one","two"]
-    ,("::x","::") `splitsTo` ["","x"]
-    ,("wonderdragon","::") `splitsTo` ["wonderdragon"]
-    ,("","::") `splitsTo` [""]
-    ,("::","::") `splitsTo` ["", ""]
-  ]
- where splitsTo (a,b) r = map bp r ~=? ((bp a) `splitWith` (bp b))
-
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, wrapInterpTests,
-                   parseArgsTests, parseListTests, runParseTests,
-                   splitWithTests ]
+                   parseArgsTests, parseListTests, runParseTests]
 
 -- # ENDTESTS # --

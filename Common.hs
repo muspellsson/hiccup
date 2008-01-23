@@ -3,12 +3,13 @@ module Common where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import qualified TclObj as T
-import Control.Concurrent.MVar
+import Data.IORef
+import Data.Maybe (isJust)
 import Control.Monad.State
 import qualified Data.Map as Map
 import qualified TclChan as T
 import Test.HUnit 
-import BSParse (parseArrRef,parseNS)
+import VarName
 import Util
 
 
@@ -32,36 +33,34 @@ data Namespace = TclNS {
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
 data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
-data TclState = TclState { tclChans :: MVar ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
+data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProcT
 type VarMap = Map.Map BString TclVar
-type TclVar = Either T.TclObj TclArray
+data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
 type ChanMap = Map.Map BString T.TclChan
 
 type TclArray = Map.Map BString T.TclObj
 
-type VarName = (BString, Maybe BString) 
-
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 toTclProcT (n,v) = (n, TclProcT n errStr v)
  where errStr = pack $ show n ++ " isn't a procedure"
-makeState chans envl procs = do cm <- newMVar chans
+makeState chans envl procs = do cm <- newIORef chans
                                 return (TclState cm envl procs)
 
 mapSnd f = map (\(a,b) -> (a, f b))
 mapFst f = map (\(a,b) -> (f a, b))
 
-getStack = gets tclStack -- TODO: Guard for empty stack here?
+getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
+              case s of
+                []    -> tclErr "Aack. Tried to go up too far in the stack."
+                v     -> return v
 getProcMap = gets tclProcs
 putProcMap p = modify (\v -> v { tclProcs = p })
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
 modStack f = getStack >>= putStack . f
-getFrame = do st <- getStack  
-              case st of
-                []    -> tclErr "Aack. Tried to go up too far in the stack."
-                (x:_) -> return x
+getFrame = liftM head getStack  
 
 {-# INLINE getStack  #-}
 {-# INLINE putStack  #-}
@@ -79,30 +78,22 @@ runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
 
 getChan n = do s <- gets tclChans
-               m <- (io . readMVar) s
+               m <- (io . readIORef) s
                return (Map.lookup n m)
 
 addChan c = do s <- gets tclChans
-               io (modMVar s (Map.insert (T.chanName c) c))
-
-modMVar m f = do v <- takeMVar m
-                 putMVar m (f v)
+               io (modifyIORef s (Map.insert (T.chanName c) c))
 
 removeChan c = do s <- gets tclChans
-                  io (modMVar s (Map.delete (T.chanName c)))
+                  io (modifyIORef s (Map.delete (T.chanName c)))
 
 baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-getProcRaw str = eatGlobal str >>= getProc
+getProcRaw str = getProc str
 
-eatGlobal str = case parseNS str of 
-                   Left str    -> return str
-                   Right [a,b] -> if B.null a then return b else nsError
-                   _           -> nsError
- where nsError = tclErr $ "can't lookup " ++ show str ++ ", namespaces not yet supported"
 
 getProc :: BString -> TclM (Maybe TclProcT)
 getProc str = getProcMap >>= \m -> return (getProc' str m)
@@ -119,34 +110,42 @@ regProc :: BString -> BString -> TclProc -> TclM RetVal
 regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name body pr)) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
-varSet n v = let p = parseArrRef n 
-             in varSet' p v
+varSet n v = varSetNS (parseVarName n) v
+
+varSetNS (NSRef Local vn)   v = varSet' vn v
+varSetNS (NSRef (NS ns) vn) v = 
+  if isGlobal ns
+    then upglobal (varSet' vn v)
+    else tclErr "namespaces not supported yet"
+ where isGlobal [x] = B.null x
+       isGlobal _   = False
 
 varSetVal :: BString -> T.TclObj -> TclM RetVal
-varSetVal n v = varSet' (n,Nothing) v 
+varSetVal n v = varSet' (VarName n Nothing) v 
 {-# INLINE varSetVal #-}
 
 varSet' :: VarName -> T.TclObj -> TclM RetVal
-varSet' (str,ind) v = do 
+varSet' vn v = do 
      (env:es) <- getStack
-     case upped str env of
-         Just (i,s) -> uplevel i (varSet' (s,ind) v)
+     case upped (vnName vn) env of
+         Just (i,s) -> uplevel i (varSet' (vn {vnName = s}) v)
          Nothing    -> do ne <- modEnv env 
                           putStack (ne:es)
                           return v
  where modEnv env = do
-                let ev = vars env 
-                case ind of
-                  Nothing -> return (env { vars = Map.insert str (Left v) ev })
-                  Just i  -> case Map.findWithDefault (Right Map.empty) str ev of
-                               Left _     -> tclErr $ "Can't set \"" ++ unpack str ++ "(" ++ unpack i ++ ")\": variable isn't array"
-                               Right prev ->  return (env { vars = Map.insert str (Right (Map.insert i v prev)) ev })
+                let ev  = vars env 
+                let str = vnName vn 
+                case vnInd vn of
+                  Nothing -> return (env { vars = Map.insert str (ScalarVar v) ev })
+                  Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
+                               ScalarVar _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
+                               ArrayVar prev ->  return (env { vars = Map.insert str (ArrayVar (Map.insert i v prev)) ev })
 
 varMod' :: VarName -> (T.TclObj -> TclM RetVal) -> TclM RetVal
-varMod' (str,ind) f = do 
+varMod' vn@(VarName str ind) f = do 
      (env:es) <- getStack
      case upped str env of
-         Just (i,s) -> uplevel i (varMod' (s,ind) f)
+         Just (i,s) -> uplevel i (varMod' (vn { vnName = s }) f)
          Nothing    -> do (ne,v) <- modEnv env 
                           putStack (ne:es)
                           return v
@@ -154,31 +153,29 @@ varMod' (str,ind) f = do
                 let ev = vars env 
                 let old = Map.lookup str ev
                 case (old,ind) of
-                  (Nothing,_) -> tclErr $ "no such variable: " ++ show str
+                  (Nothing,_) -> tclErr $ "no such variable: " ++ showVN vn
                   (Just os, Nothing) -> case os of
-                                             Right _ -> tclErr $ "can't read " ++ show str ++ ", variable is array"
-                                             Left val -> do
+                                             ScalarVar val -> do
                                                     val2 <- f val 
-                                                    return ((env { vars = Map.insert str (Left val2) ev }), val2)
+                                                    return ((env { vars = Map.insert str (ScalarVar val2) ev }), val2)
+                                             _ -> tclErr $ "can't read " ++ showVN vn ++ ", variable is array"
                   (Just oa, Just i)  -> case oa of
-                                         Left _ -> tclErr $ "Can't set \"" ++ unpack str ++ "(" ++ unpack i ++ ")\": variable isn't array"
-                                         Right prev -> do  
+                                         ArrayVar prev -> do  
                                              p2 <- Map.lookup i prev
                                              v <- f p2
-                                             return ((env { vars = Map.insert str (Right (Map.insert i v prev)) ev }), v)
+                                             return ((env { vars = Map.insert str (ArrayVar (Map.insert i v prev)) ev }), v)
+                                         _ -> tclErr $ "can't set " ++ showVN vn ++ ": variable isn't array"
 
 {-# INLINE varMod' #-}
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
-varModify n f = varMod' (parseArrRef n) f
+varModify n f = varMod' (unNS (parseVarName n)) f
 {-# INLINE varModify #-}
 
 
 varExists :: BString -> TclM Bool
 varExists name = do
-  env <- getFrame
-  case upped name env of
-     Nothing    -> return $ maybe False (const True) (Map.lookup name (vars env))
-     Just (_,_) -> return True -- TODO: Don't assume an upref is always correct?
+  val <- varLookup name
+  return (isJust val)
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
@@ -209,51 +206,47 @@ varDump = do env <- getStack
   where fixit (i,s) = (show i, Map.showTree (vars s), Map.showTree (upMap s))
 
 
-varGetRaw :: BString -> TclM RetVal
-varGetRaw n = varGet' (parseArrRef n)
 
 getArray :: BString -> TclM TclArray
 getArray name = do
-   env <- getFrame
-   case upped name env of
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read " ++ show name ++ ": no such variable")
-                       case val of
-                          (Right m)  -> return m
-                          (Left _)   -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
-      Just (i,n) -> uplevel i (getArray n)
+   var <- varLookup name
+   case var of
+      Just (ArrayVar a) -> return a 
+      Just _            -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
+      Nothing           -> tclErr $ "can't read " ++ show name ++ ": no such variable"
 
-varGet' :: VarName -> TclM RetVal
-varGet' (name,ind) = do 
-   env <- getFrame
-   case upped name env of 
-      Nothing    -> do val <- Map.lookup name (vars env) `ifNothing` ("can't read " ++ show name ++ ": no such variable")
-                       case (val, ind) of
-                          (Left o, Nothing)  -> return o
-                          (Right _, Nothing) -> tclErr $ "can't read \"" ++ unpack name ++ "\": variable is array"
-                          (Left _, Just _)   -> tclErr $ "can't read \"" ++ unpack name ++ "\": variable isn't array"
-                          (Right m, Just i)  -> Map.lookup i m `ifNothing` ("can't read \"" ++ unpack i ++ "\": no such element in array")
-      Just (i,n) -> uplevel i (varGet' (n,ind))
-
-varGet2 :: BString -> TclM (Maybe TclVar)
-varGet2 name = do 
+varLookup :: BString -> TclM (Maybe TclVar)
+varLookup name = do 
    env <- getFrame
    case upped name env of 
       Nothing    -> return (Map.lookup name (vars env))
-      Just (i,n) -> uplevel i (varGet2 n)
+      Just (i,n) -> uplevel i (varLookup n)
 
-varGet2' :: VarName -> TclM RetVal
-varGet2' (name,ind) = do
-  var <- varGet2 name
+varGetRaw :: BString -> TclM RetVal
+varGetRaw n = varGet' (unNS (parseVarName n))
+
+varGetNS :: NSRef VarName -> TclM RetVal
+varGetNS (NSRef Local vn)   = varGet' vn
+varGetNS (NSRef (NS ns) vn) = 
+  if isGlobal ns
+    then upglobal (varGet' vn)
+    else tclErr "namespaces not supported yet"
+ where isGlobal [x] = B.null x
+       isGlobal _   = False
+
+varGet' :: VarName -> TclM RetVal
+varGet' vn@(VarName name ind) = do
+  var <- varLookup name
   case var of
-   Nothing -> cantReadErr name ind
-   Just (Left o)  -> case ind of 
-                      Nothing -> return o
-                      _       -> tclErr $ "can't read " ++ show name ++ ": variable is array"
-   Just (Right a) -> case ind of
-                      Nothing -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
-                      Just i  -> Map.lookup i a `ifNothing` ("can't read " ++ show i ++ ": no such element in array")
- where cantReadErr name Nothing  = tclErr $ "can't read " ++ show name ++ ": no such variable"
-       cantReadErr name (Just i) = tclErr $ "can't read \"" ++ unpack name ++ "(" ++ unpack i ++ ")" ++ "\": no such variable"
+   Nothing -> cantReadErr "no such variable"
+   Just o  -> o `withInd` ind
+ where cantReadErr why  = tclErr $ "can't read " ++ showVN vn ++ ": " ++ why
+       withInd (ScalarVar o) Nothing = return o
+       withInd (ScalarVar _) _       = cantReadErr "variable isn't array"
+       withInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
+       withInd (ArrayVar _)  _       = cantReadErr "variable is array"
+                      
+
 
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do 
@@ -262,6 +255,11 @@ uplevel i p = do
   res <- p `ensure` (modStack (curr ++))
   return res
 {-# INLINE uplevel #-}
+
+upglobal :: TclM a -> TclM a
+upglobal p = do
+  len <- liftM length getStack
+  uplevel (len - 1) p
 
 upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
@@ -318,21 +316,7 @@ errWithEnv env t =
 
 emptyEval = errWithEnv [emptyEnv]
 
-commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
-  testArr = TestList [
-     "december" `should_be` Nothing
-     ,"dec(mber" `should_be` Nothing
-     ,"dec)mber" `should_be` Nothing
-     ,"(cujo)" `should_be` Nothing
-     ,"de(c)mber" `should_be` Nothing
-     ,"a(1)"          ?=> ("a","1")
-     ,"boo(4)"        ?=> ("boo","4")
-     ,"xx(september)" ?=> ("xx","september")
-     ,"arr(3,4,5)"    ?=> ("arr","3,4,5")
-     ,"arr()"         ?=> ("arr","")
-   ]
-   where (?=>) a b@(b1,b2) = (a ++ " -> " ++ show b) ~: parseArrRef (bp a) ~=? ((bp b1), Just (bp b2))
-         should_be x _ =  (x ++ " should be " ++ show (bp x)) ~: parseArrRef (bp x) ~=? (bp x, Nothing)
+commonTests = TestList [ setTests, getTests, unsetTests ] where
 
   b = B.pack
   bp = B.pack
@@ -356,7 +340,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, testArr ] where
   checkEq a n val = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
                        vEq n v val
 
-  vEq vn env val = assert ((Map.lookup (b vn) (vars env)) == (Just (Left val)))
+  vEq vn env val = assert ((Map.lookup (b vn) (vars env)) == (Just (ScalarVar val)))
 
   value = int 666
   name = b "varname"

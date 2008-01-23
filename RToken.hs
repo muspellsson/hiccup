@@ -1,11 +1,12 @@
 module RToken (Cmd, toCmd, RToken(..), rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
-import BSParse (TclWord(..), wrapInterp, runParse, parseArrRef, BString)
+import BSParse (TclWord(..), wrapInterp, runParse, BString)
+import VarName
 import Test.HUnit
 
 type Cmd = (RToken, [RToken])
 data RToken = Lit !BString | CatLst [RToken] | CmdTok Cmd 
-              | VarRef !BString | ArrRef !BString RToken 
+              | VarRef (NSRef VarName) | ArrRef !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
 
 isEmpty (Lit x)    = B.null x
@@ -16,9 +17,9 @@ compile :: BString -> RToken
 compile str = case wrapInterp str of
                    Left s  -> Lit s
                    Right x -> handle x
- where f (Left match) = case parseArrRef match of 
-                         (_, Nothing)  -> VarRef match
-                         (n, Just ind) -> ArrRef n (compile ind)
+ where f (Left match) = case parseVarName match of 
+                          NSRef _ (VarName n (Just ind)) -> ArrRef n (compile ind)
+                          vn                             -> VarRef vn
        f (Right x)    = compCmd x
        handle (b,m,a) = let front = [Lit b, f m]
                         in let lst = filter (not . isEmpty) (front ++ [compile a])
@@ -58,7 +59,9 @@ rtokenTests = TestList [compTests, compTokenTests] where
   mknosub s = NoSub (B.pack s) (runParse (B.pack s))
   mkwd = Word . B.pack
   lit = Lit . B.pack 
-  varref = VarRef . B.pack 
+  varref = VarRef . parseVarName . B.pack 
+  fromJust (Just x) = x
+  fromJust _        = error "bad fromJust in RToken"
   arrref s t = ArrRef (B.pack s) t
   tok_to a b = do let r = compToken a
                   assertEqual (show a ++ " compiles to " ++ show b) b r
