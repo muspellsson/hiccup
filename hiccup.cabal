@@ -8,8 +8,8 @@ Stability:           experimental
 Homepage:            http://code.google.com/p/hiccup/
 Category:            Compilers/Interpreters
 Synopsis:            Relatively efficient Tcl interpreter with support for basic operations 
-Maintainer:          consalus+hiccup@google.com
-Build-Depends:       base, HUnit, mtl, haskell98, readline, time
+Maintainer:          consalus+hiccup@gmail.com
+Build-Depends:       base, HUnit, time, mtl, haskell98, readline
 extra-source-files:  Hiccup.hs TclObj.hs VarName.hs Common.hs Util.h Core.hs RToken.hs BSParse.hs IOProcs.hs StringProcs.hs ListProcs.hs ArrayProcs.hs README example.tcl atests.tcl include.tcl  
 
 Executable:          hiccup
