@@ -177,7 +177,6 @@ incr n i =  varModify (T.asBStr n) $
                  \v -> do ival <- T.asInt v 
                           return (T.mkTclInt (ival + i))
 
-
 procTime args =  
    case args of
      [code]     -> do tspan <- dotime code
@@ -220,11 +219,11 @@ procUpVar args = case args of
      [si,d,s] -> T.asInt si >>= \i -> upvar i d s
      _        -> argErr "upvar"
 
-procGlobal args@(_:_) = mapM_ inner args >> ret
+procGlobal args = case args of
+      [] -> argErr "global"
+      _  -> mapM_ inner args >> ret
  where inner g = do len <- stackLevel
                     upvar len g g
-procGlobal _         = argErr "global"
-
 
 type ArgList = [Either BString (BString,BString)]
 

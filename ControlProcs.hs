@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fbang-patterns #-}
 module ControlProcs (controlProcs) where
 
 import Common
@@ -30,6 +31,7 @@ procWhile [cond,body] = loop `catchError` herr
 procWhile _ = argErr "while"
 
 eatErr f v = (f >> ret) `catchError` \e -> if v == e then ret else throwError e
+{-# INLINE eatErr #-}
 
 procFor args = case args of
    [start,test,next,body] -> do evalTcl start
