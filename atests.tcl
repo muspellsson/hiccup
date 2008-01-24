@@ -869,7 +869,24 @@ test "split" {
 test "namespaces" {
   set ::x 4
   checkthat $::x == 4
+  unset ::x
+  assertErr { checkthat $::x == 4 }
 }
+
+test "exists and unset global" {
+  set ::gv 9
+  checkthat [info exists ::gv] == 1
+  unset ::gv
+  checkthat [info exists ::gv] == 0
+}
+
+test "incr global" {
+  set ::gv 1
+  incr ::gv
+  checkthat $::gv == 2
+  unset ::gv
+}
+
 
 test "unknown" {
   set oops 0

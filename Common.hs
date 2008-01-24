@@ -30,6 +30,8 @@ data Namespace = TclNS {
          nsParent :: Maybe Namespace,
          nsChildren :: Map.Map BString Namespace } -- Ok.. and how do we use this?
 
+globalNS = TclNS { nsName = "::", nsProcs = Map.empty, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
+
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
 data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
@@ -113,16 +115,14 @@ varSet :: BString -> T.TclObj -> TclM RetVal
 varSet n v = varSetNS (parseVarName n) v
 
 varSetNS (NSRef Local vn)   v = varSet' vn v
-varSetNS (NSRef (NS ns) vn) v = 
+varSetNS (NSRef ns    vn) v = 
   if isGlobal ns
     then upglobal (varSet' vn v)
     else tclErr "namespaces not supported yet"
- where isGlobal [x] = B.null x
-       isGlobal _   = False
 
-varSetVal :: BString -> T.TclObj -> TclM RetVal
-varSetVal n v = varSet' (VarName n Nothing) v 
-{-# INLINE varSetVal #-}
+varSetLocalVal :: BString -> T.TclObj -> TclM RetVal
+varSetLocalVal n v = varSet' (VarName n Nothing) v 
+{-# INLINE varSetLocalVal #-}
 
 varSet' :: VarName -> T.TclObj -> TclM RetVal
 varSet' vn v = do 
@@ -168,14 +168,25 @@ varMod' vn@(VarName str ind) f = do
 
 {-# INLINE varMod' #-}
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
-varModify n f = varMod' (unNS (parseVarName n)) f
+varModify n f = varModifyNS (parseVarName n) f
 {-# INLINE varModify #-}
+
+varModifyNS (NSRef Local vn)   f = varMod' vn f
+varModifyNS (NSRef ns    vn) f = 
+  if isGlobal ns
+    then upglobal (varMod' vn f)
+    else tclErr "namespaces not supported yet"
 
 
 varExists :: BString -> TclM Bool
 varExists name = do
-  val <- varLookup name
-  return (isJust val)
+  let (NSRef ns vn) = parseVarName name
+  if isLocal ns
+    then localExists vn
+    else if isGlobal ns
+            then upglobal (localExists vn)
+            else tclErr "namespace support sucks"
+ where localExists (VarName n _) = varLookup n >>= return . isJust
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
@@ -186,7 +197,16 @@ varRename old new = do
                  if not (B.null new) then regProc new (procBody pr) (procFunction pr) else ret
 
 varUnset :: BString -> TclM RetVal
-varUnset name = do 
+varUnset name = do
+  let (NSRef ns (VarName n _)) = parseVarName name
+  if isLocal ns
+    then varUnset' n
+    else if isGlobal ns
+            then upglobal (varUnset' n)
+            else tclErr "namespace support sucks"
+
+varUnset' :: BString -> TclM RetVal
+varUnset' name = do 
    (env:es) <- getStack
    case upped name env of
       Nothing    -> do let vmap = vars env 
@@ -195,7 +215,7 @@ varUnset name = do
       Just (i,s) -> do let umap = upMap env
                        verifyNameIn umap
                        putStack ((env { upMap = Map.delete name umap }):es)
-                       uplevel i (varUnset s) >> return ()
+                       uplevel i (varUnset' s) >> return ()
    ret
  where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
        verifyNameIn m = unless (Map.member name m) bad
@@ -227,12 +247,10 @@ varGetRaw n = varGet' (unNS (parseVarName n))
 
 varGetNS :: NSRef VarName -> TclM RetVal
 varGetNS (NSRef Local vn)   = varGet' vn
-varGetNS (NSRef (NS ns) vn) = 
+varGetNS (NSRef ns    vn) = 
   if isGlobal ns
     then upglobal (varGet' vn)
     else tclErr "namespaces not supported yet"
- where isGlobal [x] = B.null x
-       isGlobal _   = False
 
 varGet' :: VarName -> TclM RetVal
 varGet' vn@(VarName name ind) = do
@@ -318,8 +336,7 @@ emptyEval = errWithEnv [emptyEnv]
 
 commonTests = TestList [ setTests, getTests, unsetTests ] where
 
-  b = B.pack
-  bp = B.pack
+  b = pack
 
   evalWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a, [TclEnv])
   evalWithEnv env t = 

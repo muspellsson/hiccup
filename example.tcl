@@ -7,15 +7,15 @@ proc decr { v { i -1 } } {
 }
 
 proc memfib x {
-  set loc(0) 1
-  set loc(1) 1
+  set ::loc(0) 1
+  set ::loc(1) 1
   for {set ctr 2} { <= $ctr $x } {incr ctr} {
-    set v1 "$loc([- $ctr 1])"
-    set v2 "$loc([- $ctr 2])"
+    set v1 "$::loc([- $ctr 1])"
+    set v2 "$::loc([- $ctr 2])"
     set {the sum} [+ $v1 $v2]
-    set loc($ctr) ${the sum}
+    set ::loc($ctr) ${the sum}
   }
-  return $loc($x)
+  return $::loc($x)
 }
 
 set fcount 21

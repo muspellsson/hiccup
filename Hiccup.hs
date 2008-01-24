@@ -257,11 +257,11 @@ parseParams name args = T.asList (T.asBStr args) >>= countRet
 
 bindArgs params@(_,hasArgs,pl) args = do
     walkBoth pl args 
-  where walkBoth ((Left v):xs)      (a:as) = varSetVal v a >> walkBoth xs as
+  where walkBoth ((Left v):xs)      (a:as) = varSetLocalVal v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
-        walkBoth ((Right (k,_)):xs) (a:as) = varSetVal k a >> walkBoth xs as
-        walkBoth ((Right (k,v)):xs) []     = varSetVal k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSetVal (pack "args")
+        walkBoth ((Right (k,_)):xs) (a:as) = varSetLocalVal k a >> walkBoth xs as
+        walkBoth ((Right (k,v)):xs) []     = varSetLocalVal k (T.mkTclBStr v) >> walkBoth xs []
+        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSetLocalVal (pack "args")
                                                         else if (null xl) then ret else badArgs
         badArgs = argErr $ "should be " ++ showParams params
 

@@ -2,6 +2,8 @@ module VarName (parseVarName,
                 VarName(..), showVN, 
                  NSRef(..), unNS, 
                  NSTag(..),
+                 isGlobal,
+                 isLocal,
                  varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
@@ -12,6 +14,12 @@ data NSRef a = NSRef NSTag a deriving (Eq,Show)
 data NSTag = NS [BString] | Local deriving (Eq,Show)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
+
+isGlobal (NS [x]) = B.null x
+isGlobal _        = False
+
+isLocal Local = True
+isLocal _     = False
 
 unNS (NSRef _ v) = v
 

@@ -23,7 +23,7 @@ evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)      = return $ T.mkTclBStr s
 evalRToken (CmdTok t)   = runCmd t
 evalRToken (VarRef vn)  = varGetNS vn
-evalRToken (ArrRef n i) = evalRToken i >>= \ni -> varGet' (VarName n (Just (T.asBStr ni)))
+evalRToken (ArrRef ns n i) = evalRToken i >>= \ni -> varGetNS (NSRef ns (VarName n (Just (T.asBStr ni))))
 evalRToken (CatLst l)   = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
 evalRToken (Block s p)  = return $ T.fromBlock s p
 

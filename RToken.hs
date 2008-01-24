@@ -6,7 +6,7 @@ import Test.HUnit
 
 type Cmd = (RToken, [RToken])
 data RToken = Lit !BString | CatLst [RToken] | CmdTok Cmd 
-              | VarRef (NSRef VarName) | ArrRef !BString RToken 
+              | VarRef (NSRef VarName) | ArrRef NSTag !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
 
 isEmpty (Lit x)    = B.null x
@@ -18,8 +18,8 @@ compile str = case wrapInterp str of
                    Left s  -> Lit s
                    Right x -> handle x
  where f (Left match) = case parseVarName match of 
-                          NSRef _ (VarName n (Just ind)) -> ArrRef n (compile ind)
-                          vn                             -> VarRef vn
+                          NSRef ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
+                          vn                              -> VarRef vn
        f (Right x)    = compCmd x
        handle (b,m,a) = let front = [Lit b, f m]
                         in let lst = filter (not . isEmpty) (front ++ [compile a])
@@ -60,9 +60,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
   mkwd = Word . B.pack
   lit = Lit . B.pack 
   varref = VarRef . parseVarName . B.pack 
-  fromJust (Just x) = x
-  fromJust _        = error "bad fromJust in RToken"
-  arrref s t = ArrRef (B.pack s) t
+  arrref s t = ArrRef Local (B.pack s) t
   tok_to a b = do let r = compToken a
                   assertEqual (show a ++ " compiles to " ++ show b) b r
   compiles_to a b = do let r = compile (B.pack a)
