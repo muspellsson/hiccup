@@ -42,11 +42,10 @@ module Common (RetVal, TclM
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import qualified TclObj as T
-import Data.IORef
 import Data.Maybe (isJust)
 import Control.Monad.State
 import qualified Data.Map as Map
-import qualified TclChan as T
+import TclChan
 import Test.HUnit 
 import VarName
 import Util
@@ -75,12 +74,11 @@ data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFuncti
 
 data TclFrame = TclFrame { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
 type TclStack = [TclFrame]
-data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: TclStack, tclProcs :: ProcMap }
+data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProcT
 type VarMap = Map.Map BString TclVar
 data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
-type ChanMap = Map.Map BString T.TclChan
 
 type TclArray = Map.Map BString T.TclObj
 
@@ -92,9 +90,8 @@ makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
-makeState' chans vlist procs = do cm <- newIORef chans
-                                  let fr = emptyFrame { vars = Map.fromList (mapSnd ScalarVar vlist) }
-                                  return (TclState cm [fr] procs)
+makeState' chans vlist procs = do let fr = emptyFrame { vars = Map.fromList (mapSnd ScalarVar vlist) }
+                                  return (TclState chans [fr] procs)
 
 stackLevel = getStack >>= return . pred . length
 globalVars = upglobal localVars
@@ -130,17 +127,11 @@ argErr s = fail ("wrong # of args: " ++ s)
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
 
-getChan n = do s <- gets tclChans
-               m <- (io . readIORef) s
-               return (Map.lookup n m)
-
-addChan c = do s <- gets tclChans
-               io (modifyIORef s (Map.insert (T.chanName c) c))
-
-removeChan c = do s <- gets tclChans
-                  io (modifyIORef s (Map.delete (T.chanName c)))
-
-baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
+onChan f = gets tclChans >>= f
+modChan f = modify (\s -> s { tclChans = f (tclChans s) })
+getChan n = onChan (\m -> return (lookupChan n m))
+addChan c    = modChan (insertChan c)
+removeChan c = modChan (deleteChan c)
 
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
@@ -336,7 +327,6 @@ ret = return T.empty
 treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr 
 {-# INLINE treturn #-}
-
 
 emptyFrame = TclFrame { vars = Map.empty, upMap = Map.empty }
 

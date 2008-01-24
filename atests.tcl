@@ -897,7 +897,6 @@ test "set global" {
   unset ::x
 }
 
-
 test "unknown" {
   set oops 0
   set missed {}
