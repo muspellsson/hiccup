@@ -1,44 +1,41 @@
+{-# OPTIONS_GHC -fbang-patterns #-}
 module Common (RetVal, TclM
-       ,makeProcMap      
+       ,TclState
        ,Err(..)
+       ,TclProc,TclProcT(..)
        ,runTclM
-       ,treturn
-       ,ret
-       ,argErr
-       ,tclErr
+       ,makeState
+       ,runWithEnv
+       ,withScope
+       ,makeProcMap      
        ,getProc
+       ,regProc
        ,varGetNS
-       ,varGetRaw
+       ,varGet
        ,varModify
        ,varSet
        ,varSet'
-       ,io
-       ,addChan
-       ,removeChan
-       ,getChan
-       ,baseChans
-       ,uplevel
-       ,upvar
        ,varExists
        ,varUnset
        ,varRename
        ,varDump
-       ,regProc
        ,varSetLocalVal
        ,getArray
-       ,makeState
+       ,addChan
+       ,removeChan
+       ,getChan
+       ,uplevel
+       ,upvar
+       ,io
+       ,tclErr
+       ,treturn
+       ,ret
+       ,argErr
        ,stackLevel
        ,globalVars
        ,localVars
-       ,vars
        ,currentVars
        ,commandNames
-       ,emptyEnv
-       ,runWithEnv
-       ,TclState
-       ,withScope
-       ,TclProc,TclProcT(..)
-       ,TclVar(..)
        ,commonTests
     ) where
 
@@ -76,8 +73,9 @@ globalNS = TclNS { nsName = "::", nsProcs = Map.empty, nsVars = Map.empty, nsPar
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
-data TclEnv = TclEnv { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
-data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: [TclEnv], tclProcs :: ProcMap }
+data TclFrame = TclFrame { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
+type TclStack = [TclFrame]
+data TclState = TclState { tclChans :: IORef ChanMap, tclStack :: TclStack, tclProcs :: ProcMap }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProcT
 type VarMap = Map.Map BString TclVar
@@ -89,8 +87,14 @@ type TclArray = Map.Map BString T.TclObj
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 toTclProcT (n,v) = (n, TclProcT n errStr v)
  where errStr = pack $ show n ++ " isn't a procedure"
-makeState chans envl procs = do cm <- newIORef chans
-                                return (TclState cm envl procs)
+
+makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
+makeState = makeState' baseChans
+
+makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
+makeState' chans vlist procs = do cm <- newIORef chans
+                                  let fr = emptyFrame { vars = Map.fromList (mapSnd ScalarVar vlist) }
+                                  return (TclState cm [fr] procs)
 
 stackLevel = getStack >>= return . pred . length
 globalVars = upglobal localVars
@@ -107,7 +111,7 @@ getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
 getProcMap = gets tclProcs
 putProcMap p = modify (\v -> v { tclProcs = p })
 putStack s = modify (\v -> v { tclStack = s })
-modStack :: ([TclEnv] -> [TclEnv]) -> TclM ()
+modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = getStack >>= putStack . f
 getFrame = liftM head getStack  
 
@@ -155,7 +159,7 @@ regProc :: BString -> BString -> TclProc -> TclM RetVal
 regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name body pr)) >> ret
 
 varSet :: BString -> T.TclObj -> TclM RetVal
-varSet n v = varSetNS (parseVarName n) v
+varSet !n v = varSetNS (parseVarName n) v
 
 varSetNS (NSRef ns vn) v = runInNS ns (varSet' vn v)
 
@@ -175,7 +179,9 @@ varSet' vn v = do
                 let ev  = vars env 
                 let str = vnName vn 
                 case vnInd vn of
-                  Nothing -> return (env { vars = Map.insert str (ScalarVar v) ev })
+                  Nothing -> case Map.lookup str ev of
+                              Just (ArrayVar _) -> tclErr $ "can't set " ++ showVN vn ++ ": variable is array"
+                              _                 -> return (env { vars = Map.insert str (ScalarVar v) ev })
                   Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
                                ScalarVar _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
                                ArrayVar prev ->  return (env { vars = Map.insert str (ArrayVar (Map.insert i v prev)) ev })
@@ -207,7 +213,7 @@ varMod' vn@(VarName str ind) f = do
 
 {-# INLINE varMod' #-}
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
-varModify n f = varModifyNS (parseVarName n) f
+varModify !n f = varModifyNS (parseVarName n) f
 {-# INLINE varModify #-}
 
 varModifyNS (NSRef ns vn) f = runInNS ns (varMod' vn f)
@@ -231,7 +237,7 @@ varUnset name = do
   let (NSRef ns (VarName n _)) = parseVarName name
   runInNS ns (varUnset' n)
 
-runInNS ns f 
+runInNS !ns f 
   | isLocal ns  = f
   | isGlobal ns = upglobal f
   | otherwise   = tclErr "namespaces not fully supported"
@@ -274,8 +280,8 @@ varLookup name = do
       Nothing    -> return (Map.lookup name (vars env))
       Just (i,n) -> uplevel i (varLookup n)
 
-varGetRaw :: BString -> TclM RetVal
-varGetRaw n = varGetNS (parseVarName n)
+varGet :: BString -> TclM RetVal
+varGet !n = varGetNS (parseVarName n)
 
 varGetNS :: NSRef VarName -> TclM RetVal
 varGetNS (NSRef ns vn) = runInNS ns (varGet' vn)
@@ -315,10 +321,8 @@ upvar n d s = do (e:es) <- getStack
 withScope :: TclM RetVal -> TclM RetVal
 withScope f = do
   (o:old) <- getStack
-  putStack $ emptyEnv : o : old
+  putStack $ emptyFrame : o : old
   f `ensure` (modStack (drop 1))
-
-
 
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
@@ -334,20 +338,20 @@ treturn = return . T.mkTclBStr
 {-# INLINE treturn #-}
 
 
-emptyEnv = TclEnv { vars = Map.empty, upMap = Map.empty }
+emptyFrame = TclFrame { vars = Map.empty, upMap = Map.empty }
 
 
 -- # TESTS # --
 
-runWithEnv :: [TclEnv] -> TclM RetVal -> Either Err RetVal -> IO Bool
-runWithEnv env t v = 
-  do st <- makeState Map.empty env Map.empty
+runWithEnv :: TclM RetVal -> Either Err RetVal -> IO Bool
+runWithEnv t v = 
+  do st <- makeState' Map.empty [] Map.empty
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
-errWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a)
-errWithEnv env t = 
-    do st <- makeState Map.empty env Map.empty
+errWithEnv :: TclM a -> IO (Either Err a)
+errWithEnv t = 
+    do st <- makeState' Map.empty [] Map.empty
        retv <- liftM fst (runTclM t st)
        return retv
 
@@ -355,23 +359,23 @@ commonTests = TestList [ setTests, getTests, unsetTests ] where
 
   b = pack
 
-  evalWithEnv :: [TclEnv] -> TclM a -> IO (Either Err a, [TclEnv])
-  evalWithEnv env t = 
-    do st <- makeState Map.empty env Map.empty
+  evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
+  evalWithEnv t = 
+    do st <- makeState' Map.empty [] Map.empty
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
 
-  checkErr a s = errWithEnv [emptyEnv] a >>= \v -> assertEqual "err match" (Left (EDie s)) v
-  checkNoErr a = errWithEnv [emptyEnv] a >>= \v -> assertBool "err match" (isRight v)
+  checkErr a s = errWithEnv a >>= \v -> assertEqual "err match" (Left (EDie s)) v
+  checkNoErr a = errWithEnv a >>= \v -> assertBool "err match" (isRight v)
 
-  checkExists a n = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
+  checkExists a n = do (_,(v:_)) <- evalWithEnv a 
                        vExists n v
 
   vExists vn env = assert (Map.member (b vn) (vars env))
 
   checkEq :: TclM t -> String -> T.TclObj -> Assertion
-  checkEq a n val = do (_,(v:_)) <- evalWithEnv [emptyEnv] a 
+  checkEq a n val = do (_,(v:_)) <- evalWithEnv a 
                        vEq n v val
 
   vEq vn env val = assert ((Map.lookup (b vn) (vars env)) == (Just (ScalarVar val)))
@@ -390,8 +394,8 @@ commonTests = TestList [ setTests, getTests, unsetTests ] where
      ]
 
   getTests = TestList [
-       "non-exist" ~: (varGetRaw (b "boo")) `checkErr` "can't read \"boo\": no such variable"
-       ,"no err if exists" ~: checkNoErr ((varSet name value) >> varGetRaw name)
+       "non-exist" ~: (varGet (b "boo")) `checkErr` "can't read \"boo\": no such variable"
+       ,"no err if exists" ~: checkNoErr ((varSet name value) >> varGet name)
      ]
 
   unsetTests = TestList [

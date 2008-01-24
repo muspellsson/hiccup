@@ -14,4 +14,5 @@ extra-source-files:  Hiccup.hs TclObj.hs VarName.hs Common.hs Util.h Core.hs RTo
 
 Executable:          hiccup
 Main-is:             Main.hs
-ghc-options:         -O2 -fglasgow-exts -fbang-patterns -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3
+ghc-options:         -O2 -fglasgow-exts -fbang-patterns -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W
+ghc-prof-options: -auto-all -prof

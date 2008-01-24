@@ -23,7 +23,7 @@ procLlength args = case args of
         _     -> argErr "llength"
 
 procLset args = case args of
-        [name,ind,val] -> do old <- varGetRaw (T.asBStr name)
+        [name,ind,val] -> do old <- varGet (T.asBStr name)
                              items <- T.asSeq old
                              i <- T.asInt ind
                              let nl = T.mkTclList' (S.update i val items)

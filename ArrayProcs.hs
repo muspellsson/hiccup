@@ -26,7 +26,7 @@ procArray args = case args of
                               Just f  -> (procFunction f) xs
                   _  -> argErr "array"
 
-arraySubs = makeProcMap $ [("get", array_Get), ("size", array_Size), ("exists", array_Exists), ("set", array_Set) ]
+arraySubs = makeProcMap $ [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set) ]
 
 arrSet n i v = varSet' (VarName n (Just i)) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
@@ -36,24 +36,24 @@ toPairs _ = []
 
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
 
-array_Get args = case args of
+array_get args = case args of
          [name] ->  do arr <- getOrEmpty name
                        return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (Map.toList arr)
          _      -> argErr "array get"
 
-array_Set args = case args of
+array_set args = case args of
           [a2,a3] -> do l <- T.asList a3
                         if even (length l)
                            then mapM_ (\(a,b) -> arrSet (T.asBStr a2) (T.asBStr a) b) (toPairs l) >> ret
                            else tclErr "list must have even number of elements"
           _       -> argErr "array set"
 
-array_Exists args = case args of
+array_exists args = case args of
        [a2] -> do b <- (getArray (T.asBStr a2) >> return True) `ifFails` False
                   return (T.fromBool b)
        _    -> argErr "array exists"
 
-array_Size args = case args of
+array_size args = case args of
        [name] -> do arr <- getOrEmpty name
                     return $ T.mkTclInt (Map.size arr)
        _    -> argErr "array exists"

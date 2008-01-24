@@ -61,7 +61,7 @@ match nocase pat str = inner 0 0
                        v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
 
 procAppend args = case args of
-            (v:vx) -> do val <- varGetRaw (T.asBStr v) `ifFails` T.empty
+            (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
                          varSet (T.asBStr v) cated
             _  -> argErr "append"

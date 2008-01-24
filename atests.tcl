@@ -29,7 +29,7 @@ proc assertFail why {
 
 
 proc checkthat { var op r } {
-  set res [eval "$op {$var} {$r}"]
+  set res [$op $var $r]
   if { == $res 1 } {
     assertPass
   } else {
@@ -56,7 +56,7 @@ proc assertNoErr code {
 }
 
 proc assertErr code {
-  set ret [catch "eval {$code}"]
+  set ret [catch "uplevel $code"]
   if { == $ret 1 } {
     assertPass
   } else {
@@ -204,7 +204,6 @@ test "list test" {
 
   set boo [list {} {} {} {}]
   checkthat [llength $boo] == 4
-
 }
 
 
@@ -510,6 +509,17 @@ test "equality of strings and nums" {
   checkthat " 1 " == 1 
   assert { eq "cobra" "cobra" }
   assert { == 4 4 }
+}
+
+test "equality 2" {
+  checkthat [list 1 2] eq "1 2"
+  checkthat [ne [list 1 2] {1 2}] eq 0
+}
+
+test "array reset no-no" {
+  set x(1) 44
+  checkthat $x(1) == 44
+  assertErr { set x 2 }
 }
 
 test "early return" {

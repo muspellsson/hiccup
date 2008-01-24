@@ -1,4 +1,26 @@
-module TclObj where
+module TclObj (
+ TclObj
+ ,mkTclStr 
+ ,mkTclBStr 
+ ,mkTclList
+ ,mkTclList'
+ ,mkTclInt
+ ,fromBlock
+ ,fromBool
+ ,empty
+ ,tclTrue
+ ,tclFalse
+ ,ITObj
+ ,asStr
+ ,asBool
+ ,asInt
+ ,asBStr
+ ,asParsed
+ ,asSeq
+ ,asList
+ ,(.==)
+ ,trim
+ ,tclObjTests ) where
 
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
@@ -8,7 +30,7 @@ import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 
-import Test.HUnit  -- IGNORE
+import Test.HUnit  
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString | 
@@ -85,6 +107,7 @@ instance ITObj TclObj where
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
   asBStr (TclList _ b) = b
+  {-# INLINE asBStr #-}
   
   asSeq i@(TclInt _ _) = return (S.singleton i)
   asSeq (TclBStr s _ _) = asSeq s >>= return . fmap mkTclBStr

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fbang-patterns #-}
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
 import qualified Data.Map as Map
@@ -34,23 +35,26 @@ mathProcs = makeProcMap . mapSnd procMath $
 toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
 toI n a b = if n a b then 1 else 0
 
-baseEnv = emptyEnv 
+{-# INLINE toI #-}
+
 baseProcs = Map.unions [coreProcs, controlProcs, 
                    mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
-envWithArgs al = baseEnv { vars = Map.fromList [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)] } 
-  where (*) name val = (pack name, ScalarVar val)
+processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
+  where (*) name val = (pack name, val)
+
+interpVars = [("tcl_version" * (show hiccupVersion))]
+  where (*) name val = (pack name, T.mkTclStr val)
+
+hiccupVersion = 0.4
 
 data Interpreter = Interpreter (IORef TclState)
 
-mkInterp :: IO Interpreter
-mkInterp = do st <- makeState baseChans [baseEnv] baseProcs
-              stref <- newIORef st
-              return (Interpreter stref)
+mkInterp = mkInterpWithArgs []
 
 mkInterpWithArgs :: [BString] -> IO Interpreter
 mkInterpWithArgs args = do 
-              st <- makeState baseChans [envWithArgs (map T.mkTclBStr args)] baseProcs
+              st <- makeState (interpVars ++ (processArgs (map T.mkTclBStr args))) baseProcs
               stref <- newIORef st
               return (Interpreter stref)
 
@@ -81,7 +85,7 @@ procSource args = case args of
 procProc, procSet, procReturn, procUpLevel :: TclProc
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2
-     [s1]    -> varGetRaw (T.asBStr s1)
+     [s1]    -> varGet (T.asBStr s1)
      _       -> argErr ("set " ++ show args ++ " " ++ show (length args))
 
 procUnset args = case args of
@@ -95,16 +99,18 @@ procRename args = case args of
 procDump _ = varDump >> ret
 
 procEq args = case args of
-                  [a,b] -> return $ T.fromBool (a == b)
+                  [a,b] -> return $! T.fromBool ((T.asBStr a) == (T.asBStr b))
                   _     -> argErr "eq"
 
 procNe args = case args of
-                  [a,b] -> return $ T.fromBool (a /= b)
+                  [a,b] -> return $! T.fromBool ((T.asBStr a) /= (T.asBStr b))
                   _     -> argErr "ne"
 
 procMath :: (Int -> Int -> Int) -> TclProc
-procMath op [s1,s2] = liftM2 op (T.asInt s1) (T.asInt s2) >>= return . T.mkTclInt
-procMath _ _       = argErr "math"
+procMath op args = case args of
+         [s1,s2] -> do res <- liftM2 op (T.asInt s1) (T.asInt s2)
+                       return (T.mkTclInt res)
+         _       -> argErr "math"
 {-# INLINE procMath #-}
 
 procNotEql [a,b] = case (T.asInt a, T.asInt b) of
@@ -132,7 +138,6 @@ procCatch args = case args of
                          EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return ()
                          _      -> return ()
                          
-
 procInfo (x:xs)
   | x .== "commands" =  no_args "commands" info_commands xs
   | x .== "level"    =  no_args "level" info_level xs
@@ -173,9 +178,9 @@ procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"
 
 incr :: T.TclObj -> Int -> TclM RetVal
-incr n i =  varModify (T.asBStr n) $ 
+incr n !i =  varModify (T.asBStr n) $ 
                  \v -> do ival <- T.asInt v 
-                          return (T.mkTclInt (ival + i))
+                          return $! (T.mkTclInt (ival + i))
 
 procTime args =  
    case args of
@@ -250,14 +255,13 @@ parseParams name args = T.asList (T.asBStr args) >>= countRet
                               [k,v] -> Right (k,v)
                               _     -> Left s
 
-bindArgs params@(_,hasArgs,pl) args = do
-    walkBoth pl args 
+bindArgs params@(_,hasArgs,pl) args = walkBoth pl args 
   where walkBoth ((Left v):xs)      (a:as) = varSetLocalVal v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) = varSetLocalVal k a >> walkBoth xs as
         walkBoth ((Right (k,v)):xs) []     = varSetLocalVal k (T.mkTclBStr v) >> walkBoth xs []
-        walkBoth []                 xl     = if hasArgs then do procList xl >>= varSetLocalVal (pack "args")
-                                                        else if (null xl) then ret else badArgs
+        walkBoth []                 xl     = if hasArgs then procList xl >>= varSetLocalVal (pack "args")
+                                                        else if null xl then ret else badArgs
         badArgs = argErr $ "should be " ++ showParams params
 
 procProc [name,args,body] = do
@@ -279,8 +283,6 @@ procRunner pl body args =
 -- # TESTS # --
 
 
-run = runWithEnv [baseEnv]
-
 testProcEq = TestList [
       "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
       ,"1 == 1 -> t" ~:         (procEql [int 1, int 1]) `is` True
@@ -293,7 +295,7 @@ testProcEq = TestList [
       ,"'cats' ne 'cats' -> t" ~: procNe [str "cats", str "cats"] `is` False
       ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
    ]
- where (?=?) a b = assert (run b (Right a))
+ where (?=?) a b = assert (runWithEnv b (Right a))
        is c b = (T.fromBool b) ?=? c
        int i = T.mkTclInt i
        str s = T.mkTclStr s

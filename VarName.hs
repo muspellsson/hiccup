@@ -17,9 +17,11 @@ data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (
 
 isGlobal (NS [x]) = B.null x
 isGlobal _        = False
+{-# INLINE isGlobal #-}
 
 isLocal Local = True
 isLocal _     = False
+{-# INLINE isLocal #-}
 
 unNS (NSRef _ v) = v
 
