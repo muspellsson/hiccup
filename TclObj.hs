@@ -104,6 +104,10 @@ asListS s = case P.parseList s of
 
 trueValues = map pack ["1", "true", "yes", "on"]
 
+(.==) :: TclObj -> String -> Bool
+(.==) bs str = (asBStr bs) == pack str
+{-# INLINE (.==) #-}
+
 -- # TESTS # --
 
 testTrim = TestList [

@@ -7,9 +7,9 @@ import qualified TclObj as T
 import qualified TclChan as T
 import qualified System.IO.Error as IOE 
 import qualified Data.ByteString.Char8 as B
+import TclObj ((.==))
 import Util
 
-ioProcs :: ProcMap
 ioProcs = makeProcMap $ 
  [("puts",procPuts),("gets",procGets),
   ("open", procOpen), ("close", procClose),
@@ -80,4 +80,7 @@ procExit args = case args of
 
 lookupChan :: BString -> TclM T.TclChan
 lookupChan c = do chan <- getChan c
-                  chan `ifNothing` ("cannot find channel named " ++ show c)
+                  case chan of
+                      Nothing -> tclErr ("cannot find channel named " ++ show c) 
+                      Just ch -> return ch
+

@@ -9,7 +9,6 @@ listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lset", procLset)]
 
-procList, procLindex, procLlength :: TclProc
 procList = return . T.mkTclList
 
 procLindex args = case args of

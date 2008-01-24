@@ -11,7 +11,6 @@ import Text.Printf
 arrayProcs = makeProcMap $
   [("array", procArray), ("parray", procParray)]
 
-procParray :: TclProc
 procParray args = case args of
      [name] -> do let n = T.asBStr name 
                   arr <- getArray n `orElse` (tclErr ((show n) ++ " isn't an array"))
@@ -21,7 +20,6 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (T.asStr a) (T.asStr b))
 
 
-procArray :: TclProc
 procArray args = case args of
                   (x:xs) -> case Map.lookup (T.asBStr x) arraySubs of
                               Nothing -> tclErr $ "bad option " ++ show (T.asBStr x) 
@@ -38,7 +36,6 @@ toPairs _ = []
 
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
 
-array_Get :: TclProc
 array_Get args = case args of
          [name] ->  do arr <- getOrEmpty name
                        return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (Map.toList arr)

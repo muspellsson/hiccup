@@ -18,9 +18,8 @@ proc assertEq {a b} {
 }
 
 proc assertPass {} {
-  global assertcount
   puts -nonewline "."
-  incr assertcount
+  incr ::assertcount
 }
 
 proc assertFail why {
@@ -40,7 +39,6 @@ proc checkthat { var op r } {
 
 
 proc assertStrEq {a b} {
-  global current_test
   if {eq $a $b} {
     assertPass
   } else {
@@ -86,11 +84,7 @@ assertEq [eval {* 4 4}] 16
 
 
 proc test {name body} {
-  proc setname {n} {
-    global current_test
-    set current_test $n
-  }
-  setname $name
+  set ::current_test $name
   uplevel "proc test_proc {} {$body}"
   set ret [catch { uplevel test_proc } retval]
   if { == $ret 1 } { puts "Err in test {$name}: $retval" }
@@ -885,6 +879,12 @@ test "incr global" {
   incr ::gv
   checkthat $::gv == 2
   unset ::gv
+}
+
+test "set global" {
+  set ::x 4
+  checkthat [set ::x] == 4
+  unset ::x
 }
 
 

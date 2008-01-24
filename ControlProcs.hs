@@ -4,6 +4,7 @@ import Common
 import Core
 import Control.Monad.Error
 import qualified TclObj as T
+import TclObj ((.==))
 import qualified Data.ByteString.Char8 as B
 
 controlProcs = makeProcMap $ 

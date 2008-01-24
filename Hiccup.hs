@@ -1,12 +1,11 @@
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
 import qualified Data.Map as Map
-import System.IO
 import Control.Monad.Error
 import Data.IORef
-import Data.Maybe
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+import TclObj ((.==))
 import Core
 import Common
 import Util
@@ -18,9 +17,6 @@ import ArrayProcs
 import ControlProcs
 import StringProcs
 import Test.HUnit  -- IGNORE
-
-
-coreProcs, mathProcs :: ProcMap
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
@@ -138,36 +134,37 @@ procCatch args = case args of
                          
 
 procInfo (x:xs)
-  | x .== "commands" =  info_commands
-  | x .== "level"    =  info_level
-  | x .== "vars"     =  info_vars
-  | x .== "locals"   =  info_locals
-  | x .== "globals"  =  info_globals xs
+  | x .== "commands" =  no_args "commands" info_commands xs
+  | x .== "level"    =  no_args "level" info_level xs
+  | x .== "vars"     =  no_args "vars" info_vars xs
+  | x .== "locals"   =  no_args "locals" info_locals xs
+  | x .== "globals"  =  no_args "globals" info_globals xs
   | x .== "exists"   =  info_exists xs
   | x .== "body"     =  info_body xs
   | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
+ where no_args n f args = case args of 
+                           [] -> f
+                           _  -> argErr $ "info " ++ n
 procInfo _   = argErr "info"
 
-info_commands = getProcMap >>= procList . toObs . Map.keys
-info_level = getStack >>= return . T.mkTclInt . pred . length
-info_vars = do f <- getFrame
-               procList . toObs $ Map.keys (vars f) ++ Map.keys (upMap f)
-info_locals = getFrame >>= procList . toObs . Map.keys . vars
+info_commands = commandNames >>= asTclList
+info_level    = stackLevel >>= return . T.mkTclInt
+info_vars     = currentVars >>= asTclList
+info_locals   = localVars >>= asTclList
+info_globals  = globalVars >>= asTclList
+
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
 
-info_globals args = case args of
-          [] -> getStack >>= procList . toObs . Map.keys . vars . last
-          _  -> argErr "info globals"
 info_body args = case args of
-       [n] -> do p <- getProcRaw (T.asBStr n)
+       [n] -> do p <- getProc (T.asBStr n)
                  case p of 
                    Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
                    Just p  -> treturn (procBody p)
        _   -> argErr "info body"
 
-toObs = map T.mkTclBStr
+asTclList = procList . map T.mkTclBStr
 
 
 procIncr :: TclProc
@@ -224,8 +221,7 @@ procUpVar args = case args of
      _        -> argErr "upvar"
 
 procGlobal args@(_:_) = mapM_ inner args >> ret
- where inner g = do lst <- getStack
-                    let len = length lst - 1
+ where inner g = do len <- stackLevel
                     upvar len g g
 procGlobal _         = argErr "global"
 

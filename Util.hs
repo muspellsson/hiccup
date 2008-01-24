@@ -1,5 +1,6 @@
 module Util where
 import qualified Data.ByteString.Char8 as B
+import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
 
@@ -10,6 +11,13 @@ joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 pack = B.pack
 {-# INLINE pack #-}
 unpack = B.unpack
+
+mapSnd f = map (\(a,b) -> (a, f b))
+mapFst f = map (\(a,b) -> (f a, b))
+
+ifFails f v = f `orElse` (return v)
+
+orElse f f2 = f `catchError` (\_ -> f2)
 
 listEscape s = if (B.elem ' ' s && not hasBracks) || B.null s 
                  then B.concat [B.singleton '{', s, B.singleton '}'] 

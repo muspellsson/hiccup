@@ -4,13 +4,13 @@ import Common
 import Util
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+import TclObj ((.==))
 import Data.Char (toLower,toUpper)
 
 import Test.HUnit
 
 stringProcs = makeProcMap [("string", procString), ("append", procAppend), ("split", procSplit)]
 
-procString :: TclProc
 procString (f:fs) 
  | f .== "trim"    = string_Op "trim" T.trim fs
  | f .== "tolower" = string_Op "tolower" (B.map toLower) fs

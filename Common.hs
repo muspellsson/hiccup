@@ -1,4 +1,46 @@
-module Common where
+module Common (RetVal, TclM
+       ,makeProcMap      
+       ,Err(..)
+       ,runTclM
+       ,treturn
+       ,ret
+       ,argErr
+       ,tclErr
+       ,getProc
+       ,varGetNS
+       ,varGetRaw
+       ,varModify
+       ,varSet
+       ,varSet'
+       ,io
+       ,addChan
+       ,removeChan
+       ,getChan
+       ,baseChans
+       ,uplevel
+       ,upvar
+       ,varExists
+       ,varUnset
+       ,varRename
+       ,varDump
+       ,regProc
+       ,varSetLocalVal
+       ,getArray
+       ,makeState
+       ,stackLevel
+       ,globalVars
+       ,localVars
+       ,vars
+       ,currentVars
+       ,commandNames
+       ,emptyEnv
+       ,runWithEnv
+       ,TclState
+       ,withScope
+       ,TclProc,TclProcT(..)
+       ,TclVar(..)
+       ,commonTests
+    ) where
 
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
@@ -50,8 +92,13 @@ toTclProcT (n,v) = (n, TclProcT n errStr v)
 makeState chans envl procs = do cm <- newIORef chans
                                 return (TclState cm envl procs)
 
-mapSnd f = map (\(a,b) -> (a, f b))
-mapFst f = map (\(a,b) -> (f a, b))
+stackLevel = getStack >>= return . pred . length
+globalVars = upglobal localVars
+localVars = getFrame >>= return . Map.keys . vars
+currentVars = do f <- getFrame
+                 return $ Map.keys (vars f) ++ Map.keys (upMap f)
+
+commandNames = getProcMap >>= return . Map.keys
 
 getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
               case s of
@@ -74,7 +121,7 @@ io = liftIO
 tclErr :: String -> TclM a
 tclErr = throwError . EDie
 
-argErr s = tclErr ("wrong # of args: " ++ s)
+argErr s = fail ("wrong # of args: " ++ s)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
@@ -94,16 +141,12 @@ baseChans = Map.fromList (map (\c -> (T.chanName c, c)) T.tclStdChans )
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
-getProcRaw str = getProc str
-
 
 getProc :: BString -> TclM (Maybe TclProcT)
 getProc str = getProcMap >>= \m -> return (getProc' str m)
 
-
 getProc' :: BString -> ProcMap -> Maybe TclProcT
 getProc' str m = Map.lookup str m
-
 
 rmProc :: BString -> TclM ()
 rmProc name = getProcMap >>= putProcMap . Map.delete name
@@ -114,11 +157,7 @@ regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT na
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet n v = varSetNS (parseVarName n) v
 
-varSetNS (NSRef Local vn)   v = varSet' vn v
-varSetNS (NSRef ns    vn) v = 
-  if isGlobal ns
-    then upglobal (varSet' vn v)
-    else tclErr "namespaces not supported yet"
+varSetNS (NSRef ns vn) v = runInNS ns (varSet' vn v)
 
 varSetLocalVal :: BString -> T.TclObj -> TclM RetVal
 varSetLocalVal n v = varSet' (VarName n Nothing) v 
@@ -171,26 +210,17 @@ varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
 varModify n f = varModifyNS (parseVarName n) f
 {-# INLINE varModify #-}
 
-varModifyNS (NSRef Local vn)   f = varMod' vn f
-varModifyNS (NSRef ns    vn) f = 
-  if isGlobal ns
-    then upglobal (varMod' vn f)
-    else tclErr "namespaces not supported yet"
-
+varModifyNS (NSRef ns vn) f = runInNS ns (varMod' vn f)
 
 varExists :: BString -> TclM Bool
 varExists name = do
   let (NSRef ns vn) = parseVarName name
-  if isLocal ns
-    then localExists vn
-    else if isGlobal ns
-            then upglobal (localExists vn)
-            else tclErr "namespace support sucks"
+  runInNS ns (localExists vn)
  where localExists (VarName n _) = varLookup n >>= return . isJust
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
-  mpr <- getProcRaw old
+  mpr <- getProc old
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old  
@@ -199,11 +229,13 @@ varRename old new = do
 varUnset :: BString -> TclM RetVal
 varUnset name = do
   let (NSRef ns (VarName n _)) = parseVarName name
-  if isLocal ns
-    then varUnset' n
-    else if isGlobal ns
-            then upglobal (varUnset' n)
-            else tclErr "namespace support sucks"
+  runInNS ns (varUnset' n)
+
+runInNS ns f 
+  | isLocal ns  = f
+  | isGlobal ns = upglobal f
+  | otherwise   = tclErr "namespaces not fully supported"
+{-# INLINE runInNS #-}
 
 varUnset' :: BString -> TclM RetVal
 varUnset' name = do 
@@ -243,14 +275,10 @@ varLookup name = do
       Just (i,n) -> uplevel i (varLookup n)
 
 varGetRaw :: BString -> TclM RetVal
-varGetRaw n = varGet' (unNS (parseVarName n))
+varGetRaw n = varGetNS (parseVarName n)
 
 varGetNS :: NSRef VarName -> TclM RetVal
-varGetNS (NSRef Local vn)   = varGet' vn
-varGetNS (NSRef ns    vn) = 
-  if isGlobal ns
-    then upglobal (varGet' vn)
-    else tclErr "namespaces not supported yet"
+varGetNS (NSRef ns vn) = runInNS ns (varGet' vn)
 
 varGet' :: VarName -> TclM RetVal
 varGet' vn@(VarName name ind) = do
@@ -276,8 +304,8 @@ uplevel i p = do
 
 upglobal :: TclM a -> TclM a
 upglobal p = do
-  len <- liftM length getStack
-  uplevel (len - 1) p
+  len <- stackLevel
+  uplevel len p
 
 upvar n d s = do (e:es) <- getStack
                  putStack ((e { upMap = Map.insert (T.asBStr s) (n, (T.asBStr d)) (upMap e) }):es)
@@ -291,17 +319,11 @@ withScope f = do
   f `ensure` (modStack (drop 1))
 
 
-ifFails f v = f `orElse` (return v)
-
-orElse f f2 = f `catchError` (\_ -> f2)
 
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
    p
    return r
-
-ifNothing m e = maybe (tclErr e) return m
-{-# INLINE ifNothing #-}
 
 ret :: TclM RetVal
 ret = return T.empty
@@ -311,9 +333,6 @@ treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr 
 {-# INLINE treturn #-}
 
-(.==) :: T.TclObj -> String -> Bool
-(.==) bs str = (T.asBStr bs) == pack str
-{-# INLINE (.==) #-}
 
 emptyEnv = TclEnv { vars = Map.empty, upMap = Map.empty }
 
@@ -331,8 +350,6 @@ errWithEnv env t =
     do st <- makeState Map.empty env Map.empty
        retv <- liftM fst (runTclM t st)
        return retv
-
-emptyEval = errWithEnv [emptyEnv]
 
 commonTests = TestList [ setTests, getTests, unsetTests ] where
 
