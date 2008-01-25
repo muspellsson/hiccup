@@ -634,13 +634,17 @@ test "lone subcommand" {
   checkthat $x == 11
 }
 
-test "info" {
+test "info exists" {
   checkthat [info exists x] == 0
   set x 4
   checkthat [info exists x] == 1
   checkthat [info exists current_test] == 0
   global current_test
   checkthat [info exists current_test] == 1
+
+  set arr(4) 2
+  checkthat [info exists arr(3)] == 0
+  checkthat [info exists arr(4)] == 1
   # TODO: Check upvar'd exists
 }
 

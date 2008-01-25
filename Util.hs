@@ -47,6 +47,14 @@ escapeStr s = case B.findIndex (`elem` " \n\t{}") s of
        handle '}'  = pack "\\}"
        handle _    = error "The impossible happened in handle"
 
+commaList :: String -> [String] -> String
+commaList _    []  = ""
+commaList _    [a] = a
+commaList conj lst = (intercalate ", " (init lst)) ++ " " ++ conj ++ " " ++ last lst
+
+intercalate :: String -> [String] -> String
+intercalate xs xss = concat (intersperse xs xss)
+
 utilTests = TestList [joinWithTests, listEscapeTests] where
  
   joinWithTests = TestList [

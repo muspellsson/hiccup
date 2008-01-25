@@ -11,17 +11,15 @@ import Test.HUnit
 
 stringProcs = makeProcMap [("string", procString), ("append", procAppend), ("split", procSplit)]
 
-procString (f:fs) 
- | f .== "trim"    = string_Op "trim" T.trim fs
- | f .== "tolower" = string_Op "tolower" (B.map toLower) fs
- | f .== "toupper" = string_Op "toupper" (B.map toUpper) fs
- | f .== "reverse" = string_Op "reverse" B.reverse fs
- | f .== "length"  = string_length fs
- | f .== "match"   = string_Match fs
- | f .== "index"   = string_Index fs
- | otherwise       = tclErr $ "Can't do string action: " ++ show f
- 
-procString _ = argErr "string"
+procString = makeEnsemble "string" [
+   ("trim", string_Op "trim" T.trim), 
+   ("tolower", string_Op "tolower" (B.map toLower)),
+   ("toupper", string_Op "toupper" (B.map toUpper)),
+   ("reverse", string_Op "reverse" B.reverse),
+   ("length", string_length),
+   ("match", string_match),
+   ("index", string_index)
+ ]
 
 string_Op name op args = case args of
    [s] -> treturn $! op (T.asBStr s)
@@ -31,13 +29,13 @@ string_length args = case args of
     [s] -> return $ T.mkTclInt (B.length (T.asBStr s))
     _   -> argErr "string length"
 
-string_Match args = case map T.asBStr args of
+string_match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
    [nocase,s1,s2] -> if nocase == pack "-nocase" then domatch True s1 s2 else argErr "string"
    _              -> argErr "string match"
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
-string_Index args = case args of
+string_index args = case args of
                      [s,i] -> do let str = T.asBStr s
                                  ind <- toInd str i
                                  if ind >= (B.length str) || ind < 0 

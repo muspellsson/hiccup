@@ -6,7 +6,6 @@ import Control.Monad.Error
 import Data.IORef
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
-import TclObj ((.==))
 import Core
 import Common
 import Util
@@ -17,6 +16,7 @@ import ListProcs
 import ArrayProcs
 import ControlProcs
 import StringProcs
+import NSProcs
 import Test.HUnit  -- IGNORE
 
 coreProcs = makeProcMap $
@@ -37,8 +37,7 @@ toI n a b = if n a b then 1 else 0
 
 {-# INLINE toI #-}
 
-baseProcs = Map.unions [coreProcs, controlProcs, 
-                   mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
+baseProcs = Map.unions [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
@@ -138,25 +137,18 @@ procCatch args = case args of
                          EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return ()
                          _      -> return ()
                          
-procInfo (x:xs)
-  | x .== "commands" =  no_args "commands" info_commands xs
-  | x .== "level"    =  no_args "level" info_level xs
-  | x .== "vars"     =  no_args "vars" info_vars xs
-  | x .== "locals"   =  no_args "locals" info_locals xs
-  | x .== "globals"  =  no_args "globals" info_globals xs
-  | x .== "exists"   =  info_exists xs
-  | x .== "body"     =  info_body xs
-  | otherwise        =  tclErr $ "Unknown info command: " ++ show (T.asBStr x)
- where no_args n f args = case args of 
+procInfo = makeEnsemble "info" [
+  noarg "commands" (commandNames >>= asTclList),
+  noarg "vars"     (currentVars  >>= asTclList),
+  noarg "locals"   (localVars    >>= asTclList),
+  noarg "globals"  (globalVars   >>= asTclList),
+  noarg "level"    (liftM T.mkTclInt stackLevel),
+  ("exists", info_exists),
+  ("body", info_body)]
+ where noarg n f = (n, no_args n f)
+       no_args n f args = case args of 
                            [] -> f
                            _  -> argErr $ "info " ++ n
-procInfo _   = argErr "info"
-
-info_commands = commandNames >>= asTclList
-info_level    = stackLevel >>= return . T.mkTclInt
-info_vars     = currentVars >>= asTclList
-info_locals   = localVars >>= asTclList
-info_globals  = globalVars >>= asTclList
 
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
@@ -172,7 +164,6 @@ info_body args = case args of
 asTclList = procList . map T.mkTclBStr
 
 
-procIncr :: TclProc
 procIncr [vname]     = incr vname 1
 procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"

@@ -8,8 +8,7 @@ import qualified Data.Map as Map
 import VarName
 import Text.Printf
 
-arrayProcs = makeProcMap $
-  [("array", procArray), ("parray", procParray)]
+arrayProcs = makeProcMap [("array", procArray), ("parray", procParray)]
 
 procParray args = case args of
      [name] -> do let n = T.asBStr name 
@@ -20,19 +19,12 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (T.asStr a) (T.asStr b))
 
 
-procArray args = case args of
-                  (x:xs) -> case Map.lookup (T.asBStr x) arraySubs of
-                              Nothing -> tclErr $ "bad option " ++ show (T.asBStr x) 
-                              Just f  -> (procFunction f) xs
-                  _  -> argErr "array"
-
-arraySubs = makeProcMap $ [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set) ]
+procArray = makeEnsemble "array" [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set)]
 
 arrSet n i v = varSet' (VarName n (Just i)) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs [] = []
 toPairs _ = [] 
-
 
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
 

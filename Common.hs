@@ -26,6 +26,7 @@ module Common (RetVal, TclM
        ,getChan
        ,uplevel
        ,upvar
+       ,makeEnsemble
        ,io
        ,tclErr
        ,treturn
@@ -210,10 +211,7 @@ varModify !n f = varModifyNS (parseVarName n) f
 varModifyNS (NSRef ns vn) f = runInNS ns (varMod' vn f)
 
 varExists :: BString -> TclM Bool
-varExists name = do
-  let (NSRef ns vn) = parseVarName name
-  runInNS ns (localExists vn)
- where localExists (VarName n _) = varLookup n >>= return . isJust
+varExists name = (varGet name >> return True) `catchError` (\_ -> return False)
 
 varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
@@ -330,6 +328,13 @@ treturn = return . T.mkTclBStr
 
 emptyFrame = TclFrame { vars = Map.empty, upMap = Map.empty }
 
+makeEnsemble name subs = top
+  where top args = case args of
+                   (x:xs) -> case Map.lookup (T.asBStr x) subMap of
+                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " ++ commaList "or" (map unpack (Map.keys subMap))
+                              Just f  -> (procFunction f) xs
+                   []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
+        subMap = makeProcMap subs
 
 -- # TESTS # --
 
