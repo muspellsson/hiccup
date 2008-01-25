@@ -928,5 +928,10 @@ test "global namespace" {
   checkthat $::a_global == 9
 }
 
+test "namespace current" {
+  checkthat [namespace current] == "::"
+  checkthat [namespace parent] == {}
+}
+
 puts ""
 puts stdout "Done. Passed $assertcount checks."

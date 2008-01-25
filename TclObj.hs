@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fbang-patterns #-}
 module TclObj (
  TclObj
  ,mkTclStr 
@@ -56,7 +57,7 @@ resultToEither res s = case res of
                         Nothing -> Left $ "parse failed: " ++ show s
                         Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
-mkTclInt i = TclInt i bsval
+mkTclInt !i = TclInt i bsval
  where bsval = pack (show i)
 {-# INLINE mkTclInt #-}
 
@@ -65,7 +66,7 @@ empty = TclBStr BS.empty Nothing (Left "bad parse")
 tclTrue = mkTclInt 1 
 tclFalse = mkTclInt 0 
 
-fromBool b = if b then tclTrue else tclFalse
+fromBool !b = if b then tclTrue else tclFalse
 
 trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
 

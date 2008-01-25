@@ -28,14 +28,11 @@ coreProcs = makeProcMap $
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
   ("source", procSource), ("incr", procIncr), ("time", procTime)]
 
-mathProcs = makeProcMap . mapSnd procMath $
-   [("+",(+)), ("*",(*)), ("-",(-)), ("pow", (^)),
-    ("/",div), ("<", toI (<)),(">", toI (>)),("<=",toI (<=))]
-
-toI :: (Int -> Int -> Bool) -> (Int -> Int -> Int)
-toI n a b = if n a b then 1 else 0
-
-{-# INLINE toI #-}
+mathProcs = makeProcMap $
+   [("+",m (+)), ("*",m (*)), ("-",m (-)), ("pow", m (^)),
+    ("/",m div), ("<", t (<)),(">", t (>)),("<=",t (<=))]
+ where m = procMath
+       t = procTest
 
 baseProcs = Map.unions [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
@@ -108,9 +105,17 @@ procNe args = case args of
 procMath :: (Int -> Int -> Int) -> TclProc
 procMath op args = case args of
          [s1,s2] -> do res <- liftM2 op (T.asInt s1) (T.asInt s2)
-                       return (T.mkTclInt res)
+                       return $! (T.mkTclInt res)
          _       -> argErr "math"
 {-# INLINE procMath #-}
+
+procTest :: (Int -> Int -> Bool) -> TclProc
+procTest op args = case args of
+         [s1,s2] -> do a1 <- T.asInt s1
+                       a2 <- T.asInt s2
+                       return $! (T.fromBool (op a1 a2))
+         _       -> argErr "test"
+{-# INLINE procTest #-}
 
 procNotEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
@@ -128,14 +133,14 @@ procEval args = case args of
                  _   -> argErr "eval"
 
 procCatch args = case args of
-           [s]        -> (evalTcl s >> procReturn [T.tclFalse]) `catchError` (return . catchRes)
-           [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> procReturn [T.tclFalse]) `catchError` (\e -> retReason result e >> return (catchRes e))
+           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retIsErr
+           [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
- where catchRes (EDie _) = T.tclTrue
-       catchRes _        = T.tclFalse
+ where retIsErr (EDie _) = return T.tclTrue
+       retIsErr _        = return T.tclFalse
        retReason v e = case e of
-                         EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return ()
-                         _      -> return ()
+                         EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return T.tclTrue
+                         _      -> retIsErr e
                          
 procInfo = makeEnsemble "info" [
   noarg "commands" (commandNames >>= asTclList),

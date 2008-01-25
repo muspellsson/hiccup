@@ -43,7 +43,6 @@ module Common (RetVal, TclM
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import qualified TclObj as T
-import Data.Maybe (isJust)
 import Control.Monad.State
 import qualified Data.Map as Map
 import TclChan
