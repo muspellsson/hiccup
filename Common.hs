@@ -149,7 +149,25 @@ upped s e = Map.lookup s (upMap e)
 
 getProc pname = case parseNS pname of
     Left n -> getProcNorm n 
-    Right _ -> tclErr "namespace procs currently don't work"
+    Right (nsl,n) -> do 
+        nsref <- getNamespace nsl
+        ns <- (io . readIORef) nsref
+        return $ getProc' n (nsProcs ns)
+
+        
+
+getNamespace nsl = case nsl of
+       [x] -> if B.null x 
+                 then gets tclGlobalNS 
+                 else do cnsref <- gets tclCurrNS
+                         cns <- (io . readIORef) cnsref
+                         let kids = nsChildren cns
+                         case Map.lookup x kids of
+                            Nothing -> tclErr $ "can't find namespace " ++ show x
+                            Just k -> return k
+       (x:xs) -> sorry 
+       []     -> fail "Something rather unexpected happened in getNamespace"
+ where sorry = tclErr "namespaces aren't fully supported. Sorry"
 
 getProcNorm :: BString -> TclM (Maybe TclProcT)
 getProcNorm str = do 

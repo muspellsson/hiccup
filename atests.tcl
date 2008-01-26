@@ -943,8 +943,10 @@ test "namespace proc 1" {
 
   assertErr { one }
 
+  assertNoErr { ::+ 4 5 }
+
   # not yet
-  #checkthat [temp::one] == 1
+  checkthat [temp::one] == 1
 }
 
 puts ""

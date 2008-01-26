@@ -58,6 +58,7 @@ splitWith str sep =
        extract [] s     = [s]
        extract (i:ix) s = let (b,a) = B.splitAt i s 
                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
+              -- might be faster here to repeatedly splitAt from the back.
 {-# INLINE splitWith #-}
  
 varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS] where 
