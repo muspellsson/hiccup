@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -fbang-patterns #-}
-module Core (evalTcl, doCond, coreTests, tryLast) where
+module Core (evalTcl, doCond, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -17,9 +17,6 @@ evalTcl s = runCmds =<< T.asParsed s
 runCmds [x]    = runCmd x
 runCmds (x:xs) = runCmd x >> runCmds xs
 runCmds []     = ret
-
-tryLast [] = T.empty
-tryLast v  = last v
 
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)         = return $ T.mkTclBStr s
@@ -55,10 +52,5 @@ doCond str = do
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
 
-coreTests = TestList [ tryLastTests ] 
+coreTests = TestList [ ] 
 
-tryLastTests = TestList [
-   T.empty ~=? tryLast [] 
-   ,T.tclTrue ~=? tryLast [T.tclTrue] 
-   ,T.tclTrue ~=? tryLast [T.tclFalse, T.tclTrue] 
- ]

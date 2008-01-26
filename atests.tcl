@@ -933,5 +933,19 @@ test "namespace current" {
   checkthat [namespace parent] == {}
 }
 
+test "namespace proc 1" {
+  namespace eval temp {
+    proc one {} { return 1 }
+    checkthat [namespace current] == "temp"
+    checkthat [namespace parent] == "::"
+    checkthat [one] == 1
+  }
+
+  assertErr { one }
+
+  # not yet
+  #checkthat [temp::one] == 1
+}
+
 puts ""
 puts stdout "Done. Passed $assertcount checks."

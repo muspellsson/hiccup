@@ -7,6 +7,7 @@ module Common (RetVal, TclM
        ,makeState
        ,runWithEnv
        ,withScope
+       ,withNS
        ,makeProcMap      
        ,getProc
        ,regProc
@@ -36,6 +37,8 @@ module Common (RetVal, TclM
        ,globalVars
        ,localVars
        ,currentVars
+       ,currentNS
+       ,parentNS
        ,commandNames
        ,commonTests
     ) where
@@ -46,6 +49,7 @@ import qualified TclObj as T
 import Control.Monad.State
 import qualified Data.Map as Map
 import TclChan
+import Data.IORef
 import Test.HUnit 
 import VarName
 import Util
@@ -62,19 +66,19 @@ instance Error Err where
 type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS { 
-         nsName :: String, 
+         nsName :: BString, 
          nsProcs :: ProcMap, 
          nsVars :: VarMap, 
-         nsParent :: Maybe Namespace,
-         nsChildren :: Map.Map BString Namespace } -- Ok.. and how do we use this?
+         nsParent :: Maybe (IORef Namespace),
+         nsChildren :: Map.Map BString (IORef Namespace) } -- Ok.. and how do we use this?
 
-globalNS = TclNS { nsName = "::", nsProcs = Map.empty, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
+globalNS = TclNS { nsName = pack "::", nsProcs = Map.empty, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
 data TclFrame = TclFrame { vars :: VarMap, upMap :: Map.Map BString (Int,BString) } 
 type TclStack = [TclFrame]
-data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclProcs :: ProcMap }
+data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclCurrNS :: IORef Namespace, tclGlobalNS :: IORef Namespace }
 type TclProc = [T.TclObj] -> TclM RetVal
 type ProcMap = Map.Map BString TclProcT
 type VarMap = Map.Map BString TclVar
@@ -91,7 +95,8 @@ makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState' chans vlist procs = do let fr = emptyFrame { vars = Map.fromList (mapSnd ScalarVar vlist) }
-                                  return (TclState chans [fr] procs)
+                                  ns <- newIORef (globalNS { nsProcs = procs }) 
+                                  return (TclState chans [fr] ns ns)
 
 stackLevel = getStack >>= return . pred . length
 globalVars = upglobal localVars
@@ -105,8 +110,14 @@ getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
               case s of
                 []    -> tclErr "Aack. Tried to go up too far in the stack."
                 v     -> return v
-getProcMap = gets tclProcs
-putProcMap p = modify (\v -> v { tclProcs = p })
+getProcMap = do currNs <- gets tclCurrNS >>= io . readIORef
+                return (nsProcs currNs)
+getGlobalProcMap = do gNs <- gets tclGlobalNS >>= io . readIORef
+                      return (nsProcs gNs)
+
+putProcMap p = do nsref <- gets tclCurrNS 
+                  io (modifyIORef nsref (\v -> v { nsProcs = p }))
+
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = getStack >>= putStack . f
@@ -136,9 +147,17 @@ removeChan c = modChan (deleteChan c)
 upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
+getProc pname = case parseNS pname of
+    Left n -> getProcNorm n 
+    Right _ -> tclErr "namespace procs currently don't work"
 
-getProc :: BString -> TclM (Maybe TclProcT)
-getProc str = getProcMap >>= \m -> return (getProc' str m)
+getProcNorm :: BString -> TclM (Maybe TclProcT)
+getProcNorm str = do 
+  currpm <- getProcMap
+  case getProc' str currpm of 
+    Nothing -> do globpm <- getGlobalProcMap
+                  return (getProc' str globpm)
+    x       -> return x
 
 getProc' :: BString -> ProcMap -> Maybe TclProcT
 getProc' str m = Map.lookup str m
@@ -311,6 +330,35 @@ withScope f = do
   (o:old) <- getStack
   putStack $ emptyFrame : o : old
   f `ensure` (modStack (drop 1))
+
+mkEmptyNS name parent = do
+    new <- newIORef $ TclNS { nsName = name, nsProcs = Map.empty, nsVars = Map.empty, nsParent = Just parent, nsChildren = Map.empty }
+    modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
+    return new
+    
+
+withNS :: BString -> TclM RetVal -> TclM RetVal
+withNS name f = do
+     nsref <- gets tclCurrNS
+     ns <- (io . readIORef) nsref
+     let kids = nsChildren ns
+     newCurr <- case Map.lookup name kids of
+        Nothing -> io $ mkEmptyNS name nsref
+        Just x  -> return x
+     putNS newCurr 
+     f `ensure` (putNS nsref)                 
+
+putNS ns = modify (\s -> s { tclCurrNS = ns })
+     
+currentNS = do  
+  ns <- gets tclCurrNS >>= io . readIORef
+  return (nsName ns)
+
+parentNS = do
+ ns <- gets tclCurrNS >>= io . readIORef
+ case nsParent ns of
+   Nothing -> return B.empty
+   Just v  -> (io . readIORef) v >>= return . nsName
 
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)

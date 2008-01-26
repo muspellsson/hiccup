@@ -1,10 +1,12 @@
 module VarName (parseVarName, 
-                VarName(..), showVN, 
-                 NSRef(..), unNS, 
-                 NSTag(..),
-                 isGlobal,
-                 isLocal,
-                 varNameTests) where
+                parseNS,
+                VarName(..), 
+                showVN, 
+                NSRef(..), 
+                NSTag(..),
+                isGlobal,
+                isLocal,
+                varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
 import Test.HUnit
@@ -22,8 +24,6 @@ isGlobal _        = False
 isLocal Local = True
 isLocal _     = False
 {-# INLINE isLocal #-}
-
-unNS (NSRef _ v) = v
 
 parseVarName n = 
    let (name,ind) = parseArrRef n 
@@ -47,6 +47,7 @@ parseNS str =
     [str] -> Left str
     nsr   -> let (n:rx) = reverse nsr 
              in Right (reverse rx, n)
+{-# INLINE parseNS #-}
 
 splitWith :: BString -> BString -> [BString]
 splitWith str sep = 
@@ -57,8 +58,9 @@ splitWith str sep =
        extract [] s     = [s]
        extract (i:ix) s = let (b,a) = B.splitAt i s 
                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
+{-# INLINE splitWith #-}
  
-varNameTests = TestList [splitWithTests, testArr, testParseVarName] where 
+varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS] where 
   bp = pack
   splitWithTests = TestList [
       ("one::two","::") `splitsTo` ["one","two"]
@@ -68,6 +70,14 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName] where
       ,("::","::") `splitsTo` ["", ""]
     ]
    where splitsTo (a,b) r = map bp r ~=? ((bp a) `splitWith` (bp b))
+
+  testParseNS = TestList [
+     parseNS (bp "boo") ~=? Left (bp "boo") 
+     ,parseNS (bp "::boo") ~=? Right ([B.empty], bp "boo") 
+     ,parseNS (bp "foo::boo") ~=? Right ([bp "foo"], bp "boo") 
+     ,parseNS (bp "::foo::boo") ~=? Right ([bp "", bp "foo"], bp "boo") 
+     ,parseNS (bp "woo::foo::boo") ~=? Right ([bp "woo", bp "foo"], bp "boo") 
+   ]
 
   testParseVarName = TestList [
       parseVarName (bp "x") ~=? NSRef Local (VarName (bp "x") Nothing)
