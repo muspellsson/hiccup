@@ -946,9 +946,24 @@ test "namespace proc 1" {
   assertNoErr { ::+ 4 5 }
 
   checkthat [temp::one] == 1
-
-  # not yet
   checkthat [::temp::one] == 1
+}
+
+test "nested ns" {
+  namespace eval abc {
+    namespace eval xyz {
+      proc tada {} { return "yay!" }
+    }
+  }
+
+  assertErr { tada }
+  assertErr { abc::tada }
+  assertErr { ::abc::tada }
+  assertErr { ::xyz::tada }
+  assertErr { xyz::tada }
+
+  checkthat [abc::xyz::tada] eq "yay!"
+  checkthat [::abc::xyz::tada] eq "yay!"
 }
 
 puts ""
