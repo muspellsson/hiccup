@@ -157,17 +157,15 @@ getProc pname = case parseNS pname of
         
 
 getNamespace nsl = case nsl of
-       [x] -> if B.null x 
-                 then gets tclGlobalNS 
-                 else do cnsref <- gets tclCurrNS
-                         cns <- (io . readIORef) cnsref
-                         let kids = nsChildren cns
-                         case Map.lookup x kids of
-                            Nothing -> tclErr $ "can't find namespace " ++ show x
-                            Just k -> return k
-       (x:xs) -> sorry 
-       []     -> fail "Something rather unexpected happened in getNamespace"
- where sorry = tclErr "namespaces aren't fully supported. Sorry"
+       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
+                    getEm xs base
+       []     -> fail "Something unexpected happened in getNamespace"
+ where getEm []     ns = return ns
+       getEm (x:xs) ns = getKid x ns >>= getEm xs
+       getKid k nsref = do kids <- (io . readIORef) nsref >>= return . nsChildren
+                           case Map.lookup k kids of
+                               Nothing -> fail $ "can't find namespace " ++ show k
+                               Just v  -> return v
 
 getProcNorm :: BString -> TclM (Maybe TclProcT)
 getProcNorm str = do 
