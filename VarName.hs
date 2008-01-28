@@ -1,5 +1,6 @@
 module VarName (parseVarName, 
                 parseNS,
+                parseProc,
                 VarName(..), 
                 showVN, 
                 NSRef(..), 
@@ -31,6 +32,11 @@ parseVarName n =
        Left _       -> NSRef Local (VarName name ind)
        Right (ns,n) -> NSRef (NS ns) (VarName n ind)
 
+parseProc name =
+   case parseNS name of
+     Left _       -> NSRef Local name
+     Right (ns,n) -> NSRef (NS ns) n
+
 showVN :: VarName -> String
 showVN (VarName name Nothing) = show name
 showVN (VarName name (Just i)) = "\"" ++ unpack name ++ "(" ++ unpack i ++ ")\""
@@ -58,7 +64,6 @@ splitWith str sep =
        extract [] s     = [s]
        extract (i:ix) s = let (b,a) = B.splitAt i s 
                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
-              -- might be faster here to repeatedly splitAt from the back.
 {-# INLINE splitWith #-}
  
 varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS] where 

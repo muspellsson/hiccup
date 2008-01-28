@@ -10,6 +10,7 @@ module Common (RetVal, TclM
        ,withNS
        ,makeProcMap      
        ,getProc
+       ,getProcNS
        ,regProc
        ,varGetNS
        ,varGet
@@ -148,13 +149,14 @@ upped s e = Map.lookup s (upMap e)
 {-# INLINE upped #-}
 
 getProc pname = case parseNS pname of
-    Left n -> getProcNorm n 
-    Right (nsl,n) -> do 
-        nsref <- getNamespace nsl
-        ns <- (io . readIORef) nsref
-        return $ getProc' n (nsProcs ns)
+    Left n -> getProcNorm n
+    Right (nsl,n) -> getProcNS (NSRef (NS nsl) n)
 
-        
+getProcNS (NSRef Local name) = getProcNorm name
+getProcNS (NSRef (NS nsl) name) = do 
+  nsref <- getNamespace nsl
+  ns <- (io . readIORef) nsref
+  return $ getProc' name (nsProcs ns)
 
 getNamespace nsl = case nsl of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x

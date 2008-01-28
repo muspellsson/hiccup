@@ -30,11 +30,13 @@ runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do 
   evArgs <- mapM evalRToken args
   evArgs `seq` go n evArgs
- where go (Lit !s) a = callProc s a
-       go rt       a = evalRToken rt >>= \pn -> callProc (T.asBStr pn) a
+ where go (Left p@(NSRef _ name)) a = callProc name (getProcNS p) a
+       go (Right rt) a = do o <- evalRToken rt 
+                            let name = T.asBStr o
+                            callProc name (getProc name) a
 
-callProc !pn args =  do
-   mproc <- getProc pn
+callProc pn f args =  do
+   mproc <- f
    case mproc of
      Nothing   -> do ukproc <- getProc (pack "unknown")
                      case ukproc of
