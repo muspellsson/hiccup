@@ -7,6 +7,8 @@ module VarName (parseVarName,
                 NSTag(..),
                 isGlobal,
                 isLocal,
+                explodeNS,
+                splitWith,
                 varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
@@ -17,6 +19,9 @@ data NSRef a = NSRef NSTag a deriving (Eq,Show)
 data NSTag = NS [BString] | Local deriving (Eq,Show)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
+
+explodeNS bstr = bstr `splitWith` cc
+ where cc = pack "::"
 
 isGlobal (NS [x]) = B.null x
 isGlobal _        = False

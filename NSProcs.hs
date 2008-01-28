@@ -6,7 +6,12 @@ import qualified TclObj as T
 
 nsProcs = makeProcMap [("namespace", procNamespace)]
 
-procNamespace = makeEnsemble "namespace" [("current", ns_current), ("eval", ns_eval), ("parent", ns_parent)]
+procNamespace = makeEnsemble "namespace" [
+     ("current", ns_current), 
+     ("eval", ns_eval), 
+     ("parent", ns_parent),
+     ("children", ns_children),
+     ("exists", ns_exists)]
 
 ns_current args = case args of 
        [] -> currentNS >>= treturn
@@ -19,3 +24,11 @@ ns_eval args = case args of
 ns_parent args = case args of
           [] -> parentNS >>= treturn
           _  -> argErr "namespace parent"
+
+ns_children args = case args of
+          [] -> childrenNS >>= return . T.mkTclList . map T.mkTclBStr
+          _  -> argErr "namespace children"
+
+ns_exists args = case args of
+          [nsn] -> existsNS (T.asBStr nsn) >>= return . T.fromBool
+          _     -> argErr "namespace exists"

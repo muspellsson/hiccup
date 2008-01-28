@@ -949,6 +949,7 @@ test "namespace proc 1" {
   checkthat [::temp::one] == 1
 }
 
+
 test "nested ns" {
   namespace eval abc {
     namespace eval xyz {
@@ -965,6 +966,21 @@ test "nested ns" {
   checkthat [abc::xyz::tada] eq "yay!"
   checkthat [::abc::xyz::tada] eq "yay!"
 }
+
+test "double ns" {
+  namespace eval abc2::xyz2 {
+      proc tada {} { return "yay!" }
+  }
+  checkthat [abc2::xyz2::tada] eq "yay!"
+}
+
+test "namespace exists" { 
+  checkthat [namespace exists imaginary] == 0
+# not yet
+#  checkthat [namespace exists "::"] == 1
+  checkthat [namespace exists {}] == 1
+}
+
 
 puts ""
 puts stdout "Done. Passed $assertcount checks."

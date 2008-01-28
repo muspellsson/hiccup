@@ -40,6 +40,8 @@ module Common (RetVal, TclM
        ,currentVars
        ,currentNS
        ,parentNS
+       ,existsNS
+       ,childrenNS
        ,commandNames
        ,commonTests
     ) where
@@ -156,7 +158,7 @@ getProc pname = case parseNS pname of
 
 getProcNS (NSRef Local k) = getProcNorm k
 getProcNS (NSRef (NS nsl) k) = do 
-  nsref <- getNamespace nsl
+  nsref <- getNamespace nsl 
   ns <- (io . readIORef) nsref
   return $ getProc' k (nsProcs ns)
 
@@ -170,6 +172,8 @@ getNamespace nsl = case nsl of
                            case Map.lookup k kids of
                                Nothing -> fail $ "can't find namespace " ++ show k
                                Just v  -> return v
+
+existsNS ns = (getNamespace (explodeNS ns) >> return True) `catchError` (\_ -> return False)
 
 getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
 getProcNorm i = do 
@@ -362,13 +366,20 @@ mkEmptyNS name parent = do
 withNS :: BString -> TclM RetVal -> TclM RetVal
 withNS name f = do
      nsref <- gets tclCurrNS
-     ns <- (io . readIORef) nsref
-     let kids = nsChildren ns
-     newCurr <- case Map.lookup name kids of
-        Nothing -> io $ mkEmptyNS name nsref
-        Just x  -> return x
+     newCurr <- getOrCreateNamespace name
      putNS newCurr 
-     f `ensure` (putNS nsref)                 
+     (withScope f) `ensure` (putNS nsref)                 
+
+getOrCreateNamespace ns = case explodeNS ns of
+       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
+                    getEm xs base
+       []     -> fail "Something unexpected happened in getOrCreateNamespace"
+ where getEm []     ns = return ns
+       getEm (x:xs) ns = getKid x ns >>= getEm xs
+       getKid k nsref = do kids <- (io . readIORef) nsref >>= return . nsChildren
+                           case Map.lookup k kids of
+                               Nothing -> io (mkEmptyNS k nsref)
+                               Just v  -> return v
 
 putNS ns = modify (\s -> s { tclCurrNS = ns })
      
@@ -381,6 +392,11 @@ parentNS = do
  case nsParent ns of
    Nothing -> return B.empty
    Just v  -> (io . readIORef) v >>= return . nsName
+
+childrenNS :: TclM [BString]
+childrenNS = do 
+  ns <- gets tclCurrNS >>= io . readIORef
+  (return . Map.keys . nsChildren) ns
 
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
