@@ -147,7 +147,6 @@ parseSub s = do guard (B.head s == '[')
 eatcomment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
 
 dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
-
 {-
 wordChar ' ' = False
 wordChar !c = let ci = ord c in

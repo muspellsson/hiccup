@@ -73,7 +73,7 @@ data Namespace = TclNS {
          nsParent :: Maybe (IORef Namespace),
          nsChildren :: Map.Map BString (IORef Namespace) } -- Ok.. and how do we use this?
 
-globalNS = TclNS { nsName = pack "::", nsProcs = Map.empty, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
+globalNS = TclNS { nsName = pack "::", nsProcs = emptyProcMap, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
@@ -81,7 +81,8 @@ data TclFrame = TclFrame { vars :: VarMap, upMap :: Map.Map BString (Int,BString
 type TclStack = [TclFrame]
 data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclCurrNS :: IORef Namespace, tclGlobalNS :: IORef Namespace }
 type TclProc = [T.TclObj] -> TclM RetVal
-type ProcMap = Map.Map BString TclProcT
+type ProcMap = Map.Map ProcKey TclProcT
+type ProcKey = BString
 type VarMap = Map.Map BString TclVar
 data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
 
@@ -105,7 +106,7 @@ localVars = getFrame >>= return . Map.keys . vars
 currentVars = do f <- getFrame
                  return $ Map.keys (vars f) ++ Map.keys (upMap f)
 
-commandNames = getProcMap >>= return . Map.keys
+commandNames = getProcMap >>= return . map procName . Map.elems
 
 getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
               case s of
@@ -113,6 +114,7 @@ getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
                 v     -> return v
 getProcMap = do currNs <- gets tclCurrNS >>= io . readIORef
                 return (nsProcs currNs)
+{-# INLINE getProcMap #-}
 getGlobalProcMap = do gNs <- gets tclGlobalNS >>= io . readIORef
                       return (nsProcs gNs)
 
@@ -152,11 +154,11 @@ getProc pname = case parseNS pname of
     Left n -> getProcNorm n
     Right (nsl,n) -> getProcNS (NSRef (NS nsl) n)
 
-getProcNS (NSRef Local name) = getProcNorm name
-getProcNS (NSRef (NS nsl) name) = do 
+getProcNS (NSRef Local k) = getProcNorm k
+getProcNS (NSRef (NS nsl) k) = do 
   nsref <- getNamespace nsl
   ns <- (io . readIORef) nsref
-  return $ getProc' name (nsProcs ns)
+  return $ getProc' k (nsProcs ns)
 
 getNamespace nsl = case nsl of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
@@ -169,22 +171,24 @@ getNamespace nsl = case nsl of
                                Nothing -> fail $ "can't find namespace " ++ show k
                                Just v  -> return v
 
-getProcNorm :: BString -> TclM (Maybe TclProcT)
-getProcNorm str = do 
+getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
+getProcNorm i = do 
   currpm <- getProcMap
-  case getProc' str currpm of 
+  case getProc' i currpm of 
     Nothing -> do globpm <- getGlobalProcMap
-                  return (getProc' str globpm)
+                  return (getProc' i globpm)
     x       -> return x
 
-getProc' :: BString -> ProcMap -> Maybe TclProcT
-getProc' str m = Map.lookup str m
+getProc' :: ProcKey -> ProcMap -> Maybe TclProcT
+getProc' i m = Map.lookup i m
 
 rmProc :: BString -> TclM ()
 rmProc name = getProcMap >>= putProcMap . Map.delete name
 
 regProc :: BString -> BString -> TclProc -> TclM RetVal
-regProc name body pr = (getProcMap >>= putProcMap . Map.insert name (TclProcT name body pr)) >> ret
+regProc name body pr = (getProcMap >>= putProcMap . pmInsert (TclProcT name body pr)) >> ret
+
+pmInsert proc m = Map.insert (procName proc) proc m
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
@@ -350,7 +354,7 @@ withScope f = do
   f `ensure` (modStack (drop 1))
 
 mkEmptyNS name parent = do
-    new <- newIORef $ TclNS { nsName = name, nsProcs = Map.empty, nsVars = Map.empty, nsParent = Just parent, nsChildren = Map.empty }
+    new <- newIORef $ TclNS { nsName = name, nsProcs = emptyProcMap, nsVars = Map.empty, nsParent = Just parent, nsChildren = Map.empty }
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
     
@@ -396,22 +400,25 @@ emptyFrame = TclFrame { vars = Map.empty, upMap = Map.empty }
 makeEnsemble name subs = top
   where top args = case args of
                    (x:xs) -> case Map.lookup (T.asBStr x) subMap of
-                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " ++ commaList "or" (map unpack (Map.keys subMap))
+                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " ++ commaList "or" (map unpack (procMapNames subMap))
                               Just f  -> (procFunction f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
         subMap = makeProcMap subs
 
+procMapNames = map procName . Map.elems
+
+emptyProcMap = Map.empty
 -- # TESTS # --
 
 runWithEnv :: TclM RetVal -> Either Err RetVal -> IO Bool
 runWithEnv t v = 
-  do st <- makeState' Map.empty [] Map.empty
+  do st <- makeState' Map.empty [] emptyProcMap
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
 errWithEnv :: TclM a -> IO (Either Err a)
 errWithEnv t = 
-    do st <- makeState' Map.empty [] Map.empty
+    do st <- makeState' Map.empty [] emptyProcMap
        retv <- liftM fst (runTclM t st)
        return retv
 
@@ -421,7 +428,7 @@ commonTests = TestList [ setTests, getTests, unsetTests ] where
 
   evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
   evalWithEnv t = 
-    do st <- makeState' Map.empty [] Map.empty
+    do st <- makeState' Map.empty [] emptyProcMap
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
