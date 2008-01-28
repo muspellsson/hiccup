@@ -54,7 +54,7 @@ parseArrRef str = case B.elemIndex '(' str of
                              else (str, Nothing)
 
 parseNS str = 
-  case str `splitWith` (B.pack "::") of
+  case explodeNS str of
     [str] -> Left str
     nsr   -> let (n:rx) = reverse nsr 
              in Right (reverse rx, n)
