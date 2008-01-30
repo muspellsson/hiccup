@@ -110,7 +110,12 @@ getInterp str = do
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
-parseVarRef s = (getvar `orElse` brackVar `orElse` getNS) s
+-- parseVarRef s = (getvar `orElse` brackVar `orElse` getNS) s
+parseVarRef :: B.ByteString -> Maybe (B.ByteString, B.ByteString)
+parseVarRef s = do (s1,rest1) <- tryGet (tryWord (B.pack "::"))  s
+                   (s2,rest2) <- (getvar `orElse` brackVar `orElse` getNS) rest1
+                   (s3,rest3) <- tryGet (parseVarRef) rest2
+                   return (B.concat [s1,s2,s3], rest3)
 
 getInd str  
   | B.null str || B.head str /= '(' = Nothing
@@ -164,6 +169,12 @@ getword s = if B.null w then fail "can't parse word" else return (w,n)
 getvar s = if B.null w then fail "can't parse var name" else return $! (w,n)
  where (w,n) = B.span wordChar s
 
+
+tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
+
+(<+>)  f1 f2 s = do (s2,rest1) <- f1 s
+                    (s3,rest2) <- f2 s
+                    return (B.append s2 s3, rest2)
 
 
 wordToken s = do hv <- safeHead s
@@ -274,7 +285,7 @@ getInterpTests = TestList [
     "Bracket interp 3" ~: (bp " ", mkvar " !?! ", bp " ") ?=? " ${ !?! } ",
     "global namespace" ~: (bp "", mkvar "::booga", bp "") ?=? "$::booga",
     ":::"              ~: noInterp "$:::booga",
-    -- "some namespace" ~: (bp "", mkvar "log::booga", bp "") ?=? "$log::booga",
+    "some namespace" ~: (bp "", mkvar "log::booga", bp "") ?=? "$log::booga", -- TODO
     "unescaped $ works" ~: 
           (bp "a ", mkvar "variable", bp "")  ?=? "a $variable",
     "escaped $ works" ~: 

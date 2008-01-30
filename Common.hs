@@ -273,7 +273,9 @@ varUnset name = do
 runInNS !ns f 
   | isLocal ns  = f
   | isGlobal ns = upglobal f
-  | otherwise   = tclErr "namespaces not fully supported"
+  | otherwise   = do let (NS nsl) = ns 
+                     nsref <- getNamespace nsl
+                     withExistingNS nsref f
 {-# INLINE runInNS #-}
 
 varUnset' :: BString -> TclM RetVal
@@ -352,10 +354,13 @@ upvar n d s = do (e:es) <- getStack
 {-# INLINE upvar #-}
 
 withScope :: TclM RetVal -> TclM RetVal
-withScope f = do
+withScope f = withScope' f >>= return . fst
+
+withScope' :: TclM RetVal -> TclM (RetVal, TclFrame)
+withScope' f = do
   (o:old) <- getStack
   putStack $ emptyFrame : o : old
-  f `ensure` (modStack (drop 1))
+  (f >>= \v -> getFrame >>= \fr -> return (v,fr)) `ensure` (modStack (drop 1))
 
 mkEmptyNS name parent = do
     new <- newIORef $ TclNS { nsName = name, nsProcs = emptyProcMap, nsVars = Map.empty, nsParent = Just parent, nsChildren = Map.empty }
@@ -365,10 +370,22 @@ mkEmptyNS name parent = do
 
 withNS :: BString -> TclM RetVal -> TclM RetVal
 withNS name f = do
-     nsref <- gets tclCurrNS
      newCurr <- getOrCreateNamespace name
-     putNS newCurr 
-     (withScope f) `ensure` (putNS nsref)                 
+     withExistingNS newCurr f
+
+withExistingNS newCurr f = do
+     nsref <- gets tclCurrNS
+     putCurrNS newCurr 
+     (op newCurr) `ensure` (putCurrNS nsref)
+ where op nsr = do (r,nsv) <- withScope' f
+                   setNSVars nsr (vars nsv)
+                   return r
+
+setNSVars nsref v = do
+  ns <- (io . readIORef) nsref
+  io $ writeIORef nsref (ns { nsVars = v })
+  
+                   
 
 getOrCreateNamespace ns = case explodeNS ns of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
@@ -381,7 +398,7 @@ getOrCreateNamespace ns = case explodeNS ns of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
 
-putNS ns = modify (\s -> s { tclCurrNS = ns })
+putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
      
 currentNS = do  
   ns <- gets tclCurrNS >>= io . readIORef

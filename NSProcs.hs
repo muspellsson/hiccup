@@ -4,7 +4,7 @@ import Common
 import Core (evalTcl)
 import qualified TclObj as T
 
-nsProcs = makeProcMap [("namespace", procNamespace)]
+nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
 
 procNamespace = makeEnsemble "namespace" [
      ("current", ns_current), 
@@ -12,6 +12,10 @@ procNamespace = makeEnsemble "namespace" [
      ("parent", ns_parent),
      ("children", ns_children),
      ("exists", ns_exists)]
+
+procVariable args = case args of
+       [n,v] -> return v
+       _     -> argErr "variable"
 
 ns_current args = case args of 
        [] -> currentNS >>= treturn

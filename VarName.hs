@@ -22,6 +22,7 @@ data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (
 
 explodeNS bstr = bstr `splitWith` cc
  where cc = pack "::"
+{-# INLINE explodeNS #-}
 
 isGlobal (NS [x]) = B.null x
 isGlobal _        = False

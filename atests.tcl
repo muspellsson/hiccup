@@ -981,6 +981,14 @@ test "namespace exists" {
   checkthat [namespace exists {}] == 1
 }
 
+test "variable" {
+  namespace eval foo {
+    variable wow 99
+  }
+
+  checkthat $foo::wow == 99
+}
+
 
 puts ""
 puts stdout "Done. Passed $assertcount checks."
