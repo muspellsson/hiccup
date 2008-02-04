@@ -55,7 +55,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
 
   compTokenTests = TestList [ 
       "1" ~: (mkwd "x")  `tok_to` (lit "x")  
-       -- ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [(lit "puts", [lit "4"])])
+      ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (NSRef Local (B.pack "puts"))), [lit "4"])])
     ]
   
   block s v = Block (B.pack s) (Right v)

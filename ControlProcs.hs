@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fbang-patterns #-}
+{-# LANGUAGE BangPatterns #-}
 module ControlProcs (controlProcs) where
 
 import Common
@@ -8,8 +8,8 @@ import qualified TclObj as T
 import TclObj ((.==))
 import qualified Data.ByteString.Char8 as B
 
-controlProcs = makeProcMap $ 
-  [("while", procWhile), ("if", procIf), ("for", procFor), 
+controlProcs = makeProcMap $
+  [("while", procWhile), ("if", procIf), ("for", procFor),
    ("foreach", procForEach), ("switch", procSwitch)]
 
 procIf (cond:yes:rest) = do
@@ -43,32 +43,32 @@ procFor args = case args of
          if c then (evalTcl body `eatErr` EContinue) >> evalTcl next >> loop test next body
               else ret
 
-procForEach args = 
+procForEach args =
    case args of
-    [vl_,l_,block] -> do 
+    [vl_,l_,block] -> do
                vl <- T.asList vl_
                l <- T.asList l_
                let vllen = length vl
-               if vllen == 1 
-                   then 
+               if vllen == 1
+                   then
                       allowBreak (mapM_ (doSingl (head vl) block) l)
                    else do
                       let chunks = l `chunkBy` vllen
-                      allowBreak (mapM_ (doChunk vl block) chunks) 
+                      allowBreak (mapM_ (doChunk vl block) chunks)
                ret
     _            -> argErr "foreach"
  where allowBreak f = f `eatErr` EBreak
-       doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty) 
+       doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty)
                                    evalTcl block `eatErr` EContinue
        doSingl v block i = do varSet (T.asBStr v) i
                               evalTcl block `eatErr` EContinue
 
-chunkBy lst n = let (a,r) = splitAt n lst  
+chunkBy lst n = let (a,r) = splitAt n lst
                 in a : (if null r then [] else r `chunkBy` n)
 
 procSwitch args = case args of
-   [str,pairlst]     -> T.asList pairlst >>= doSwitch str 
-   [opt,str,pairlst] -> if opt .== "--" 
+   [str,pairlst]     -> T.asList pairlst >>= doSwitch str
+   [opt,str,pairlst] -> if opt .== "--"
                          then T.asList pairlst >>= doSwitch str
                          else argErr "switch"
    _                 -> argErr "switch"

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fbang-patterns #-}
+{-# LANGUAGE BangPatterns #-}
 module Core (evalTcl, doCond, coreTests) where
 
 import Common
@@ -27,11 +27,11 @@ evalRToken (CatLst l)      = mapM evalRToken l >>= treturn . B.concat . map T.as
 evalRToken (Block s p)     = return $ T.fromBlock s p
 
 runCmd :: Cmd -> TclM RetVal
-runCmd (n,args) = do 
+runCmd (n,args) = do
   evArgs <- mapM evalRToken args
   evArgs `seq` go n evArgs
  where go (Left p@(NSRef _ name)) a = callProc name (getProcNS p) a
-       go (Right rt) a = do o <- evalRToken rt 
+       go (Right rt) a = do o <- evalRToken rt
                             let name = T.asBStr o
                             callProc name (getProc name) a
 
@@ -46,7 +46,7 @@ callProc pn f args =  do
 {-# INLINE callProc #-}
 
 doCond :: T.TclObj -> TclM Bool
-doCond str = do 
+doCond str = do
       p <- T.asParsed str
       case p of
         [x]      -> do r <- runCmd x
@@ -54,5 +54,5 @@ doCond str = do
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
 
-coreTests = TestList [ ] 
+coreTests = TestList [ ]
 

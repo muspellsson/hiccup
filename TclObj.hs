@@ -1,8 +1,8 @@
-{-# OPTIONS_GHC -fbang-patterns #-}
+{-# LANGUAGE BangPatterns #-}
 module TclObj (
  TclObj
- ,mkTclStr 
- ,mkTclBStr 
+ ,mkTclStr
+ ,mkTclBStr
  ,mkTclList
  ,mkTclList'
  ,mkTclInt
@@ -31,10 +31,10 @@ import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
 
-import Test.HUnit  
+import Test.HUnit
 
 type Parsed = [Cmd]
-data TclObj = TclInt !Int BString | 
+data TclObj = TclInt !Int BString |
               TclList !(S.Seq TclObj) BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
@@ -63,8 +63,8 @@ mkTclInt !i = TclInt i bsval
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
 
-tclTrue = mkTclInt 1 
-tclFalse = mkTclInt 0 
+tclTrue = mkTclInt 1
+tclFalse = mkTclInt 0
 
 fromBool !b = if b then tclTrue else tclFalse
 
@@ -104,12 +104,12 @@ instance ITObj TclObj where
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
   asInt (TclList _ v)         = asInt v
-  
+
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
   asBStr (TclList _ b) = b
   {-# INLINE asBStr #-}
-  
+
   asSeq i@(TclInt _ _) = return (S.singleton i)
   asSeq (TclBStr s _ _) = asSeq s >>= return . fmap mkTclBStr
   asSeq (TclList l _)   = return l
@@ -118,7 +118,7 @@ instance ITObj TclObj where
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _)  = fail "Can't parse an int value"
   asParsed (TclList _ _) = fail "Can't parse a list value (for now)"
-  
+
 fromList l = (map listEscape l)  `joinWith` ' '
 
 asListS s = case P.parseList s of

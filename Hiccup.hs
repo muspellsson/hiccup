@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fbang-patterns #-}
+{-# LANGUAGE BangPatterns #-}
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
 import qualified Data.Map as Map
@@ -9,7 +9,7 @@ import qualified TclObj as T
 import Core
 import Common
 import Util
-import Data.Time.Clock (diffUTCTime,getCurrentTime) 
+import Data.Time.Clock (diffUTCTime,getCurrentTime)
 
 import IOProcs
 import ListProcs
@@ -49,7 +49,7 @@ data Interpreter = Interpreter (IORef TclState)
 mkInterp = mkInterpWithArgs []
 
 mkInterpWithArgs :: [BString] -> IO Interpreter
-mkInterpWithArgs args = do 
+mkInterpWithArgs args = do
               st <- makeState (interpVars ++ (processArgs (map T.mkTclBStr args))) baseProcs
               stref <- newIORef st
               return (Interpreter stref)
@@ -60,7 +60,7 @@ runInterp s = runInterp' (evalTcl (T.mkTclBStr s))
 
 runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i
-                 (r,i') <- runTclM t bEnv 
+                 (r,i') <- runTclM t bEnv
                  writeIORef i i'
                  return (fixErr r)
   where perr (EDie s)    = Left $ pack s
@@ -141,7 +141,7 @@ procCatch args = case args of
        retReason v e = case e of
                          EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return T.tclTrue
                          _      -> retIsErr e
-                         
+
 procInfo = makeEnsemble "info" [
   noarg "commands" (commandNames >>= asTclList),
   noarg "vars"     (currentVars  >>= asTclList),
@@ -151,7 +151,7 @@ procInfo = makeEnsemble "info" [
   ("exists", info_exists),
   ("body", info_body)]
  where noarg n f = (n, no_args n f)
-       no_args n f args = case args of 
+       no_args n f args = case args of
                            [] -> f
                            _  -> argErr $ "info " ++ n
 
@@ -161,7 +161,7 @@ info_exists args = case args of
 
 info_body args = case args of
        [n] -> do p <- getProc (T.asBStr n)
-                 case p of 
+                 case p of
                    Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
                    Just p  -> treturn (procBody p)
        _   -> argErr "info body"
@@ -174,11 +174,11 @@ procIncr [vname,val] = T.asInt val >>= incr vname
 procIncr _           = argErr "incr"
 
 incr :: T.TclObj -> Int -> TclM RetVal
-incr n !i =  varModify (T.asBStr n) $ 
-                 \v -> do ival <- T.asInt v 
+incr n !i =  varModify (T.asBStr n) $
+                 \v -> do ival <- T.asInt v
                           return $! (T.mkTclInt (ival + i))
 
-procTime args =  
+procTime args =
    case args of
      [code]     -> do tspan <- dotime code
                       return (T.mkTclStr (show tspan))
@@ -194,7 +194,7 @@ procTime args =
          endt <- io getCurrentTime
          let tspan = diffUTCTime endt startt
          return tspan
- 
+
 
 procReturn args = case args of
       [s] -> throwError (ERet s)
@@ -251,7 +251,7 @@ parseParams name args = T.asList (T.asBStr args) >>= countRet
                               [k,v] -> Right (k,v)
                               _     -> Left s
 
-bindArgs params@(_,hasArgs,pl) args = walkBoth pl args 
+bindArgs params@(_,hasArgs,pl) args = walkBoth pl args
   where walkBoth ((Left v):xs)      (a:as) = varSetLocalVal v a >> walkBoth xs as
         walkBoth ((Left _):_)       []     = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) = varSetLocalVal k a >> walkBoth xs as
@@ -266,8 +266,8 @@ procProc [name,args,body] = do
   regProc pname (T.asBStr body) (procRunner params body)
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
-procRunner pl body args = 
-  withScope $ do 
+procRunner pl body args =
+  withScope $ do
     bindArgs pl args
     evalTcl body `catchError` herr
  where herr (ERet s)  = return s
