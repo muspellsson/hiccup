@@ -73,9 +73,9 @@ data Namespace = TclNS {
          nsProcs :: ProcMap,
          nsVars :: VarMap,
          nsParent :: Maybe (IORef Namespace),
-         nsChildren :: Map.Map BString (IORef Namespace) } -- Ok.. and how do we use this?
+         nsChildren :: Map.Map BString (IORef Namespace) } 
 
-globalNS = TclNS { nsName = pack "::", nsProcs = emptyProcMap, nsVars = Map.empty, nsParent = Nothing, nsChildren = Map.empty }
+globalNS = TclNS { nsName = pack "::", nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Nothing, nsChildren = Map.empty }
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
@@ -90,7 +90,9 @@ data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
 
 type TclArray = Map.Map BString T.TclObj
 
+makeProcMap :: [(String,TclProc)] -> ProcMap
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
+
 toTclProcT (n,v) = (n, TclProcT n errStr v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
@@ -354,19 +356,21 @@ upvar n d s = do (e:es) <- getStack
 {-# INLINE upvar #-}
 
 withScope :: TclM RetVal -> TclM RetVal
-withScope f = withScope' f >>= return . fst
+withScope f = withScope' emptyVarMap f >>= return . fst
 
-withScope' :: TclM RetVal -> TclM (RetVal, TclFrame)
-withScope' f = do
+withScope' :: VarMap -> TclM RetVal -> TclM (RetVal, TclFrame)
+withScope' vm f = do
   (o:old) <- getStack
-  putStack $ emptyFrame : o : old
-  (f >>= \v -> getFrame >>= \fr -> return (v,fr)) `ensure` (modStack (drop 1))
+  putStack $ emptyFrame { vars = vm } : o : old
+  fun `ensure` (modStack (drop 1))
+ where fun = do v <- f
+                fr <- getFrame
+                return (v,fr)
 
 mkEmptyNS name parent = do
-    new <- newIORef $ TclNS { nsName = name, nsProcs = emptyProcMap, nsVars = Map.empty, nsParent = Just parent, nsChildren = Map.empty }
+    new <- newIORef $ TclNS { nsName = name, nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Just parent, nsChildren = Map.empty }
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
-
 
 withNS :: BString -> TclM RetVal -> TclM RetVal
 withNS name f = do
@@ -377,13 +381,18 @@ withExistingNS newCurr f = do
      nsref <- gets tclCurrNS
      putCurrNS newCurr
      (op newCurr) `ensure` (putCurrNS nsref)
- where op nsr = do (r,nsv) <- withScope' f
+ where op nsr = do vm <- getNSVars nsr 
+                   (r,nsv) <- withScope' vm f
                    setNSVars nsr (vars nsv)
                    return r
 
 setNSVars nsref v = do
   ns <- (io . readIORef) nsref
   io $ writeIORef nsref (ns { nsVars = v })
+
+getNSVars nsref = do
+  ns <- (io . readIORef) nsref
+  return (nsVars ns)
 
 
 
@@ -428,7 +437,7 @@ treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr
 {-# INLINE treturn #-}
 
-emptyFrame = TclFrame { vars = Map.empty, upMap = Map.empty }
+emptyFrame = TclFrame { vars = emptyVarMap, upMap = Map.empty }
 
 makeEnsemble name subs = top
   where top args = case args of
@@ -441,6 +450,7 @@ makeEnsemble name subs = top
 procMapNames = map procName . Map.elems
 
 emptyProcMap = Map.empty
+emptyVarMap = Map.empty
 -- # TESTS # --
 
 runWithEnv :: TclM RetVal -> Either Err RetVal -> IO Bool
@@ -455,7 +465,7 @@ errWithEnv t =
        retv <- liftM fst (runTclM t st)
        return retv
 
-commonTests = TestList [ setTests, getTests, unsetTests ] where
+commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   b = pack
 
@@ -492,6 +502,14 @@ commonTests = TestList [ setTests, getTests, unsetTests ] where
        ,"set exists2" ~: (varSet (b "boogie") (int 1)) `checkExists` "boogie"
        ,"checkeq" ~: checkEq (varSet name value) "varname" value
      ]
+  withScopeTests = TestList [
+      "with scope" ~: getVM (varSet (b "x") (int 1)) (\m -> not (Map.null m))
+    ]
+   where getVM f c = do (res,_) <- evalWithEnv (withScope' emptyVarMap f)
+                        case res of
+                         Left e -> error (show e)
+                         Right (_,vm) -> assertBool "getVM" (c (vars vm))
+                        
 
   getTests = TestList [
        "non-exist" ~: (varGet (b "boo")) `checkErr` "can't read \"boo\": no such variable"

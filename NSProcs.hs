@@ -4,7 +4,6 @@ import Common
 import Core (evalTcl)
 import qualified TclObj as T
 
--- nsProcs :: Map BString TclProcT
 nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
 
 procNamespace :: [T.TclObj] -> TclM RetVal
@@ -15,12 +14,10 @@ procNamespace = makeEnsemble "namespace" [
      ("children", ns_children),
      ("exists", ns_exists)]
 
-procVariable :: (Monad m) => [t] -> m t
 procVariable args = case args of
-       [_,v] -> return v
+       [n,v] -> varSet (T.asBStr n) v
        _     -> argErr "variable"
 
--- ns_current :: [t] -> Control.Monad.Error.ErrorT Err (Control.Monad.State.Lazy.StateT TclState IO) RetVal
 ns_current args = case args of
        [] -> currentNS >>= treturn
        _  -> argErr "namespace current"

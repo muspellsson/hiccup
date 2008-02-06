@@ -981,14 +981,25 @@ test "namespace exists" {
   checkthat [namespace exists {}] == 1
 }
 
-test "variable" {
+test "ns level" {
+  set ::lev 0
+  namespace eval abc {
+    set ::lev [info level]
+  }
+  
+  checkthat [info level] == [- $::lev 1]
+  unset ::lev
+}
+
+test "simple variable" {
   namespace eval foo {
     variable wow 99
   }
+ checkthat $foo::wow == 99
+ set foo::wow 3
+ checkthat $foo::wow == 3 
 
- # checkthat $foo::wow == 99
 }
-
 
 puts ""
 puts stdout "Done. Passed $assertcount checks."
