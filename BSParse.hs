@@ -163,7 +163,7 @@ wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange
 parseWord s = getword s >>= \(w,r) -> return (Word w, r)
 
 getword s = if B.null w then fail "can't parse word" else return (w,n)
- where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*()=/:^%!&<>"))) s
+ where (w,n) = B.span (\x -> wordChar x || (x `B.elem` (B.pack "$+.-*()=/:^%!&<>?"))) s
 
 getvar s = if B.null w then fail "can't parse var name" else return $! (w,n)
  where (w,n) = B.span wordChar s

@@ -3,6 +3,7 @@ import Common
 
 import Util
 import qualified TclObj as T
+import TclObj ((.==))
 import Control.Monad
 import qualified Data.Map as Map
 import VarName
@@ -19,7 +20,7 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (T.asStr a) (T.asStr b))
 
 
-procArray = makeEnsemble "array" [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set)]
+procArray = makeEnsemble "array" [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set), ("names", array_names)]
 
 arrSet n i v = varSet' (VarName n (Just i)) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
@@ -32,6 +33,22 @@ array_get args = case args of
          [name] ->  do arr <- getOrEmpty name
                        return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (Map.toList arr)
          _      -> argErr "array get"
+
+array_names args = case args of
+         [name] -> getKeys name >>= retlist
+         [name,pat] -> getKeys name >>= retlist . globMatch (T.asBStr pat)
+         [name,mode,pat] -> do 
+                      keys <- getKeys name
+                      if mode .== "-glob" 
+                         then retlist (globMatch (T.asBStr pat) keys)
+                         else if mode .== "-exact" 
+                                then retlist (filter (== (T.asBStr pat)) keys)
+                                else tclErr $ "bad option " ++ show mode
+                      
+         _      -> argErr "array names"
+ where globMatch pat lst = filter (match False pat) lst
+       getKeys n = getOrEmpty n >>= return . Map.keys
+       retlist = return . T.mkTclList . map T.mkTclBStr
 
 array_set args = case args of
           [a2,a3] -> do l <- T.asList a3

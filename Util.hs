@@ -3,6 +3,7 @@ import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
+import Data.Char (toLower)
 
 type BString = B.ByteString
 
@@ -54,6 +55,20 @@ commaList conj lst = (intercalate ", " (init lst)) ++ " " ++ conj ++ " " ++ last
 
 intercalate :: String -> [String] -> String
 intercalate xs xss = concat (intersperse xs xss)
+
+match :: Bool -> BString -> BString -> Bool
+match nocase pat str = inner 0 0
+ where slen = B.length str 
+       plen = B.length pat
+       ceq a b = if nocase then toLower a == toLower b else a == b
+       inner pi si  
+        | pi == plen = si == slen
+        | otherwise = case B.index pat pi of
+                       '*'  -> pi == (plen - 1) || or (map (inner (succ pi)) [si..(slen - 1)])
+                       '?'  -> not (si == slen) && inner (succ pi) (succ si)
+                       '\\' -> inner (succ pi) si
+                       v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
+
 
 utilTests = TestList [joinWithTests, listEscapeTests] where
  

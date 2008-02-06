@@ -45,19 +45,6 @@ string_index args = case args of
  where toInd s i = (T.asInt i) `orElse` tryEnd s i
        tryEnd s i = if i .== "end" then return ((B.length s) - 1) else tclErr "bad index"
 
-match :: Bool -> BString -> BString -> Bool
-match nocase pat str = inner 0 0
- where slen = B.length str 
-       plen = B.length pat
-       ceq a b = if nocase then toLower a == toLower b else a == b
-       inner pi si  
-        | pi == plen = si == slen
-        | otherwise = case B.index pat pi of
-                       '*'  -> pi == (plen - 1) || or (map (inner (succ pi)) [si..(slen - 1)])
-                       '?'  -> not (si == slen) && inner (succ pi) (succ si)
-                       '\\' -> inner (succ pi) si
-                       v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
-
 procAppend args = case args of
             (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
@@ -81,6 +68,8 @@ matchTests = TestList [
     ,"1" `matches` "1" 
     ,"a?c" `matches` "abc" 
     ,"a?c" `doesnt_match` "ab" 
+    ,"a??d" `matches` "abcd" 
+    ,"f??d" `matches` "feed" 
     ,"a" `doesnt_match` "ab" 
     ,"ab" `doesnt_match` "a" 
     ,"a*" `matches` "abcde" 

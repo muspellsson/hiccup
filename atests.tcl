@@ -713,6 +713,36 @@ test "array size" {
   checkthat [array size boo] == 3
 }
 
+test "array names" {
+  set arr(0) 1
+  set arr(feed) people
+  checkthat [llength [array names arr]] == 2
+}
+
+test "array names pat" {
+  set arr(0) 1
+  set arr(feed) people
+  checkthat [llength [array names arr oot]] == 0
+  checkthat [llength [array names arr ?]] == 1
+  checkthat [llength [array names arr ??]] == 0
+  checkthat [llength [array names arr f*]] == 1
+  checkthat [llength [array names arr f??d]] == 1
+}
+
+test "array names mode pat" {
+  set arr(0) 1
+  set arr(feed) people
+  set arr(food) chickens
+  assertErr { array names arr -bad 4 }
+  checkthat [llength [array names arr -glob ?]] == 1
+  checkthat [llength [array names arr -exact ?]] == 0
+  checkthat [llength [array names arr -glob ??]] == 0
+  checkthat [llength [array names arr -glob f*]] == 2
+  checkthat [llength [array names arr -exact food]] == 1
+  checkthat [llength [array names arr -glob f??d]] == 2
+  checkthat [llength [array names arr -exact f??d]] == 0
+}
+
 test "array exists" {
   checkthat [array exists arr1] == 0
 
