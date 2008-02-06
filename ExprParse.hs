@@ -1,4 +1,4 @@
-module ExprParse  where
+module ExprParse (parseTests,riExpr) where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
@@ -67,14 +67,14 @@ runExpr exp lu =
     (TOp OpTimes a b) -> objap (procMath (*)) a b
     (TOp OpMinus a b) -> objap (procMath (-)) a b
     (TOp OpDiv a b) -> objap nop a b
-    (TOp OpEql a b) -> objap nop a b
+    (TOp OpEql a b) -> objap (procCmp (==)) a b
     (TOp OpNeql a b) -> objap (procCmp (/=)) a b
     (TOp OpLt a b) -> objap (procCmp (<)) a b
     (TOp OpGt a b) -> objap (procCmp (>)) a b
     (TOp OpLte a b) -> objap (procCmp (<=)) a b
     (TOp OpGte a b) -> objap (procCmp (>=)) a b
     (TOp OpStrEq a b) -> objap (procStr (==)) a b
-    (TOp OpStrNe a b) -> objap nop a b
+    (TOp OpStrNe a b) -> objap (procStr (/=)) a b
     (TVal v) -> return v
     (TVar n) -> lu n
     _                 -> fail $ "wtf?" ++ (show exp)
@@ -106,7 +106,7 @@ factor = do symbol "("
             x <- pexpr
             symbol ")"
             return x
-         <|> myint <|> mystr <|> myvar <|> myfun <|> factor <?> "term"
+         <|> myint <|> mystr <|> myvar <|> myfun  <?> "term"
             
 myint = do i <- (integer <?> "integer")
            return $ tInt (fromIntegral i)
@@ -205,6 +205,8 @@ varEvalTests = TestList
  where eql a b = (runExpr a lu) ~=? Just b
        table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
        lu v = M.lookup v table
+
+riExpr s = expr s >>= \e -> runExpr e (\_ -> fail "expr can't handle variables")
 
 parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 

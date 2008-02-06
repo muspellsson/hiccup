@@ -69,6 +69,8 @@ match nocase pat str = inner 0 0
                        '\\' -> inner (succ pi) si
                        v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
 
+globMatch pat = filter (match False pat) 
+exactMatch pat = filter (== pat) 
 
 utilTests = TestList [joinWithTests, listEscapeTests] where
  

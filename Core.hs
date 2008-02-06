@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, coreTests) where
+module Core (evalTcl, doCond, subst, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -17,6 +17,14 @@ evalTcl s = runCmds =<< T.asParsed s
 runCmds [x]    = runCmd x
 runCmds (x:xs) = runCmd x >> runCmds xs
 runCmds []     = ret
+
+
+subst s = do cmds <- T.asParsed s
+             let toks = concatMap uncmd cmds
+             evalRToken (CatLst toks)
+ where uncmd (Right n,args) = (n:args)
+       uncmd (Left (NSRef Local n), args) = ((Lit n):args)
+       uncmd (Left n, _) = error (show n)
 
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)         = return $ T.mkTclBStr s

@@ -39,15 +39,15 @@ array_names args = case args of
          [name,pat] -> getKeys name >>= retlist . globMatch (T.asBStr pat)
          [name,mode,pat] -> do 
                       keys <- getKeys name
+                      let bpat = T.asBStr pat
                       if mode .== "-glob" 
-                         then retlist (globMatch (T.asBStr pat) keys)
+                         then retlist (globMatch bpat keys)
                          else if mode .== "-exact" 
-                                then retlist (filter (== (T.asBStr pat)) keys)
+                                then retlist (exactMatch bpat keys)
                                 else tclErr $ "bad option " ++ show mode
                       
          _      -> argErr "array names"
- where globMatch pat lst = filter (match False pat) lst
-       getKeys n = getOrEmpty n >>= return . Map.keys
+ where getKeys n = getOrEmpty n >>= return . Map.keys
        retlist = return . T.mkTclList . map T.mkTclBStr
 
 array_set args = case args of

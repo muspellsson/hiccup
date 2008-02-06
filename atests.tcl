@@ -124,6 +124,14 @@ test "upvar" {
   assertEq $y 4
 }
 
+test "info vars" {
+  checkthat [llength [info vars]] == 0
+  set x 4
+  checkthat [info vars] eq "x"
+  checkthat [info vars y] eq {}
+  checkthat [info vars ?] eq "x"
+}
+
 test "upvar create" {
   proc xxx {} { upvar up local; set local 5 }
   checkthat [info exists up] == 0
@@ -397,16 +405,13 @@ test "empty eval" {
   assertNoErr { eval " " }
 }
 
-proc expr { a1 args } { 
-  if { != [llength $args] 0} {  
-    eval "[lindex $args 0] $a1 [lindex $args 1]"
-  } else {
-    eval "expr $a1"
-  }
+test "expr" {
+  checkthat [expr 4 + 4] == 8
+  checkthat [expr {4 + 4}] == 8
+  checkthat [expr {9 + (1 * 1)}] == 10
+  set x 10
+  checkthat [expr { $x + $x }] == 20
 }
-
-assertEq 8 [expr 4 + 4]
-assertEq 8 [expr {4 + 4}]
 
 test "set returns correctly" {
   set babytime 444
@@ -1026,7 +1031,8 @@ test "simple variable" {
     variable wow 99
   }
  checkthat $foo::wow == 99
- set foo::wow 3
+ checkthat $::foo::wow == 99
+ set ::foo::wow 3
  checkthat $foo::wow == 3 
 
 }

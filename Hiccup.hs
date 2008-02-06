@@ -18,6 +18,7 @@ import ControlProcs
 import StringProcs
 import NSProcs
 import Test.HUnit  -- IGNORE
+import ExprParse
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
@@ -26,7 +27,7 @@ coreProcs = makeProcMap $
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
-  ("source", procSource), ("incr", procIncr), ("time", procTime)]
+  ("source", procSource), ("incr", procIncr), ("time", procTime), ("expr", procExpr)]
 
 mathProcs = makeProcMap $
    [("+",m (+)), ("*",m (*)), ("-",m (-)), ("pow", m (^)),
@@ -128,6 +129,11 @@ procEql [a,b] = case (T.asInt a, T.asInt b) of
 procEql _ = argErr "=="
 
 
+procExpr args = do  
+  al <- mapM subst args 
+  let s = concat (map T.asStr al) 
+  riExpr s
+
 procEval args = case args of
                  [s] -> evalTcl s
                  _   -> argErr "eval"
@@ -144,10 +150,10 @@ procCatch args = case args of
 
 procInfo = makeEnsemble "info" [
   noarg "commands" (commandNames >>= asTclList),
-  noarg "vars"     (currentVars  >>= asTclList),
   noarg "locals"   (localVars    >>= asTclList),
   noarg "globals"  (globalVars   >>= asTclList),
   noarg "level"    (liftM T.mkTclInt stackLevel),
+  ("vars", info_vars),
   ("exists", info_exists),
   ("body", info_body)]
  where noarg n f = (n, no_args n f)
@@ -155,6 +161,10 @@ procInfo = makeEnsemble "info" [
                            [] -> f
                            _  -> argErr $ "info " ++ n
 
+info_vars args = case args of
+     []    -> currentVars >>= asTclList
+     [pat] -> currentVars >>= asTclList . globMatch (T.asBStr pat)
+     _  -> argErr "info vars"
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
@@ -166,7 +176,7 @@ info_body args = case args of
                    Just p  -> treturn (procBody p)
        _   -> argErr "info body"
 
-asTclList = procList . map T.mkTclBStr
+asTclList = return . T.mkTclList . map T.mkTclBStr
 
 
 procIncr [vname]     = incr vname 1
