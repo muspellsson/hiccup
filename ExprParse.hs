@@ -54,11 +54,11 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-objapply :: (Monad m) => (String -> m T.TclObj) -> ([T.TclObj] -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
+objapply :: (Monad m) => (String -> m T.TclObj) -> ((T.TclObj,T.TclObj) -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
-  f [i1,i2]
+  f (i1,i2)
 
 
 runExpr :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
@@ -79,33 +79,34 @@ runExpr exp lu =
     (TVal v) -> return $! v
     (TVar n) -> lu n
     _                 -> fail $ "expr can't currently eval: " ++ (show exp)
- where nop lst = fail "not implemented"
+ where nop lst = fail "sorry, not implemented"
        objap = objapply lu
-       procMath f [a,b] = do ai <- T.asInt a
+       procMath f (a,b) = do ai <- T.asInt a
                              bi <- T.asInt b
                              return $! T.mkTclInt (ai `f` bi)
-       procCmp f [a,b]  = do ai <- T.asInt a
+       procCmp f (a,b)  = do ai <- T.asInt a
                              bi <- T.asInt b
                              return $! T.fromBool (ai `f` bi)
-       procStr f [a,b]  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
+       procStr f (a,b)  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor
 
-table = [[op "*" (OpTimes) AssocLeft, op "/" (OpDiv)  AssocLeft]
-        ,[op "+" (OpPlus) AssocLeft, op "-" (OpMinus) AssocLeft] 
+table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
+        ,[op1 '+' (OpPlus) AssocLeft, op1 '-' (OpMinus) AssocLeft] 
         ,[op "==" (OpEql) AssocLeft, op "!=" (OpNeql) AssocLeft] 
         ,[op "eq" OpStrEq AssocLeft, op "ne" OpStrNe AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
-        ,[op "<" OpLt AssocLeft, op ">" OpGt AssocLeft]
+        ,[op1 '<' OpLt AssocLeft, op1 '>' OpGt AssocLeft]
      ]
    where
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc
+     op1 s f assoc = Infix (do{ schar s; return (TOp f)}) assoc
      tryop s f assoc = Infix (do{ try(symbol s); return (TOp f)}) assoc
 
-factor = do symbol "("
+factor = do schar '('
             x <- pexpr
-            symbol ")"
+            schar ')'
             return x
          <|> myint <|> mystr <|> myvar <|> myfun  <?> "term"
             
