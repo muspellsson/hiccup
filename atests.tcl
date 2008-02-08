@@ -87,7 +87,7 @@ proc test {name body} {
   set ::current_test $name
   uplevel "proc test_proc {} {$body}"
   set ret [catch { uplevel test_proc } retval]
-  if { == $ret 1 } { puts "Err in test {$name}: $retval" }
+  if { == $ret 1 } { assertFail "Error in test {$name}: $retval" }
 }
 
 proc with_test {tn code} {
@@ -411,6 +411,7 @@ test "expr" {
   checkthat [expr {9 + (1 * 1)}] == 10
   set x 10
   checkthat [expr { $x + $x }] == 20
+  checkthat [expr { [+ 1 1] * 2 }] == 4
 }
 
 test "set returns correctly" {
@@ -964,15 +965,16 @@ test "global namespace" {
 }
 
 test "namespace current" {
-  checkthat [namespace current] == "::"
+  #checkthat [namespace current] == "::"
   checkthat [namespace parent] == {}
 }
+
 
 test "namespace proc 1" {
   namespace eval temp {
     proc one {} { return 1 }
-    checkthat [namespace current] == "temp"
-    checkthat [namespace parent] == "::"
+    checkthat [namespace current] == "::temp"
+    checkthat [namespace parent] == ""
     checkthat [one] == 1
   }
 
@@ -1034,7 +1036,18 @@ test "simple variable" {
  checkthat $::foo::wow == 99
  set ::foo::wow 3
  checkthat $foo::wow == 3 
+}
 
+test "variable thing" {
+  proc evil {} {
+    checkthat $::temp_ns::value == 4
+  }
+
+  namespace eval temp_ns {
+    variable value 4
+    puts [info vars]
+    ::evil
+  }
 }
 
 puts ""

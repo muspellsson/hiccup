@@ -70,16 +70,17 @@ type TclM = ErrorT Err (StateT TclState IO)
 
 data Namespace = TclNS {
          nsName :: BString,
+         nsFullName :: BString,
          nsProcs :: ProcMap,
          nsVars :: VarMap,
          nsParent :: Maybe (IORef Namespace),
          nsChildren :: Map.Map BString (IORef Namespace) } 
 
-globalNS = TclNS { nsName = pack "::", nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Nothing, nsChildren = Map.empty }
+globalNS = TclNS { nsName = pack "::", nsFullName = pack "", nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Nothing, nsChildren = Map.empty }
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
-data TclFrame = TclFrame { vars :: VarMap, upMap :: Map.Map BString (Int,BString) }
+data TclFrame = TclFrame { frVars :: VarMap, upMap :: Map.Map BString (Int,BString) }
 type TclStack = [TclFrame]
 data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclCurrNS :: IORef Namespace, tclGlobalNS :: IORef Namespace }
 type TclProc = [T.TclObj] -> TclM RetVal
@@ -100,15 +101,15 @@ makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
-makeState' chans vlist procs = do let fr = emptyFrame { vars = Map.fromList (mapSnd ScalarVar vlist) }
+makeState' chans vlist procs = do let fr = emptyFrame { frVars = Map.fromList (mapSnd ScalarVar vlist) }
                                   ns <- newIORef (globalNS { nsProcs = procs })
                                   return (TclState chans [fr] ns ns)
 
 stackLevel = getStack >>= return . pred . length
 globalVars = upglobal localVars
-localVars = getFrame >>= return . Map.keys . vars
+localVars = getFrame >>= return . Map.keys . frVars
 currentVars = do f <- getFrame
-                 return $ Map.keys (vars f) ++ Map.keys (upMap f)
+                 return $ Map.keys (frVars f) ++ Map.keys (upMap f)
 
 commandNames = getProcMap >>= return . map procName . Map.elems
 
@@ -214,15 +215,15 @@ varSet' vn v = do
                           putStack (ne:es)
                           return v
  where modEnv env = do
-                let ev  = vars env
+                let ev  = frVars env
                 let str = vnName vn
                 case vnInd vn of
                   Nothing -> case Map.lookup str ev of
                               Just (ArrayVar _) -> tclErr $ "can't set " ++ showVN vn ++ ": variable is array"
-                              _                 -> return (env { vars = Map.insert str (ScalarVar v) ev })
+                              _                 -> return (env { frVars = Map.insert str (ScalarVar v) ev })
                   Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
                                ScalarVar _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
-                               ArrayVar prev ->  return (env { vars = Map.insert str (ArrayVar (Map.insert i v prev)) ev })
+                               ArrayVar prev ->  return (env { frVars = Map.insert str (ArrayVar (Map.insert i v prev)) ev })
 
 varMod' :: VarName -> (T.TclObj -> TclM RetVal) -> TclM RetVal
 varMod' vn@(VarName str ind) f = do
@@ -233,20 +234,20 @@ varMod' vn@(VarName str ind) f = do
                           putStack (ne:es)
                           return v
  where modEnv env = do
-                let ev = vars env
+                let ev = frVars env
                 let old = Map.lookup str ev
                 case (old,ind) of
                   (Nothing,_) -> tclErr $ "no such variable: " ++ showVN vn
                   (Just os, Nothing) -> case os of
                                              ScalarVar val -> do
                                                     val2 <- f val
-                                                    return ((env { vars = Map.insert str (ScalarVar val2) ev }), val2)
+                                                    return ((env { frVars = Map.insert str (ScalarVar val2) ev }), val2)
                                              _ -> tclErr $ "can't read " ++ showVN vn ++ ", variable is array"
                   (Just oa, Just i)  -> case oa of
                                          ArrayVar prev -> do
                                              p2 <- Map.lookup i prev
                                              v <- f p2
-                                             return ((env { vars = Map.insert str (ArrayVar (Map.insert i v prev)) ev }), v)
+                                             return ((env { frVars = Map.insert str (ArrayVar (Map.insert i v prev)) ev }), v)
                                          _ -> tclErr $ "can't set " ++ showVN vn ++ ": variable isn't array"
 
 {-# INLINE varMod' #-}
@@ -284,9 +285,9 @@ varUnset' :: BString -> TclM RetVal
 varUnset' name = do
    (env:es) <- getStack
    case upped name env of
-      Nothing    -> do let vmap = vars env
+      Nothing    -> do let vmap = frVars env
                        verifyNameIn vmap
-                       putStack ((env { vars = Map.delete name vmap }):es)
+                       putStack ((env { frVars = Map.delete name vmap }):es)
       Just (i,s) -> do let umap = upMap env
                        verifyNameIn umap
                        putStack ((env { upMap = Map.delete name umap }):es)
@@ -298,7 +299,7 @@ varUnset' name = do
 varDump = do env <- getStack
              io (putStrLn "")
              io (mapM_ (\(i,a,b) -> (putStrLn (i ++ ":") >> putStrLn a >> putStrLn b))  (map fixit (zip [0..] env)))
-  where fixit (i,s) = (show i, Map.showTree (vars s), Map.showTree (upMap s))
+  where fixit (i,s) = (show i, Map.showTree (frVars s), Map.showTree (upMap s))
 
 
 
@@ -314,7 +315,7 @@ varLookup :: BString -> TclM (Maybe TclVar)
 varLookup name = do
    env <- getFrame
    case upped name env of
-      Nothing    -> return (Map.lookup name (vars env))
+      Nothing    -> return (Map.lookup name (frVars env))
       Just (i,n) -> uplevel i (varLookup n)
 
 varGet :: BString -> TclM RetVal
@@ -361,14 +362,15 @@ withScope f = withScope' emptyVarMap f >>= return . fst
 withScope' :: VarMap -> TclM RetVal -> TclM (RetVal, TclFrame)
 withScope' vm f = do
   (o:old) <- getStack
-  putStack $ emptyFrame { vars = vm } : o : old
+  putStack $ emptyFrame { frVars = vm } : o : old
   fun `ensure` (modStack (drop 1))
  where fun = do v <- f
                 fr <- getFrame
                 return (v,fr)
 
 mkEmptyNS name parent = do
-    new <- newIORef $ TclNS { nsName = name, nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Just parent, nsChildren = Map.empty }
+    pname <- liftM nsFullName (readIORef parent)
+    new <- newIORef $ TclNS { nsName = name, nsFullName = B.concat [pname, pack "::", name],  nsProcs = emptyProcMap, nsVars = emptyVarMap, nsParent = Just parent, nsChildren = Map.empty }
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
 
@@ -383,7 +385,7 @@ withExistingNS newCurr f = do
      (op newCurr) `ensure` (putCurrNS nsref)
  where op nsr = do vm <- getNSVars nsr 
                    (r,nsv) <- withScope' vm f
-                   setNSVars nsr (vars nsv)
+                   setNSVars nsr (frVars nsv)
                    return r
 
 setNSVars nsref v = do
@@ -411,13 +413,13 @@ putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
 
 currentNS = do
   ns <- gets tclCurrNS >>= io . readIORef
-  return (nsName ns)
+  return (nsFullName ns)
 
 parentNS = do
  ns <- gets tclCurrNS >>= io . readIORef
  case nsParent ns of
    Nothing -> return B.empty
-   Just v  -> (io . readIORef) v >>= return . nsName
+   Just v  -> (io . readIORef) v >>= return . nsFullName
 
 childrenNS :: TclM [BString]
 childrenNS = do
@@ -437,7 +439,7 @@ treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr
 {-# INLINE treturn #-}
 
-emptyFrame = TclFrame { vars = emptyVarMap, upMap = Map.empty }
+emptyFrame = TclFrame { frVars = emptyVarMap, upMap = Map.empty }
 
 makeEnsemble name subs = top
   where top args = case args of
@@ -482,13 +484,13 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   checkExists a n = do (_,(v:_)) <- evalWithEnv a
                        vExists n v
 
-  vExists vn env = assert (Map.member (b vn) (vars env))
+  vExists vn env = assert (Map.member (b vn) (frVars env))
 
   checkEq :: TclM t -> String -> T.TclObj -> Assertion
   checkEq a n val = do (_,(v:_)) <- evalWithEnv a
                        vEq n v val
 
-  vEq vn env val = assert ((Map.lookup (b vn) (vars env)) == (Just (ScalarVar val)))
+  vEq vn env val = assert ((Map.lookup (b vn) (frVars env)) == (Just (ScalarVar val)))
 
   value = int 666
   name = b "varname"
@@ -508,7 +510,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
    where getVM f c = do (res,_) <- evalWithEnv (withScope' emptyVarMap f)
                         case res of
                          Left e -> error (show e)
-                         Right (_,vm) -> assertBool "getVM" (c (vars vm))
+                         Right (_,vm) -> assertBool "getVM" (c (frVars vm))
                         
 
   getTests = TestList [

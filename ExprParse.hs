@@ -1,4 +1,4 @@
-module ExprParse (parseTests,riExpr) where
+module ExprParse (exprParseTests,riExpr) where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
@@ -13,6 +13,7 @@ lexer = P.makeTokenParser emptyDef
 
 integer = P.natural lexer
 symbol  = P.symbol lexer
+schar c = char c >> P.whiteSpace lexer
 identifier  = P.identifier lexer
 stringLit = P.stringLiteral lexer
 
@@ -20,7 +21,7 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
-data TExp = TOp Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
+data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
 testLu :: String -> IO T.TclObj
 testLu v = M.lookup v table
@@ -75,17 +76,17 @@ runExpr exp lu =
     (TOp OpGte a b) -> objap (procCmp (>=)) a b
     (TOp OpStrEq a b) -> objap (procStr (==)) a b
     (TOp OpStrNe a b) -> objap (procStr (/=)) a b
-    (TVal v) -> return v
+    (TVal v) -> return $! v
     (TVar n) -> lu n
-    _                 -> fail $ "wtf?" ++ (show exp)
+    _                 -> fail $ "expr can't currently eval: " ++ (show exp)
  where nop lst = fail "not implemented"
        objap = objapply lu
        procMath f [a,b] = do ai <- T.asInt a
                              bi <- T.asInt b
-                             return $ T.mkTclInt (ai `f` bi)
+                             return $! T.mkTclInt (ai `f` bi)
        procCmp f [a,b]  = do ai <- T.asInt a
                              bi <- T.asInt b
-                             return $ T.fromBool (ai `f` bi)
+                             return $! T.fromBool (ai `f` bi)
        procStr f [a,b]  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
@@ -94,7 +95,7 @@ pexpr   = many space >> buildExpressionParser table factor
 table = [[op "*" (OpTimes) AssocLeft, op "/" (OpDiv)  AssocLeft]
         ,[op "+" (OpPlus) AssocLeft, op "-" (OpMinus) AssocLeft] 
         ,[op "==" (OpEql) AssocLeft, op "!=" (OpNeql) AssocLeft] 
-        ,[tryop "eq" OpStrEq AssocLeft, tryop "ne" OpStrNe AssocLeft]
+        ,[op "eq" OpStrEq AssocLeft, op "ne" OpStrNe AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
         ,[op "<" OpLt AssocLeft, op ">" OpGt AssocLeft]
      ]
@@ -208,8 +209,8 @@ varEvalTests = TestList
 
 riExpr s = expr s >>= \e -> runExpr e (\_ -> fail "expr can't handle variables")
 
-parseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
+exprParseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 
-runUnit = runTestTT parseTests
+runUnit = runTestTT exprParseTests
 
 howbout s = parse pexpr "" s
