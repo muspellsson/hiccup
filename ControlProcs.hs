@@ -50,8 +50,7 @@ procForEach args =
                l <- T.asList l_
                let vllen = length vl
                if vllen == 1
-                   then
-                      allowBreak (mapM_ (doSingl (head vl) block) l)
+                   then allowBreak (mapM_ (doSingl (head vl) block) l)
                    else do
                       let chunks = l `chunkBy` vllen
                       allowBreak (mapM_ (doChunk vl block) chunks)
@@ -75,9 +74,7 @@ procSwitch args = case args of
 
 doSwitch str lst = do pl <- toPairs lst
                       switcher str pl False
- where
-       switcher _ []      _       = tclErr "impossible condition in \"switch\""
-       switcher f [(k,v)] useNext = do
+ where switcher f [(k,v)] useNext = do
          if f == k || useNext || k .== "default"
              then if v .== "-" then tclErr $ "no body specified for pattern " ++ show k
                                else evalTcl v
@@ -86,6 +83,7 @@ doSwitch str lst = do pl <- toPairs lst
          if f == k || useNext
              then if v .== "-" then switcher f xs True else evalTcl v
              else switcher f xs False
+       switcher _ []      _       = tclErr "impossible condition in \"switch\""
 
 toPairs [a,b]   = return [(a,b)]
 toPairs (a:b:r) = liftM ((a,b):) (toPairs r)

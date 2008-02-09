@@ -1040,8 +1040,7 @@ test "simple variable" {
 
 test "variable thing" {
   proc evil {} {
-    # TODO
-    # checkthat $::temp_ns::value == 4
+    checkthat $::temp_ns::value == 4
   }
 
   namespace eval temp_ns {

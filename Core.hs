@@ -27,7 +27,7 @@ subst s = do cmds <- T.asParsed s
        uncmd (Left n, _) = error (show n)
 
 evalRToken :: RToken -> TclM T.TclObj
-evalRToken (Lit s)         = return $ T.mkTclBStr s
+evalRToken (Lit s)         = return $! T.mkTclBStr s
 evalRToken (CmdTok t)      = runCmd t
 evalRToken (VarRef vn)     = varGetNS vn
 evalRToken (ArrRef ns n i) = evalRToken i >>= \ni -> varGetNS (NSRef ns (VarName n (Just (T.asBStr ni))))
