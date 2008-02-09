@@ -28,7 +28,7 @@ proc assertFail why {
 }
 
 
-proc checkthat { var op r } {
+proc checkthat { var { op == } { r 1 } } {
   set res [$op $var $r]
   if { == $res 1 } {
     assertPass
@@ -499,9 +499,21 @@ test "parsing corners" {
 }
 
 
+proc finalize { items code } {
+  uplevel $code
+  foreach { type name } $items {
+    switch $type {
+      ns -
+      namespace { namespace delete $name }
+      proc -
+      pr { rename $name {} }
+      default { error "Unrecognized type: $type" }
+    }
+  }
+}
 
 proc not v {
-  if { == 1 $v } { return false } else { return true }
+  if { == 1 $v } { return 0 } else { return 1 }
 }
 
 test "equality of strings and nums" {
@@ -528,16 +540,19 @@ test "array reset no-no" {
   assertErr { set x 2 }
 }
 
+proc unproc { procname } { rename $procname {} }
 test "early return" {
   set moo 4
-  proc yay {} { 
-    upvar moo moo2
-    return 
-    set moo2 5
-  }
+  finalize { proc yay } {
+    proc yay {} { 
+      upvar moo moo2
+      return 
+      set moo2 5
+    }
 
-  yay
-  checkthat $moo == 4
+    yay
+    checkthat $moo == 4
+  }
 }
 
 
@@ -971,19 +986,21 @@ test "namespace current" {
 
 
 test "namespace proc 1" {
-  namespace eval temp {
-    proc one {} { return 1 }
-    checkthat [namespace current] == "::temp"
-    checkthat [namespace parent] == ""
-    checkthat [one] == 1
+  finalize { namespace temp } {
+    namespace eval temp {
+      proc one {} { return 1 }
+      checkthat [namespace current] == "::temp"
+      checkthat [namespace parent] == ""
+      checkthat [one] == 1
+    }
+
+    assertErr { one }
+
+    assertNoErr { ::+ 4 5 }
+
+    checkthat [temp::one] == 1
+    checkthat [::temp::one] == 1
   }
-
-  assertErr { one }
-
-  assertNoErr { ::+ 4 5 }
-
-  checkthat [temp::one] == 1
-  checkthat [::temp::one] == 1
 }
 
 
@@ -1005,10 +1022,12 @@ test "nested ns" {
 }
 
 test "double ns" {
-  namespace eval abc2::xyz2 {
-      proc tada {} { return "yay!" }
+  finalize { ns abc2 } {
+    namespace eval abc2::xyz2 {
+        proc tada {} { return "yay!" }
+    }
+    checkthat [abc2::xyz2::tada] eq "yay!"
   }
-  checkthat [abc2::xyz2::tada] eq "yay!"
 }
 
 test "namespace exists" { 
@@ -1019,34 +1038,51 @@ test "namespace exists" {
 }
 
 test "ns level" {
-  set ::lev 0
-  namespace eval abc {
-    set ::lev [info level]
+  finalize { namespace abc } {
+    set ::lev 0
+    namespace eval abc {
+      set ::lev [info level]
+    }
+    
+    checkthat [info level] == [- $::lev 1]
+    unset ::lev
   }
-  
-  checkthat [info level] == [- $::lev 1]
-  unset ::lev
 }
 
 test "simple variable" {
-  namespace eval foo {
-    variable wow 99
-  }
- checkthat $foo::wow == 99
- checkthat $::foo::wow == 99
- set ::foo::wow 3
- checkthat $foo::wow == 3 
+  finalize { namespace foo } {
+    namespace eval foo {
+      variable wow 99
+    }
+   checkthat $foo::wow == 99
+   checkthat $::foo::wow == 99
+   set ::foo::wow 3
+   checkthat $foo::wow == 3 
+ }
 }
 
 test "namespace variable evil" {
-  proc evil {} {
-    checkthat $::temp_ns::value == 4
-  }
+  finalize { proc evil ns temp_ns } {
+    proc evil {} {
+      checkthat $::temp_ns::value == 4
+    }
 
-  namespace eval temp_ns {
-    variable value 4
-    ::evil
+    namespace eval temp_ns {
+      variable value 4
+      ::evil
+    }
   }
+}
+
+puts [namespace children]
+
+test "namespace delete" {
+  namespace eval foo {
+    proc something {} { return 1 }
+  }
+  checkthat [namespace exists foo]
+  namespace delete foo
+  checkthat [not [namespace exists foo]]
 }
 
 puts ""

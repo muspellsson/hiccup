@@ -41,6 +41,7 @@ module Common (RetVal, TclM
        ,currentNS
        ,parentNS
        ,existsNS
+       ,deleteNS
        ,childrenNS
        ,commandNames
        ,commonTests
@@ -168,6 +169,16 @@ getProcNS (NSRef (NS nsl) k) = do
   nsref <- getNamespace nsl
   ns <- (io . readIORef) nsref
   return $ getProc' k (nsProcs ns)
+
+deleteNS name = do 
+ let nsl = explodeNS name
+ ns <- getNamespace nsl >>= io . readIORef
+ case nsParent ns of
+   Nothing -> return ()
+   Just p -> removeChild p (last nsl)
+
+removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
+                   
 
 getNamespace nsl = case nsl of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
@@ -358,7 +369,8 @@ withScope' vm f = do
 mkEmptyNS name parent = do
     pname <- liftM nsFullName (readIORef parent)
     emptyVM <- newIORef emptyVarMap
-    new <- newIORef $ TclNS { nsName = name, nsFullName = B.concat [pname, nsSep, name], nsProcs = emptyProcMap, nsVars = emptyVM, nsParent = Just parent, nsChildren = Map.empty }
+    let fullname = B.concat [pname, nsSep, name]
+    new <- newIORef $ TclNS { nsName = name, nsFullName = fullname, nsProcs = emptyProcMap, nsVars = emptyVM, nsParent = Just parent, nsChildren = Map.empty }
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
 

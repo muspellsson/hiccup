@@ -12,6 +12,7 @@ procNamespace = makeEnsemble "namespace" [
      ("eval", ns_eval),
      ("parent", ns_parent),
      ("children", ns_children),
+     ("delete", ns_delete),
      ("exists", ns_exists)]
 
 procVariable args = case args of
@@ -37,3 +38,7 @@ ns_children args = case args of
 ns_exists args = case args of
           [nsn] -> existsNS (T.asBStr nsn) >>= return . T.fromBool
           _     -> argErr "namespace exists"
+
+ns_delete args = case args of
+   [nsn] -> deleteNS (T.asBStr nsn) >> ret
+   _     -> argErr "namespace delete"
