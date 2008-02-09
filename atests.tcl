@@ -1038,7 +1038,7 @@ test "simple variable" {
  checkthat $foo::wow == 3 
 }
 
-test "variable thing" {
+test "namespace variable evil" {
   proc evil {} {
     checkthat $::temp_ns::value == 4
   }

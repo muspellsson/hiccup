@@ -20,6 +20,8 @@ module TclObj (
  ,asSeq
  ,asList
  ,(.==)
+ ,strEq
+ ,strNe
  ,trim
  ,tclObjTests ) where
 
@@ -56,6 +58,13 @@ resultToEither :: P.Result -> BString -> Either String Parsed
 resultToEither res s = case res of
                         Nothing -> Left $ "parse failed: " ++ show s
                         Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
+
+strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
+strEq o1            o2            = asBStr o1 == asBStr o2 
+
+strNe (TclInt i1 _) (TclInt i2 _) = i1 /= i2
+strNe o1            o2            = asBStr o1 /= asBStr o2 
+
 
 mkTclInt !i = TclInt i bsval
  where bsval = pack (show i)

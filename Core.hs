@@ -19,12 +19,15 @@ runCmds (x:xs) = runCmd x >> runCmds xs
 runCmds []     = ret
 
 
-subst s = do cmds <- T.asParsed s
-             let toks = concatMap uncmd cmds
-             evalRToken (CatLst toks)
+getSubst s = do 
+    cmds <- T.asParsed s
+    let toks = concatMap uncmd cmds
+    return (CatLst toks)
  where uncmd (Right n,args) = (n:args)
        uncmd (Left (NSRef Local n), args) = ((Lit n):args)
        uncmd (Left n, _) = error (show n)
+
+subst s = getSubst s >>= evalRToken
 
 evalRToken :: RToken -> TclM T.TclObj
 evalRToken (Lit s)         = return $! T.mkTclBStr s
@@ -63,4 +66,5 @@ doCond str = do
 {-# INLINE doCond #-}
 
 coreTests = TestList [ ]
+
 

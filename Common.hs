@@ -5,7 +5,7 @@ module Common (RetVal, TclM
        ,TclProc,TclProcT(..)
        ,runTclM
        ,makeState
-       ,runWithEnv
+       ,runCheckResult
        ,withScope
        ,withNS
        ,makeProcMap
@@ -447,8 +447,8 @@ emptyProcMap = Map.empty
 emptyVarMap = Map.empty
 -- # TESTS # --
 
-runWithEnv :: TclM RetVal -> Either Err RetVal -> IO Bool
-runWithEnv t v =
+runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
+runCheckResult t v =
   do st <- makeState' Map.empty [] emptyProcMap
      retv <- liftM fst (runTclM t st)
      return (retv == v)

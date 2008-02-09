@@ -6,6 +6,7 @@ import Control.Monad.Error
 import Data.IORef
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+import TclObj (strEq,strNe)
 import Core
 import Common
 import Util
@@ -93,14 +94,14 @@ procRename args = case args of
     [old,new] -> varRename (T.asBStr old) (T.asBStr new)
     _         -> argErr "rename"
 
-procDump _ = varDump >> ret
+procDump _ = varDump >> ret -- TODO: Remove
 
 procEq args = case args of
-                  [a,b] -> return $! T.fromBool ((T.asBStr a) == (T.asBStr b))
+                  [a,b] -> return $! T.fromBool (a `strEq` b)
                   _     -> argErr "eq"
 
 procNe args = case args of
-                  [a,b] -> return $! T.fromBool ((T.asBStr a) /= (T.asBStr b))
+                  [a,b] -> return $! T.fromBool (a `strNe`  b)
                   _     -> argErr "ne"
 
 procMath :: (Int -> Int -> Int) -> TclProc
@@ -301,7 +302,7 @@ testProcEq = TestList [
       ,"'cats' ne 'cats' -> t" ~: procNe [str "cats", str "cats"] `is` False
       ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
    ]
- where (?=?) a b = assert (runWithEnv b (Right a))
+ where (?=?) a b = assert (runCheckResult b (Right a))
        is c b = (T.fromBool b) ?=? c
        int i = T.mkTclInt i
        str s = T.mkTclStr s
