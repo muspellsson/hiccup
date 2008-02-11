@@ -18,13 +18,13 @@ import ArrayProcs
 import ControlProcs
 import StringProcs
 import NSProcs
-import Test.HUnit  -- IGNORE
+import Test.HUnit 
 import ExprParse
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
   ("rename", procRename),
-  ("uplevel", procUpLevel), ("unset", procUnset),("dump", procDump),("eval", procEval),
+  ("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
@@ -93,8 +93,6 @@ procUnset args = case args of
 procRename args = case args of
     [old,new] -> varRename (T.asBStr old) (T.asBStr new)
     _         -> argErr "rename"
-
-procDump _ = varDump >> ret -- TODO: Remove
 
 procEq args = case args of
                   [a,b] -> return $! T.fromBool (a `strEq` b)

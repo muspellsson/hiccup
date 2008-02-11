@@ -20,7 +20,6 @@ module Common (RetVal, TclM
        ,varExists
        ,varUnset
        ,varRename
-       ,varDump
        ,varSetLocalVal
        ,getArray
        ,addChan
@@ -264,6 +263,7 @@ varUnset :: BString -> TclM RetVal
 varUnset name = do
   let (NSRef ns (VarName n _)) = parseVarName name
   runInNS ns (varUnset' n)
+  ret
 
 runInNS !ns f
   | isLocal ns  = f
@@ -273,7 +273,7 @@ runInNS !ns f
                      withExistingNS nsref f
 {-# INLINE runInNS #-}
 
-varUnset' :: BString -> TclM RetVal
+varUnset' :: BString -> TclM ()
 varUnset' name = do
    (env:es) <- getStack
    case upped name env of
@@ -283,21 +283,9 @@ varUnset' name = do
       Just (i,s) -> do let umap = upMap env
                        verifyNameIn umap
                        putStack ((env { upMap = Map.delete name umap }):es)
-                       uplevel i (varUnset' s) >> return ()
-   ret -- TODO: Lift to varUnset
+                       uplevel i (varUnset' s) 
  where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
        verifyNameIn m = unless (Map.member name m) bad
-
-{-
-varDump = do env <- getStack
-             io (putStrLn "")
-             io (mapM_ (\(i,a,b) -> (putStrLn (i ++ ":") >> putStrLn a >> putStrLn b))  (map fixit (zip [0..] env)))
-  where fixit (i,s) = (show i, Map.showTree (frVars s), Map.showTree (upMap s))
--}
-
-varDump = ret
-
-
 
 getArray :: BString -> TclM TclArray
 getArray name = do
@@ -352,12 +340,11 @@ upvar n d s = do (e:es) <- getStack
                  ret
 {-# INLINE upvar #-}
 
-withScope :: TclM RetVal -> TclM RetVal
 withScope f = do 
     vm <- io $ newIORef emptyVarMap 
     withScope' vm f
 
-withScope' :: IORef VarMap -> TclM RetVal -> TclM RetVal
+withScope' :: IORef VarMap -> TclM a -> TclM a
 withScope' vm f = do
   (o:old) <- getStack
   nf <- frameWithVMR vm
@@ -372,7 +359,7 @@ mkEmptyNS name parent = do
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
 
-withNS :: BString -> TclM RetVal -> TclM RetVal
+withNS :: BString -> TclM a -> TclM a
 withNS name f = do
      newCurr <- getOrCreateNamespace name
      withExistingNS newCurr f
