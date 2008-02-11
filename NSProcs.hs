@@ -16,6 +16,7 @@ procNamespace = makeEnsemble "namespace" [
      ("exists", ns_exists)]
 
 procVariable args = case args of
+       [n] -> varSet (T.asBStr n) T.empty
        [n,v] -> varSet (T.asBStr n) v
        _     -> argErr "variable"
 
@@ -40,5 +41,5 @@ ns_exists args = case args of
           _     -> argErr "namespace exists"
 
 ns_delete args = case args of
-   [nsn] -> deleteNS (T.asBStr nsn) >> ret
-   _     -> argErr "namespace delete"
+   []    -> argErr "namespace delete"
+   nsl   -> mapM_ (deleteNS . T.asBStr) nsl >> ret
