@@ -223,11 +223,10 @@ varSetLocalVal n v = varSet' (VarName n Nothing) v
 
 varSet' :: VarName -> T.TclObj -> TclM RetVal
 varSet' vn v = do
-     (env:es) <- getStack
+     env <- getFrame
      case upped (vnName vn) env of
          Just (i,s) -> uplevel i (varSet' (vn {vnName = s}) v)
-         Nothing    -> do ne <- modEnv env
-                          putStack (ne:es)
+         Nothing    -> do modEnv env
                           return v
  where modEnv env = do
                 ev <- getFrameVars env
@@ -235,10 +234,10 @@ varSet' vn v = do
                 case vnInd vn of
                   Nothing -> case Map.lookup str ev of
                               Just (ArrayVar _) -> tclErr $ "can't set " ++ showVN vn ++ ": variable is array"
-                              _                 -> env `withVars` (Map.insert str (ScalarVar v) ev)
+                              _                 -> changeVars env (Map.insert str (ScalarVar v))
                   Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
                                ScalarVar _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
-                               ArrayVar prev ->  env `withVars` (Map.insert str (ArrayVar (Map.insert i v prev)) ev)
+                               ArrayVar prev ->  changeVars env (Map.insert str (ArrayVar (Map.insert i v prev)))
 
 
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
@@ -281,12 +280,11 @@ varUnset' name = do
       Nothing    -> do vmap <- getFrameVars env
                        verifyNameIn vmap
                        changeVars env (Map.delete name)
-                       -- putStack ((env { frVars = Map.delete name vmap }):es)
       Just (i,s) -> do let umap = upMap env
                        verifyNameIn umap
                        putStack ((env { upMap = Map.delete name umap }):es)
                        uplevel i (varUnset' s) >> return ()
-   ret
+   ret -- TODO: Lift to varUnset
  where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
        verifyNameIn m = unless (Map.member name m) bad
 
@@ -439,11 +437,8 @@ frameWithVars v = do
  vref <- newIORef v 
  frameWithVMR vref
 
-withVars fr v = do 
- changeVars fr (const v)
- return fr
-
 changeVars fr fun = io $ modifyIORef (frVars fr) fun
+{-# INLINE changeVars #-}
 
 makeEnsemble name subs = top
   where top args = case args of

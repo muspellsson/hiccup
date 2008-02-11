@@ -1074,7 +1074,38 @@ test "namespace variable evil" {
   }
 }
 
-puts [namespace children]
+test "upvar in uplevel" {
+  proc set_to_3 vn {
+    upvar $vn x
+    set x 3
+  }
+
+  proc thingee {} { 
+    uplevel { set_to_3 y }
+  }
+
+  set y 4
+  thingee
+  checkthat $y == 3
+
+}
+
+test "upvar in uplevel 2" {
+  proc bind_to_x vn {
+    uplevel {
+      upvar $vn x
+    }
+  }
+
+  proc thingee vn { 
+    bind_to_x $vn
+    set x 3
+  }
+
+  set y 4
+  thingee y
+  checkthat $y == 3
+}
 
 test "namespace delete" {
   namespace eval foo {
