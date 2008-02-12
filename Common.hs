@@ -73,13 +73,13 @@ data Namespace = TclNS {
          nsName :: BString,
          nsFullName :: BString,
          nsProcs :: ProcMap,
-         nsVars :: IORef TclFrame,
+         nsFrame :: FrameRef,
          nsParent :: Maybe (IORef Namespace),
          nsChildren :: Map.Map BString (IORef Namespace) } 
 
 globalNS = do 
   vm <- frameWithVars Map.empty
-  return $ TclNS { nsName = nsSep, nsFullName = pack "", nsProcs = emptyProcMap, nsVars = vm, nsParent = Nothing, nsChildren = Map.empty }
+  return $ TclNS { nsName = nsSep, nsFullName = pack "", nsProcs = emptyProcMap, nsFrame = vm, nsParent = Nothing, nsChildren = Map.empty }
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
@@ -141,7 +141,7 @@ getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
 
 getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
 
-getGlobalFrame = gets tclGlobalNS >>= (`refExtract` nsVars)
+getGlobalFrame = gets tclGlobalNS >>= (`refExtract` nsFrame)
 
 putProcMap p = do nsref <- gets tclCurrNS
                   io (modifyIORef nsref (\v -> v { nsProcs = p }))
@@ -412,7 +412,7 @@ mkEmptyNS name parent = do
     pname <- liftM nsFullName (readIORef parent)
     emptyVM <- frameWithVars emptyVarMap
     let fullname = B.concat [pname, nsSep, name]
-    new <- newIORef $ TclNS { nsName = name, nsFullName = fullname, nsProcs = emptyProcMap, nsVars = emptyVM, nsParent = Just parent, nsChildren = Map.empty }
+    new <- newIORef $ TclNS { nsName = name, nsFullName = fullname, nsProcs = emptyProcMap, nsFrame = emptyVM, nsParent = Just parent, nsChildren = Map.empty }
     modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
     return new
 
@@ -434,7 +434,7 @@ getFrameVars frref = frref `refExtract` frVars
 getUpMap frref = frref `refExtract` upMap
 
 getNSFrame :: IORef Namespace -> TclM FrameRef
-getNSFrame nsref = nsref `refExtract` nsVars 
+getNSFrame nsref = nsref `refExtract` nsFrame 
 
 getOrCreateNamespace ns = case explodeNS ns of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x

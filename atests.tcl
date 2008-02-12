@@ -93,7 +93,7 @@ test "incr test" {
 
   incr count -2
 
-  assertEq 3 $count
+  checkthat $count == 3
 
   decr count
   decr count
@@ -110,8 +110,8 @@ test "math test" {
 test "list test" {
   set bean [list 1 2 3 4 5 {6 7 8}]
 
-  assertEq [llength $bean] 6
-  assertEq [lindex $bean 3] 4
+  checkthat [llength $bean] == 6
+  checkthat [lindex $bean 3] == 4
   checkthat [lindex $bean 5] eq {6 7 8}
 
   checkthat [llength "peanut"] == 1
@@ -123,7 +123,7 @@ test "list test" {
   checkthat [llength {a b # c d}] == 5
 
   checkthat [llength [list [list 1 2 3] [list 3 4 5]]] == 2
-  assertEq [lindex 4] 4
+  checkthat [lindex 4] == 4
   checkthat [lindex $bean 8] eq "" 
 
   set boo [list {} {} {} {}]
@@ -160,9 +160,9 @@ test "test args parameter" {
     }
   }
 
-  assertEq 0 $total
+  checkthat $total == 0
   argstest total 1 2 3 4 5 6 7 8
-  assertEq 36 $total
+  checkthat $total == 36
 }
 
 test "basic control flow" {
@@ -186,10 +186,10 @@ test "basic control flow" {
 
 
 test "string methods" {
-  assertEq 4 [string length "five"]
-  assertEq 0 [string length ""]
-  assertEq 7 [string length "one\ntwo"]
-  assertEq 4 [string length "h\n\ti"]
+  checkthat 4 == [string length "five"]
+  checkthat 0 == [string length ""]
+  checkthat 7 == [string length "one\ntwo"]
+  checkthat 4 == [string length "h\n\ti"]
 
   set fst [string index "whee" 1]
   assertStrEq "h" $fst
@@ -242,7 +242,7 @@ test "foreach" {
     set result [+ $number $result]
   }
 
-  assertEq 15 $result
+  checkthat $result == 15
 
   set fer "old"
   foreach feitem {"a b" "c d"} {
@@ -333,16 +333,16 @@ test "expr" {
 test "set returns correctly" {
   set babytime 444
   checkthat [set babytime] == 444
-  assertEq 512 [set babytime 512]
-  assertEq 512 $babytime
+  checkthat [set babytime 512] == 512
+  checkthat $babytime == 512
 }
 
 test "errors and catch" {
 
   assertErr { error "oh noes" }
 
-  assertEq 1 [catch { puts "$thisdoesntexist" }]
-  assertEq 0 [catch { + 1 1 }]
+  checkthat [catch { puts "$thisdoesntexist" }] == 1
+  checkthat [catch { + 1 1 }] == 0
 
   catch { set x [+ $x 4] } reason
   checkthat $reason eq {can't read "x": no such variable}

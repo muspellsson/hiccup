@@ -7,15 +7,6 @@ proc die s {
   exit
 }
 
-proc assertEq {a b} {
-  global current_test
-  if {== $a $b} {
-    assertPass
-  } else {
-    die "$current_test failed: $a != $b"
-  }
-}
-
 proc assertPass {} {
   puts -nonewline "."
   incr ::assertcount
