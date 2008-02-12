@@ -16,7 +16,7 @@ procNamespace = makeEnsemble "namespace" [
      ("exists", ns_exists)]
 
 procVariable args = case args of
-       [n] -> varSet (T.asBStr n) T.empty
+       [n]   -> varSet (T.asBStr n) T.empty
        [n,v] -> varSet (T.asBStr n) v
        _     -> argErr "variable"
 

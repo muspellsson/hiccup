@@ -22,7 +22,7 @@ procParray args = case args of
 
 procArray = makeEnsemble "array" [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set), ("names", array_names)]
 
-arrSet n i v = varSet' (VarName n (Just i)) v
+arrSet n i v = varSet2 (VarName n (Just i)) v
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs [] = []
 toPairs _ = [] 

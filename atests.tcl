@@ -7,9 +7,8 @@ proc announce { } {
 }
 
 announce
-      puts HERE
 
-assertEq [eval {* 4 4}] 16
+checkthat [eval {* 4 4}] == 16
 
 test "upvar" {
 
@@ -34,7 +33,7 @@ test "upvar" {
 
   set y 99 
   uptest2 y 3
-  assertEq $y 4
+  checkthat $y == 4
 }
 
 test "info vars" {

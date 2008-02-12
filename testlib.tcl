@@ -1,5 +1,6 @@
 set assertcount 0
 set current_test "Test"
+set trace_test 0
 
 proc die s {
   puts $s
@@ -29,6 +30,7 @@ proc assertFail why {
 proc checkthat { var { op == } { r 1 } } {
   set res [$op $var $r]
   if { == $res 1 } {
+    if { == $::trace_test 1 } { puts "\"$var $op $r\" was true" }
     assertPass
   } else {
     assertFail "\"$var $op $r\" was not true"

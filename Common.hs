@@ -16,7 +16,7 @@ module Common (RetVal, TclM
        ,varGet
        ,varModify
        ,varSet
-       ,varSet'
+       ,varSet2
        ,varExists
        ,varUnset
        ,varRename
@@ -54,6 +54,7 @@ import TclChan
 import Data.IORef
 import Test.HUnit
 import VarName
+import Data.Unique
 import Util
 
 
@@ -81,8 +82,9 @@ globalNS = do
 
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
 
-data TclFrame = TclFrame { frVars :: VarMap, upMap :: Map.Map BString (Int,BString) }
-type TclStack = [IORef TclFrame]
+type FrameRef = IORef TclFrame
+data TclFrame = TclFrame { frVars :: VarMap, upMap :: Map.Map BString (FrameRef,BString), frTag :: Int  }
+type TclStack = [FrameRef]
 data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclCurrNS :: IORef Namespace, tclGlobalNS :: IORef Namespace }
 type TclProc = [T.TclObj] -> TclM T.TclObj
 type ProcMap = Map.Map ProcKey TclProcT
@@ -91,6 +93,18 @@ type VarMap = Map.Map BString TclVar
 data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
 
 type TclArray = Map.Map BString T.TclObj
+
+showStack = do st <- getStack
+               mapM_ showFrame st
+
+showFrame frref = do 
+  fr <- readRef frref
+  vars <- getFrameVars frref >>= return . Map.keys 
+  let tag = frTag fr 
+  updata <- mapM (\(k,(ur,un)) -> getTag ur >>= \rt -> return (k,(rt,un))) (Map.toList (upMap fr))
+  (io . print) (tag,vars,updata)
+  
+  
 
 makeProcMap :: [(String,TclProc)] -> ProcMap
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
@@ -121,11 +135,12 @@ getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
               case s of
                 []    -> tclErr "Aack. Tried to go up too far in the stack."
                 v     -> return v
-getProcMap = do currNs <- gets tclCurrNS >>= readRef
-                return (nsProcs currNs)
+getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getProcMap #-}
-getGlobalProcMap = do gNs <- gets tclGlobalNS >>= readRef
-                      return (nsProcs gNs)
+
+getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
+
+getGlobalFrame = gets tclGlobalNS >>= (`refExtract` nsVars)
 
 putProcMap p = do nsref <- gets tclCurrNS
                   io (modifyIORef nsref (\v -> v { nsProcs = p }))
@@ -213,16 +228,18 @@ pmInsert proc m = Map.insert (procName proc) proc m
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
 
-varSetNS (NSRef ns vn) v = runInNS ns (varSet' vn v)
+varSetNS (NSRef ns vn) v = runInNS ns (varSet2 vn v)
 
-varSet' :: VarName -> T.TclObj -> TclM RetVal
-varSet' vn v = do
-     frref <- getFrame
+varSet2 vn v = do
+  frref <- getFrame
+  varSet' vn v frref
+
+varSet' vn v frref = do
      isUpped <- upped (vnName vn) frref 
      case isUpped of
-         Just (i,s) -> uplevel i (varSet' (vn {vnName = s}) v)
-         Nothing    -> modEnv frref >> return v
- where modEnv frref = do
+         Just (f,s) -> varSet' (vn {vnName = s}) v f
+         Nothing    -> modEnv >> return v
+ where modEnv = do
                 ev <- getFrameVars frref
                 let str = vnName vn
                 case vnInd vn of
@@ -257,7 +274,7 @@ varRename old new = do
 varUnset :: BString -> TclM RetVal
 varUnset name = do
   let (NSRef ns (VarName n _)) = parseVarName name
-  runInNS ns (varUnset' n)
+  runInNS ns (varUnset2 n)
   ret
 
 runInNS !ns f
@@ -268,46 +285,56 @@ runInNS !ns f
                      withExistingNS nsref f
 {-# INLINE runInNS #-}
 
-varUnset' :: BString -> TclM ()
-varUnset' name = do
-   frref <- getFrame
+varUnset2 name = do
+  frref <- getFrame
+  varUnset' name frref
+
+varUnset' name frref = do
    isUpped <- upped name frref
    case isUpped of
       Nothing    -> do vmap <- getFrameVars frref
                        verifyNameIn vmap
                        changeVars frref (Map.delete name)
-      Just (i,s) -> do umap <- getUpMap frref
+      Just (f,s) -> do umap <- getUpMap frref
                        verifyNameIn umap
                        changeUpMap frref (Map.delete name)
-                       uplevel i (varUnset' s) 
+                       varUnset' s f
  where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
        verifyNameIn m = unless (Map.member name m) bad
 
 getArray :: BString -> TclM TclArray
 getArray name = do
-   var <- varLookup name
+   frref <- getFrame
+   var <- varLookup name frref
    case var of
       Just (ArrayVar a) -> return a
       Just _            -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
       Nothing           -> tclErr $ "can't read " ++ show name ++ ": no such variable"
 
-varLookup :: BString -> TclM (Maybe TclVar)
-varLookup name = do
-   frref <- getFrame
+{-
+varLookup' name = do
+  frref <- getFrame
+  varLookup name frref
+-}
+
+varLookup name frref = do
    isUpped <- upped name frref
    case isUpped of
       Nothing    -> getFrameVars frref >>= return . Map.lookup name
-      Just (i,n) -> uplevel i (varLookup n)
+      Just (f,n) -> varLookup n f
 
 varGet :: BString -> TclM RetVal
 varGet !n = varGetNS (parseVarName n)
 
 varGetNS :: NSRef VarName -> TclM RetVal
-varGetNS (NSRef ns vn) = runInNS ns (varGet' vn)
+varGetNS (NSRef ns vn) = runInNS ns (varGet2 vn)
 
-varGet' :: VarName -> TclM RetVal
-varGet' vn@(VarName name ind) = do
-  var <- varLookup name
+varGet2 vn = do
+  frref <- getFrame
+  varGet' vn frref
+
+varGet' vn@(VarName name ind) frref = do
+  var <- varLookup name frref
   case var of
    Nothing -> cantReadErr "no such variable"
    Just o  -> o `withInd` ind
@@ -331,15 +358,25 @@ upglobal p = do
   len <- stackLevel
   uplevel len p
 
+getUpFrame i = do st <- getStack
+                  if length st <= i
+                      then fail "too far up the stack"
+                      else return (st!!i)
+                  
 upvar n d s = do frref <- getFrame
-                 changeUpMap frref (Map.insert (T.asBStr s) (n, T.asBStr d))
+                 upfr <- getUpFrame n
+                 changeUpMap frref (Map.insert (T.asBStr s) (upfr, T.asBStr d))
 {-# INLINE upvar #-}
+
+getTag frref = do
+  f <- readRef frref
+  return (frTag f)
 
 withLocalScope vl f = do
     vm <- io $ frameWithVars $ (Map.fromList . mapSnd ScalarVar) vl
     withScope' vm f
 
-withScope' :: IORef TclFrame -> TclM a -> TclM a
+withScope' :: FrameRef -> TclM a -> TclM a
 withScope' frref fun = do
   (o:old) <- getStack
   putStack $ frref : o : old
@@ -365,13 +402,13 @@ withExistingNS newCurr f = do
  where op nsr = do vm <- getNSFrame nsr
                    withScope' vm f
 
-getFrameVars :: IORef TclFrame -> TclM VarMap
-getFrameVars frref = readRef frref >>= return . frVars
+getFrameVars :: FrameRef -> TclM VarMap
+getFrameVars frref = frref `refExtract` frVars
 
-getUpMap frref = readRef frref >>= return . upMap
+getUpMap frref = frref `refExtract` upMap
 
-getNSFrame :: IORef Namespace -> TclM (IORef TclFrame)
-getNSFrame nsref = readRef nsref >>= return . nsVars 
+getNSFrame :: IORef Namespace -> TclM FrameRef
+getNSFrame nsref = nsref `refExtract` nsVars 
 
 getOrCreateNamespace ns = case explodeNS ns of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
@@ -379,7 +416,7 @@ getOrCreateNamespace ns = case explodeNS ns of
        []     -> fail "Something unexpected happened in getOrCreateNamespace"
  where getEm []     ns = return ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- readRef nsref >>= return . nsChildren
+       getKid k nsref = do kids <- nsref `refExtract` nsChildren
                            case Map.lookup k kids of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
@@ -387,6 +424,8 @@ getOrCreateNamespace ns = case explodeNS ns of
 putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
 
 readRef = io . readIORef
+
+refExtract ref f = readRef ref >>= return . f
 
 currentNS = do
   ns <- gets tclCurrNS >>= readRef
@@ -416,7 +455,9 @@ treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr
 {-# INLINE treturn #-}
 
-frameWithVars vref = newIORef $ TclFrame { frVars = vref, upMap = Map.empty }
+frameWithVars vref = do
+   tag <- liftM hashUnique newUnique
+   newIORef $ TclFrame { frVars = vref, upMap = Map.empty, frTag = tag }
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
