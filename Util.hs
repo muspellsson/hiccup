@@ -20,6 +20,9 @@ ifFails f v = f `orElse` (return v)
 
 orElse f f2 = f `catchError` (\_ -> f2)
 
+slurpFile fname = do dat <- B.readFile fname 
+                     B.length dat `seq` return dat
+
 listEscape s = if (B.elem ' ' s && not hasBracks) || B.null s 
                  then B.concat [B.singleton '{', s, B.singleton '}'] 
                  else if hasBracks then B.concat (escapeStr s) else s

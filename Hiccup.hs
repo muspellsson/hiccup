@@ -4,7 +4,6 @@ module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 import qualified Data.Map as Map
 import Control.Monad.Error
 import Data.IORef
-import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import TclObj (strEq,strNe)
 import Core
@@ -77,7 +76,7 @@ runTcl v = mkInterp >>= runInterp v
 runTclWithArgs v args = mkInterpWithArgs args >>= runInterp v
 
 procSource args = case args of
-                  [s] -> io (B.readFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
+                  [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
                   _   -> argErr "source"
 
 
