@@ -7,6 +7,7 @@ proc announce { } {
 }
 
 announce
+      puts HERE
 
 assertEq [eval {* 4 4}] 16
 
@@ -1020,6 +1021,10 @@ test "namespace delete" {
   checkthat [namespace exists foo]
   namespace delete foo
   checkthat [not [namespace exists foo]]
+}
+
+test "error on bad upvar level" {
+  assertErr { upvar 1000 x x }
 }
 
 puts ""

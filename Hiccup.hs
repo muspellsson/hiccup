@@ -241,10 +241,9 @@ procProc [name,args,body] = do
   regProc pname (T.asBStr body) (procRunner params body)
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
-procRunner pl body args =
-  withScope $ do
-    bindArgs pl args
-    evalTcl body `catchError` herr
+procRunner pl body args = do
+  locals <- bindArgs pl args
+  withLocalScope locals (evalTcl body `catchError` herr)
  where herr (ERet s)  = return s
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"

@@ -42,6 +42,7 @@ data TclObj = TclInt !Int BString |
 
 mkTclStr s  = mkTclBStr (pack s)
 mkTclBStr s = mkTclBStrP s (P.runParse s)
+{-# INLINE mkTclBStr #-}
 
 mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
 mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
