@@ -6,7 +6,6 @@ module Common (RetVal, TclM
        ,runTclM
        ,makeState
        ,runCheckResult
-       ,withScope
        ,withLocalScope
        ,withNS
        ,makeProcMap
@@ -122,10 +121,10 @@ getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
               case s of
                 []    -> tclErr "Aack. Tried to go up too far in the stack."
                 v     -> return v
-getProcMap = do currNs <- gets tclCurrNS >>= io . readIORef
+getProcMap = do currNs <- gets tclCurrNS >>= readRef
                 return (nsProcs currNs)
 {-# INLINE getProcMap #-}
-getGlobalProcMap = do gNs <- gets tclGlobalNS >>= io . readIORef
+getGlobalProcMap = do gNs <- gets tclGlobalNS >>= readRef
                       return (nsProcs gNs)
 
 putProcMap p = do nsref <- gets tclCurrNS
@@ -143,7 +142,6 @@ getFrame = liftM head getStack
 io :: IO a -> TclM a
 io = liftIO
 
-tclErr :: String -> TclM a
 tclErr = throwError . EDie
 
 argErr s = fail ("wrong # of args: " ++ s)
@@ -157,7 +155,7 @@ getChan n = onChan (\m -> return (lookupChan n m))
 addChan c    = modChan (insertChan c)
 removeChan c = modChan (deleteChan c)
 
-upped s fr = (io . readIORef) fr >>= \f ->  return (Map.lookup s (upMap f))
+upped s fr = readRef fr >>= \f ->  return (Map.lookup s (upMap f))
 {-# INLINE upped #-}
 
 getProc pname = case parseNS pname of
@@ -167,12 +165,12 @@ getProc pname = case parseNS pname of
 getProcNS (NSRef Local k) = getProcNorm k
 getProcNS (NSRef (NS nsl) k) = do
   nsref <- getNamespace nsl
-  ns <- (io . readIORef) nsref
+  ns <- readRef nsref
   return $ getProc' k (nsProcs ns)
 
 deleteNS name = do 
  let nsl = explodeNS name
- ns <- getNamespace nsl >>= io . readIORef
+ ns <- getNamespace nsl >>= readRef
  case nsParent ns of
    Nothing -> return ()
    Just p -> removeChild p (last nsl)
@@ -186,7 +184,7 @@ getNamespace nsl = case nsl of
        []     -> fail "Something unexpected happened in getNamespace"
  where getEm []     ns = return ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- (io . readIORef) nsref >>= return . nsChildren
+       getKid k nsref = do kids <- readRef nsref >>= return . nsChildren
                            case Map.lookup k kids of
                                Nothing -> fail $ "can't find namespace " ++ show k
                                Just v  -> return v
@@ -320,7 +318,6 @@ varGet' vn@(VarName name ind) = do
        withInd (ArrayVar _)  _       = cantReadErr "variable is array"
 
 
-
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do
   (curr,new) <- liftM (splitAt i) getStack
@@ -337,10 +334,6 @@ upglobal p = do
 upvar n d s = do frref <- getFrame
                  changeUpMap frref (Map.insert (T.asBStr s) (n, T.asBStr d))
 {-# INLINE upvar #-}
-
-withScope f = do 
-    vm <- io $ frameWithVars emptyVarMap 
-    withScope' vm f
 
 withLocalScope vl f = do
     vm <- io $ frameWithVars $ (Map.fromList . mapSnd ScalarVar) vl
@@ -373,12 +366,12 @@ withExistingNS newCurr f = do
                    withScope' vm f
 
 getFrameVars :: IORef TclFrame -> TclM VarMap
-getFrameVars frref = (io . readIORef) frref >>= return . frVars
+getFrameVars frref = readRef frref >>= return . frVars
 
-getUpMap frref = (io . readIORef) frref >>= return . upMap
+getUpMap frref = readRef frref >>= return . upMap
 
 getNSFrame :: IORef Namespace -> TclM (IORef TclFrame)
-getNSFrame nsref = (io . readIORef) nsref >>= return . nsVars 
+getNSFrame nsref = readRef nsref >>= return . nsVars 
 
 getOrCreateNamespace ns = case explodeNS ns of
        (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
@@ -386,26 +379,28 @@ getOrCreateNamespace ns = case explodeNS ns of
        []     -> fail "Something unexpected happened in getOrCreateNamespace"
  where getEm []     ns = return ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- (io . readIORef) nsref >>= return . nsChildren
+       getKid k nsref = do kids <- readRef nsref >>= return . nsChildren
                            case Map.lookup k kids of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
 
 putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
 
+readRef = io . readIORef
+
 currentNS = do
-  ns <- gets tclCurrNS >>= io . readIORef
+  ns <- gets tclCurrNS >>= readRef
   return (nsFullName ns)
 
 parentNS = do
- ns <- gets tclCurrNS >>= io . readIORef
+ ns <- gets tclCurrNS >>= readRef
  case nsParent ns of
    Nothing -> return B.empty
-   Just v  -> (io . readIORef) v >>= return . nsFullName
+   Just v  -> readRef v >>= return . nsFullName
 
 childrenNS :: TclM [BString]
 childrenNS = do
-  ns <- gets tclCurrNS >>= io . readIORef
+  ns <- gets tclCurrNS >>= readRef
   (return . Map.keys . nsChildren) ns
 
 ensure action p = do
@@ -421,10 +416,7 @@ treturn :: BString -> TclM RetVal
 treturn = return . T.mkTclBStr
 {-# INLINE treturn #-}
 
-frameWithVMR vref = newIORef $ TclFrame { frVars = vref, upMap = Map.empty }
-
-frameWithVars v = do
- frameWithVMR v
+frameWithVars vref = newIORef $ TclFrame { frVars = vref, upMap = Map.empty }
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
@@ -443,6 +435,7 @@ procMapNames = map procName . Map.elems
 
 emptyProcMap = Map.empty
 emptyVarMap = Map.empty
+
 -- # TESTS # --
 
 runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
