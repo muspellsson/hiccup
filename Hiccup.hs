@@ -224,14 +224,16 @@ procUpLevel args = case args of
               (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
 
+procUpVar :: TclProc
 procUpVar args = case args of
-     [d,s]    -> upvar 1 d s >> ret
-     [si,d,s] -> T.asInt si >>= \i -> upvar i d s >> ret
+     [d,s]    -> doUp 1 d s
+     [si,d,s] -> T.asInt si >>= \i -> doUp i d s
      _        -> argErr "upvar"
+ where doUp i d s = upvar i (T.asBStr d) (T.asBStr s) >> ret
 
 procGlobal args = case args of
       [] -> argErr "global"
-      _  -> mapM_ inner args >> ret
+      _  -> mapM_ (inner . T.asBStr) args >> ret
  where inner g = do len <- stackLevel
                     upvar len g g >> ret
 

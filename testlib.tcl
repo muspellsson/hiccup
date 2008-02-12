@@ -89,7 +89,7 @@ proc with_test {tn code} {
   set current_test $old_test
 }
 
-proc finalize { items code } {
+proc finalize { items { code {} } } {
   uplevel $code
   foreach { type name } $items {
     switch $type {

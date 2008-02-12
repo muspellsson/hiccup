@@ -41,6 +41,7 @@ module Common (RetVal, TclM
        ,existsNS
        ,deleteNS
        ,childrenNS
+       ,variableNS
        ,commandNames
        ,commonTests
     ) where
@@ -90,7 +91,7 @@ type TclProc = [T.TclObj] -> TclM T.TclObj
 type ProcMap = Map.Map ProcKey TclProcT
 type ProcKey = BString
 type VarMap = Map.Map BString TclVar
-data TclVar = ScalarVar T.TclObj | ArrayVar TclArray deriving (Eq,Show)
+data TclVar = ScalarVar T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
 
 type TclArray = Map.Map BString T.TclObj
 
@@ -199,7 +200,7 @@ getNamespace nsl = case nsl of
        []     -> fail "Something unexpected happened in getNamespace"
  where getEm []     ns = return ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- readRef nsref >>= return . nsChildren
+       getKid k nsref = do kids <- nsref `refExtract`  nsChildren
                            case Map.lookup k kids of
                                Nothing -> fail $ "can't find namespace " ++ show k
                                Just v  -> return v
@@ -247,8 +248,9 @@ varSet' vn v frref = do
                               Just (ArrayVar _) -> tclErr $ "can't set " ++ showVN vn ++ ": variable is array"
                               _                 -> changeVars frref (Map.insert str (ScalarVar v))
                   Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
-                               ScalarVar _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
                                ArrayVar prev ->  changeVars frref (Map.insert str (ArrayVar (Map.insert i v prev)))
+                               Undefined     ->  changeVars frref (Map.insert str (ArrayVar (Map.singleton i v)))
+                               _     -> tclErr $ "Can't set " ++ showVN vn ++ ": variable isn't array"
 
 
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
@@ -343,6 +345,7 @@ varGet' vn@(VarName name ind) frref = do
        withInd (ScalarVar _) _       = cantReadErr "variable isn't array"
        withInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
        withInd (ArrayVar _)  _       = cantReadErr "variable is array"
+       withInd Undefined     _       = cantReadErr "no such variable"
 
 
 uplevel :: Int -> TclM a -> TclM a
@@ -363,11 +366,34 @@ getUpFrame i = do st <- getStack
                       then fail "too far up the stack"
                       else return (st!!i)
                   
-upvar n d s = do frref <- getFrame
-                 upfr <- getUpFrame n
-                 changeUpMap frref (Map.insert (T.asBStr s) (upfr, T.asBStr d))
+linkToFrame name (upfr, upname) = do
+  frref <- getFrame
+  changeUpMap frref (Map.insert name (upfr, upname))
+
+upvar n d s = do
+   upfr <- getUpFrame n
+   s `linkToFrame` (upfr, d)
 {-# INLINE upvar #-}
 
+variableNS name val = do
+  let (NSRef ns (VarName n _)) = parseVarName name
+  nsref <- destNS ns
+  nsfr <- getNSFrame nsref
+  fr <- getFrame
+  same <- sameTags fr nsfr
+  if same then changeVars fr (Map.insert name varVal)
+          else n `linkToFrame` (nsfr, n)
+  ret
+ where
+   destNS Local    = gets tclCurrNS
+   destNS (NS nsl) = getNamespace nsl
+   varVal = maybe Undefined ScalarVar val
+   sameTags f1 f2 = do
+      t1 <- getTag f1
+      t2 <- getTag f2
+      return (t1 == t2)
+  
+  
 getTag frref = do
   f <- readRef frref
   return (frTag f)

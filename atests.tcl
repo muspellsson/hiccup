@@ -56,6 +56,10 @@ test "upvar create" {
   checkthat [info exists up2] == 0
 }
 
+test "error on bad upvar level" {
+  assertErr { upvar 1000 x x }
+}
+
 test "unevaluated blocks aren't parsed" {
   if {== 3 4} {
    "This should be no problem. $woo_etcetera.; 
@@ -81,11 +85,11 @@ test "incr test" {
   incr count
   incr count
 
-  assertEq $count 3
+  checkthat $count == 3
 
   incr count 2
 
-  assertEq 5 $count
+  checkthat $count == 5
 
   incr count -2
 
@@ -95,7 +99,7 @@ test "incr test" {
   decr count
   decr count
 
-  assertEq $count 0
+  checkthat $count == 0
 }
 
 test "math test" { 
@@ -211,10 +215,10 @@ test "string index" {
 }
 
 test "string match" {
-  checkthat [string match aa aa] == 1
+  checkthat [string match aa aa]
   checkthat [string match aa ab] == 0
   checkthat [string match "WOW" "wow"] == 0
-  checkthat [string match -nocase "WOW" "wow"] == 1
+  checkthat [string match -nocase "WOW" "wow"]
 
   checkthat [string match "a*e" "awesome"] == 1
   checkthat [string match "?arry" "Larry"] == 1
@@ -371,7 +375,6 @@ test "int parsing" {
 set whagganog ""
 set otherthing ""
 test "global test" {
-    upvar otherthing ot
     proc testglobal {bah} {
       proc modother { m } {
         global whagganog otherthing
@@ -385,18 +388,20 @@ test "global test" {
     }
 
     checkthat [testglobal 1] == 1
-    checkthat $ot            == 11
+    checkthat $::otherthing  == 11
     checkthat [testglobal 2] == 12
-    checkthat $ot            == 122
+    checkthat $::otherthing  == 122
 }
+unset whagganog
+unset otherthing
 
 
 
 test "parsing corners" {
-  assertEq 10 [+ 15 -5] # Check that negatives parse.
+  checkthat [+ 15 -5] == 10  # Check that negatives parse.
 
   set { shh.. ?} 425
-  assertStrEq " 425 " " ${ shh.. ?} "
+  checkthat " 425 " eq " ${ shh.. ?} "
 
   assertStrEq "whee $ stuff" "whee \$ stuff"
 
@@ -413,9 +418,9 @@ test "parsing corners" {
 test "equality of strings and nums" {
   set x 10
   set y " 10 "
-  assert { == $x $y }
-  assert { ne $x $y }
-  assert { eq 33 33 }
+  checkthat $x == $y 
+  checkthat $x ne $y 
+  checkthat 33 eq 33
   assert { == "cobra" "cobra" }
   checkthat " 1 " ne 1 
   checkthat " 1 " == 1 
@@ -691,6 +696,16 @@ test "array set" {
   checkthat $arr(2) eq two
   checkthat $arr(3) eq three
   checkthat $arr(4) eq four
+
+  assertErr { checkthat $arr(5) eq five }
+
+  array set arr {
+    5 five
+    3 threee
+  }
+
+  checkthat $arr(5) eq five
+  checkthat $arr(3) eq threee
 }
 
 test "array get" {
@@ -866,10 +881,11 @@ test "uplevel issue" {
   checkthat [info level] == $level
 }
 
-set a_global 9
 test "global namespace" {
+  uplevel { set a_global 9 }
   checkthat [info exists a_global] == 0
   checkthat $::a_global == 9
+  uplevel { unset a_global }
 }
 
 test "namespace current" {
@@ -967,17 +983,26 @@ test "namespace variable evil" {
   }
 }
 
-test "ns variable array" {
+test "ns variable scalar" {
   namespace eval hidden {
     variable IDS 4
   }
 
   proc getit {} {
-    #variable ::hidden::IDS
-    #return $IDS
+    variable ::hidden::IDS
+    return $IDS
   }
 
-  #checkthat [getit] == 4
+ proc setit {} {
+   variable ::hidden::IDS
+   set IDS 11
+ }
+
+  checkthat [getit] == 4
+  setit
+  checkthat [getit] == 11
+
+  finalize { proc setit proc getit namespace hidden }
 }
 
 test "upvar in uplevel" {
@@ -993,7 +1018,7 @@ test "upvar in uplevel" {
   set y 4
   thingee
   checkthat $y == 3
-
+  finalize { proc thingee proc set_to_3 }
 }
 
 test "upvar in uplevel 2" {
@@ -1011,6 +1036,8 @@ test "upvar in uplevel 2" {
   set y 4
   thingee y
   checkthat $y == 3
+
+  finalize { proc thingee proc bind_to_x }
 }
 
 test "namespace delete" {
@@ -1022,8 +1049,40 @@ test "namespace delete" {
   checkthat [not [namespace exists foo]]
 }
 
-test "error on bad upvar level" {
-  assertErr { upvar 1000 x x }
+
+test "ns proc variable" {
+  namespace eval foo {
+    variable boo 10
+    proc doit {} {
+      checkthat [not [info exists boo]]
+      variable boo
+      checkthat $boo == 10
+      checkthat [info exists boo]
+    }
+    doit
+  }
+
+  finalize { namespace foo }
+}
+
+test "ns variable array" {
+  namespace eval foo {
+    variable farr
+    array set farr {
+      1 one
+      2 two
+      3 three
+    }
+
+    checkthat $farr(1) eq one
+  } 
+
+  proc get_index ind {
+    variable ::foo::farr 
+    return $farr($ind)
+  }
+  
+  checkthat [get_index 2] eq two
 }
 
 puts ""
