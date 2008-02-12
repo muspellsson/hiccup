@@ -45,7 +45,7 @@ proc assertStrEq {a b} {
 }
 
 proc assertNoErr code {
-  set ret [catch $code]
+  set ret [catch "uplevel {$code}"]
   if { == $ret 0 } {
     assertPass
   } else {
@@ -54,7 +54,7 @@ proc assertNoErr code {
 }
 
 proc assertErr code {
-  set ret [catch "uplevel $code"]
+  set ret [catch "uplevel {$code}"]
   if { == $ret 1 } {
     assertPass
   } else {
