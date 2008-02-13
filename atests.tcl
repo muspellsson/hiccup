@@ -192,11 +192,11 @@ test "string methods" {
   checkthat 4 == [string length "h\n\ti"]
 
   set fst [string index "whee" 1]
-  assertStrEq "h" $fst
+  checkthat "h" eq $fst
 
-  assertStrEq "wombat" [string tolower "WOMBAT"]
-  assertStrEq "CALCULUS" [string toupper "calculus"]
-  assertStrEq "hello" [string trim "  hello  "]
+  checkthat "wombat" eq [string tolower "WOMBAT"]
+  checkthat "CALCULUS" eq [string toupper "calculus"]
+  checkthat "hello" eq [string trim "  hello  "]
 
 
   checkthat [string reverse "123"] eq "321"
@@ -230,9 +230,9 @@ test "string match" {
 test "test append" {
   set somestr "one"
   append somestr " two" " three" " four"
-  assertStrEq "one two three four" $somestr
+  checkthat $somestr eq "one two three four"
   append avar a b c
-  assertStrEq "abc" $avar
+  checkthat $avar eq "abc"
 }
 
 test "foreach" {
@@ -403,10 +403,10 @@ test "parsing corners" {
   set { shh.. ?} 425
   checkthat " 425 " eq " ${ shh.. ?} "
 
-  assertStrEq "whee $ stuff" "whee \$ stuff"
+  checkthat "whee $ stuff" eq "whee \$ stuff"
 
-  assertStrEq "whee \$ stuff" "whee \$ stuff"
-  assertStrEq "whee \$\" stuff" "whee $\" stuff"
+  checkthat "whee \$ stuff" eq "whee \$ stuff"
+  checkthat "whee \$\" stuff" eq "whee $\" stuff"
   assertNoErr { 
     if { == 3 3 } { } else { die "bad" } 
   }
@@ -558,7 +558,7 @@ test "info exists" {
   set x 4
   checkthat [info exists x] == 1
   checkthat [info exists current_test] == 0
-  global current_test
+  variable  testlib::current_test
   checkthat [info exists current_test] == 1
 
   set arr(4) 2
@@ -983,27 +983,6 @@ test "namespace variable evil" {
   }
 }
 
-test "ns variable scalar" {
-  namespace eval hidden {
-    variable IDS 4
-  }
-
-  proc getit {} {
-    variable ::hidden::IDS
-    return $IDS
-  }
-
- proc setit {} {
-   variable ::hidden::IDS
-   set IDS 11
- }
-
-  checkthat [getit] == 4
-  setit
-  checkthat [getit] == 11
-
-  finalize { proc setit proc getit namespace hidden }
-}
 
 test "upvar in uplevel" {
   proc set_to_3 vn {
@@ -1049,20 +1028,24 @@ test "namespace delete" {
   checkthat [not [namespace exists foo]]
 }
 
+test "ns variable scalar" {
+  namespace eval hidden { variable IDS 4 }
 
-test "ns proc variable" {
-  namespace eval foo {
-    variable boo 10
-    proc doit {} {
-      checkthat [not [info exists boo]]
-      variable boo
-      checkthat $boo == 10
-      checkthat [info exists boo]
-    }
-    doit
+  proc getit {} {
+    variable ::hidden::IDS
+    return $IDS
   }
 
-  finalize { namespace foo }
+ proc setit {} {
+   variable ::hidden::IDS
+   set IDS 11
+ }
+
+  checkthat [getit] == 4
+  setit
+  checkthat [getit] == 11
+
+  finalize { proc setit proc getit namespace hidden }
 }
 
 test "ns variable array" {
@@ -1083,6 +1066,51 @@ test "ns variable array" {
   }
   
   checkthat [get_index 2] eq two
+}
+
+test "ns variable undefined scalar" {
+  namespace eval hidden { variable IDS }
+
+  proc getit {} {
+    variable ::hidden::IDS
+    return $IDS
+  }
+
+ proc setit {} {
+   variable ::hidden::IDS
+   set IDS 11
+ }
+
+  assertErr { getit }
+  setit
+  checkthat [getit] == 11
+
+  finalize { proc setit proc getit namespace hidden }
+}
+
+test "ns proc variable" {
+  namespace eval foo {
+    variable boo 10
+    proc doit {} {
+      checkthat [not [info exists boo]]
+      variable boo
+      checkthat $boo == 10
+      checkthat [info exists boo]
+    }
+    doit
+  }
+
+  finalize { namespace foo }
+}
+
+test "ns variable array 'array size'" {
+  namespace eval foo {
+    variable arr
+    array set arr { 1 one 2 two 3 three }
+  }
+
+  checkthat [array size ::foo::arr] == 3
+  finalize { namespace foo }
 }
 
 puts ""

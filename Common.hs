@@ -303,18 +303,15 @@ varUnset' name frref = do
 
 getArray :: BString -> TclM TclArray
 getArray name = do
-   frref <- getFrame
+  let (NSRef ns (VarName nm _)) = parseVarName name
+  runInNS ns (getFrame >>= getArray' nm)
+
+getArray' name frref = do
    var <- varLookup name frref
    case var of
       Just (ArrayVar a) -> return a
       Just _            -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
       Nothing           -> tclErr $ "can't read " ++ show name ++ ": no such variable"
-
-{-
-varLookup' name = do
-  frref <- getFrame
-  varLookup name frref
--}
 
 varLookup name frref = do
    isUpped <- upped name frref

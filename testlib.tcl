@@ -1,6 +1,9 @@
 set assertcount 0
-set current_test "Test"
-set trace_test 0
+namespace eval testlib {
+  variable current_test "Test"
+  variable trace_test 0
+  variable tests
+}
 
 proc die s {
   puts $s
@@ -13,7 +16,7 @@ proc assertPass {} {
 }
 
 proc assertFail why {
-  global current_test
+  variable testlib::current_test
   die "'$current_test' failed: $why"
 }
 
@@ -21,19 +24,10 @@ proc assertFail why {
 proc checkthat { var { op == } { r 1 } } {
   set res [$op $var $r]
   if { == $res 1 } {
-    if { == $::trace_test 1 } { puts "\"$var $op $r\" was true" }
+    if { == $::testlib::trace_test 1 } { puts "\"$var $op $r\" was true" }
     assertPass
   } else {
     assertFail "\"$var $op $r\" was not true"
-  }
-}
-
-
-proc assertStrEq {a b} {
-  if {eq $a $b} {
-    assertPass
-  } else {
-    assertFail "\"$a\" != \"$b\""
   }
 }
 
@@ -66,14 +60,15 @@ proc assert code {
 }
 
 proc test {name body} {
-  set ::current_test $name
+  set testlib::current_test $name
+  set testlib::tests($name) $body
   uplevel "proc test_proc {} {$body}"
   set ret [catch { uplevel test_proc } retval]
   if { == $ret 1 } { assertFail "Error in test {$name}: $retval" }
 }
 
 proc with_test {tn code} {
-  global current_test
+  variable testlib::current_test
   set old_test $current_test
   set current_test "$old_test -> $tn"
   uplevel $code
