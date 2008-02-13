@@ -1,4 +1,4 @@
-module StringProcs (stringProcs, stringTests) where
+module TclLib.StringProcs (stringProcs, stringTests) where
 
 import Common
 import Util

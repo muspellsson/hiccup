@@ -1,4 +1,4 @@
-module ArrayProcs (arrayProcs) where
+module TclLib.ArrayProcs (arrayProcs) where
 import Common
 
 import Util

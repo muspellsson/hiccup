@@ -11,11 +11,11 @@ import Common
 import Util
 import Data.Time.Clock (diffUTCTime,getCurrentTime)
 
-import IOProcs
-import ListProcs
-import ArrayProcs
+import TclLib.IOProcs
+import TclLib.ListProcs
+import TclLib.ArrayProcs
 import ControlProcs
-import StringProcs
+import TclLib.StringProcs
 import NSProcs
 import ProcArgs
 import Test.HUnit 

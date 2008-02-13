@@ -1,4 +1,4 @@
-module ListProcs (listProcs,procList) where
+module TclLib.ListProcs (listProcs,procList) where
 import Common
 import qualified TclObj as T
 import Control.Monad
