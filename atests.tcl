@@ -8,8 +8,6 @@ proc announce { } {
 
 announce
 
-checkthat [eval {* 4 4}] == 16
-
 test "upvar" {
 
   proc uptest {var v} {
@@ -316,7 +314,9 @@ test "for loop" {
   checkthat $val == 20
 }
 
-test "empty eval" {
+test "eval tests" {
+  checkthat [eval {* 4 4}] == 16
+
   assertNoErr { eval "" }
   assertNoErr { eval " " }
 }
