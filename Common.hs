@@ -132,10 +132,7 @@ currentVars = do f <- getFrame
 
 commandNames = getProcMap >>= return . map procName . Map.elems
 
-getStack = do s <- gets tclStack -- TODO: Guard for empty stack here?
-              case s of
-                []    -> tclErr "Aack. Tried to go up too far in the stack."
-                v     -> return v
+getStack = gets tclStack
 getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getProcMap #-}
 
@@ -351,6 +348,7 @@ varGet' vn@(VarName name ind) frref = do
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do
   (curr,new) <- liftM (splitAt i) getStack
+  when (null new) (tclErr ("bad level: " ++ show i))
   putStack new
   res <- p `ensure` (modStack (curr ++))
   return res
@@ -452,6 +450,7 @@ putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
 readRef = io . readIORef
 
 refExtract ref f = readRef ref >>= return . f
+{-# INLINE refExtract #-}
 
 currentNS = do
   ns <- gets tclCurrNS >>= readRef
@@ -487,7 +486,7 @@ frameWithVars vref = do
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
-changeVars fr fun = io (modifyIORef fr (\f -> f { frVars = fun (frVars f) } ))
+changeVars !fr fun = io (modifyIORef fr (\f -> f { frVars = fun (frVars f) } ))
 {-# INLINE changeVars #-}
 
 makeEnsemble name subs = top
