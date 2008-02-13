@@ -1,4 +1,4 @@
-module NSProcs (nsProcs) where
+module TclLib.NSProcs (nsProcs) where
 
 import Common
 import Core (evalTcl)

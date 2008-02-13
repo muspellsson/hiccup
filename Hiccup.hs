@@ -14,9 +14,9 @@ import Data.Time.Clock (diffUTCTime,getCurrentTime)
 import TclLib.IOProcs
 import TclLib.ListProcs
 import TclLib.ArrayProcs
-import ControlProcs
+import TclLib.ControlProcs
 import TclLib.StringProcs
-import NSProcs
+import TclLib.NSProcs
 import ProcArgs
 import Test.HUnit 
 import ExprParse

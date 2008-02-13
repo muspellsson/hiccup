@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module ControlProcs (controlProcs) where
+module TclLib.ControlProcs (controlProcs) where
 
 import Common
 import Core
