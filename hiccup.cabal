@@ -9,15 +9,15 @@ Homepage:            http://hiccup.googlecode.com/
 Category:            Compilers/Interpreters
 Synopsis:            Relatively efficient Tcl interpreter with support for basic operations
 Maintainer:          consalus+hiccup@gmail.com
-Build-Depends:       base, HUnit, time, mtl, haskell98, readline
+Build-Depends:       base, HUnit, time, mtl, haskell98, readline, parsec
 Build-Type:          Simple
 data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
 Executable:          hiccup
 Other-Modules:       Hiccup, TclObj, VarName, Common, Util, Core, RToken, BSParse,
-                     IOProcs, StringProcs, ListProcs, ArrayProcs, NSProcs, TclChan,
-                     ControlProcs
+                     TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, TclChan,
+                     TclLib.ControlProcs
 Main-is:             Main.hs
 ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W
 ghc-prof-options:    -auto-all -prof
