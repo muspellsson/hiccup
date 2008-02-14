@@ -82,7 +82,7 @@ globalNS = do
   vm <- frameWithVars Map.empty
   return $ TclNS { nsName = nsSep, nsFullName = pack "", nsProcs = emptyProcMap, nsFrame = vm, nsParent = Nothing, nsChildren = Map.empty }
 
-data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFunction :: TclProc }
+data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFn :: TclProc }
 
 type FrameRef = IORef TclFrame
 data TclFrame = TclFrame { frVars :: VarMap, upMap :: Map.Map BString (FrameRef,BString), frTag :: Int  }
@@ -270,7 +270,7 @@ varRename old new = do
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old
-                 if not (B.null new) then regProc new (procBody pr) (procFunction pr) else ret
+                 if not (B.null new) then regProc new (procBody pr) (procFn pr) else ret
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do
@@ -492,7 +492,7 @@ makeEnsemble name subs = top
   where top args = case args of
                    (x:xs) -> case Map.lookup (T.asBStr x) subMap of
                               Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " ++ commaList "or" (map unpack (procMapNames subMap))
-                              Just f  -> (procFunction f) xs
+                              Just f  -> (procFn f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
         subMap = makeProcMap subs
 

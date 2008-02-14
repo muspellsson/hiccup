@@ -23,10 +23,6 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
-testLu :: String -> IO T.TclObj
-testLu v = M.lookup v table
- where table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
-
 exprCompile :: (Monad m) => String -> m ((String -> m T.TclObj) -> m T.TclObj)
 exprCompile s = do v <- expr s
                    return $ runExpr v

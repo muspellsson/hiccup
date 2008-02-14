@@ -41,19 +41,18 @@ runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do
   evArgs <- mapM evalRToken args
   evArgs `seq` go n evArgs
- where go (Left p@(NSRef _ name)) a = callProc name (getProcNS p) a
+ where go (Left p@(NSRef _ name)) a = getProcNS p >>= \pr -> callProc name pr a
        go (Right rt) a = do o <- evalRToken rt
                             let name = T.asBStr o
-                            callProc name (getProc name) a
+                            getProc name >>= \pr -> callProc name pr a
 
-callProc pn f args =  do
-   mproc <- f
+callProc pn mproc args = do
    case mproc of
      Nothing   -> do ukproc <- getProc (pack "unknown")
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
-                       Just uk -> (procFunction uk) ((T.mkTclBStr pn):args)
-     Just proc -> (procFunction proc) args
+                       Just uk -> (procFn uk) ((T.mkTclBStr pn):args)
+     Just proc -> (procFn proc) args
 {-# INLINE callProc #-}
 
 doCond :: T.TclObj -> TclM Bool
@@ -65,6 +64,5 @@ doCond str = do
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
 
-coreTests = TestList [ ]
-
+coreTests = TestList []
 
