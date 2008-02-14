@@ -17,6 +17,7 @@ import TclLib.ArrayProcs
 import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
+import TclLib.MathProcs
 import ProcArgs
 import Test.HUnit 
 import ExprParse
@@ -30,11 +31,6 @@ coreProcs = makeProcMap $
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
   ("source", procSource), ("incr", procIncr), ("time", procTime), ("expr", procExpr)]
 
-mathProcs = makeProcMap $
-   [("+",m (+)), ("*",m (*)), ("-",m (-)), ("pow", m (^)),
-    ("/",m div), ("<", t (<)),(">", t (>)),("<=",t (<=))]
- where m = procMath
-       t = procTest
 
 baseProcs = Map.unions [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
@@ -102,20 +98,6 @@ procNe args = case args of
                   [a,b] -> return $! T.fromBool (a `strNe`  b)
                   _     -> argErr "ne"
 
-procMath :: (Int -> Int -> Int) -> TclProc
-procMath op args = case args of
-         [s1,s2] -> do res <- liftM2 op (T.asInt s1) (T.asInt s2)
-                       return $! (T.mkTclInt res)
-         _       -> argErr "math"
-{-# INLINE procMath #-}
-
-procTest :: (Int -> Int -> Bool) -> TclProc
-procTest op args = case args of
-         [s1,s2] -> do a1 <- T.asInt s1
-                       a2 <- T.asInt s2
-                       return $! (T.fromBool (op a1 a2))
-         _       -> argErr "test"
-{-# INLINE procTest #-}
 
 procNotEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
