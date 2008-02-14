@@ -36,14 +36,14 @@ array_get args = case args of
 
 array_names args = case args of
          [name] -> getKeys name >>= retlist
-         [name,pat] -> getKeys name >>= retlist . globMatch (T.asBStr pat)
+         [name,pat] -> getKeys name >>= retlist . globMatches (T.asBStr pat)
          [name,mode,pat] -> do 
                       keys <- getKeys name
                       let bpat = T.asBStr pat
                       if mode .== "-glob" 
-                         then retlist (globMatch bpat keys)
+                         then retlist (globMatches bpat keys)
                          else if mode .== "-exact" 
-                                then retlist (exactMatch bpat keys)
+                                then retlist (exactMatches bpat keys)
                                 else tclErr $ "bad option " ++ show mode
                       
          _      -> argErr "array names"

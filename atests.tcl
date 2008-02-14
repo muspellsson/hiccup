@@ -816,6 +816,35 @@ test "switch return" {
 
 }
 
+test "switch exact" {
+  set x 4
+  switch -exact $x {
+    2 { assertFail "bad Switch" }
+    4 { assertPass }
+    default { assertFail "bad Swich" }
+  }
+}
+
+test "switch glob" {
+  set x been
+  switch -glob $x {
+    2 { assertFail "bad Switch1" }
+    b*d { assertFail "bad Switch2" }
+    b??n { assertPass }
+    been { assertFail "wtf" }
+    default { assertFail "bad Switch3" }
+  }
+}
+
+test "switch --" {
+  set x 4
+  switch -- $x {
+    2 { assertFail "bad Switch" }
+    4 { assertPass }
+    default { assertFail "bad Swich" }
+  }
+}
+
 test "list escaping" {
   set x [list 1 2 3 \{ \} 6]
   checkthat [llength $x] == 6

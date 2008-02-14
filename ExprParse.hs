@@ -1,4 +1,4 @@
-module ExprParse (exprParseTests,riExpr) where
+module ExprParse (exprParseTests, riExpr, exprCompile) where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
@@ -7,6 +7,8 @@ import Test.HUnit
 
 import qualified TclObj as T
 import qualified Data.Map as M
+
+import Util
 
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser emptyDef
@@ -23,7 +25,7 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
-exprCompile :: (Monad m) => String -> m ((String -> m T.TclObj) -> m T.TclObj)
+exprCompile :: (Monad m) => String -> m ((BString -> m T.TclObj) -> m T.TclObj)
 exprCompile s = do v <- expr s
                    return $ runExpr v
 
@@ -50,14 +52,14 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-objapply :: (Monad m) => (String -> m T.TclObj) -> ((T.TclObj,T.TclObj) -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
+objapply :: (Monad m) => (BString -> m T.TclObj) -> ((T.TclObj,T.TclObj) -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
   f (i1,i2)
 
 
-runExpr :: (Monad m) => TExp -> (String -> m T.TclObj) -> m T.TclObj
+runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
   case exp of
     (TOp OpPlus a b) -> objap (procMath (+)) a b
@@ -73,9 +75,9 @@ runExpr exp lu =
     (TOp OpStrEq a b) -> objap (procStr (==)) a b
     (TOp OpStrNe a b) -> objap (procStr (/=)) a b
     (TVal v) -> return $! v
-    (TVar n) -> lu n
+    (TVar n) -> lu (pack n)
     _                 -> fail $ "expr can't currently eval: " ++ (show exp)
- where nop lst = fail "sorry, not implemented"
+ where nop _ = fail "sorry, not implemented"
        objap = objapply lu
        procMath f (a,b) = do ai <- T.asInt a
                              bi <- T.asInt b
@@ -128,7 +130,7 @@ myfun = do s <- identifier
 
 ptest a (p,s) = a ~=? (tparse p s)
  where tparse p s = case parse p "" s of
-                      Left err -> Nothing
+                      Left _    -> Nothing
                       Right res -> Just res
 
 a ?=? x = ptest (Just a) x
@@ -191,7 +193,7 @@ evalTests = TestList
       ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
       "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
     ]
- where eql a b = (runExpr a (return . T.mkTclStr)) ~=? Just b
+ where eql a b = (runExpr a (return . T.mkTclBStr)) ~=? Just b
 
 varEvalTests = TestList
     [ 
@@ -201,13 +203,11 @@ varEvalTests = TestList
       "$boo == \"bean\" -> true" ~: ((TVar "boo") `eq` (tStr "bean")) `eql` T.tclTrue
     ]
  where eql a b = (runExpr a lu) ~=? Just b
-       table = M.fromList [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
+       table = M.fromList . mapFst pack $ [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
        lu v = M.lookup v table
 
 riExpr s = expr s >>= \e -> runExpr e (\_ -> fail "expr can't handle variables")
 
 exprParseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 
-runUnit = runTestTT exprParseTests
-
-howbout s = parse pexpr "" s
+-- howbout s = parse pexpr "" s

@@ -6,7 +6,7 @@ import Core
 import Control.Monad.Error
 import qualified TclObj as T
 import TclObj ((.==))
-import qualified Data.ByteString.Char8 as B
+import Util
 
 controlProcs = makeProcMap $
   [("while", procWhile), ("if", procIf), ("for", procFor),
@@ -17,7 +17,7 @@ procIf (cond:yes:rest) = do
   if condVal then evalTcl yes
     else case rest of
           []      -> ret
-          [s,blk] -> if (T.asBStr s) == (B.pack "else") then evalTcl blk else tclErr "Invalid If"
+          [s,blk] -> if (T.asBStr s) == (pack "else") then evalTcl blk else tclErr "Invalid If"
           (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
 procIf _ = argErr "if"
 
@@ -66,24 +66,28 @@ chunkBy lst n = let (a,r) = splitAt n lst
                 in a : (if null r then [] else r `chunkBy` n)
 
 procSwitch args = case args of
-   [str,pairlst]     -> T.asList pairlst >>= doSwitch str
-   [opt,str,pairlst] -> if opt .== "--"
-                         then T.asList pairlst >>= doSwitch str
-                         else argErr "switch"
+   [str,pairlst]     -> T.asList pairlst >>= doSwitch (exactMatch str) 
+   [opt,str,pairlst] -> if opt .== "--" || opt .== "-exact"
+                         then T.asList pairlst >>= doSwitch (exactMatch str) 
+                         else if opt .== "-glob" 
+                                 then T.asList pairlst >>= doSwitch (globber str)
+                                 else tclErr $ "switch: bad option " ++ show opt
    _                 -> argErr "switch"
+ where globber s = let bs = T.asBStr s in \o -> globMatch (T.asBStr o) bs
 
-doSwitch str lst = do pl <- toPairs lst
-                      switcher str pl False
- where switcher f [(k,v)] useNext = do
-         if f == k || useNext || k .== "default"
+doSwitch matchP lst = do 
+   pl <- toPairs lst
+   switcher pl False
+ where switcher [(k,v)] useNext = do
+         if matchP k || useNext || k .== "default"
              then if v .== "-" then tclErr $ "no body specified for pattern " ++ show k
                                else evalTcl v
              else ret
-       switcher f ((k,v):xs) useNext = do
-         if f == k || useNext
-             then if v .== "-" then switcher f xs True else evalTcl v
-             else switcher f xs False
-       switcher _ []      _       = tclErr "impossible condition in \"switch\""
+       switcher ((k,v):xs) useNext = do
+         if matchP k || useNext
+             then if v .== "-" then switcher xs True else evalTcl v
+             else switcher xs False
+       switcher []      _       = tclErr "impossible condition in \"switch\""
 
 toPairs [a,b]   = return [(a,b)]
 toPairs (a:b:r) = liftM ((a,b):) (toPairs r)

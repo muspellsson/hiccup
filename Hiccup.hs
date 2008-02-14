@@ -143,7 +143,7 @@ procInfo = makeEnsemble "info" [
 
 info_vars args = case args of
      []    -> currentVars >>= asTclList
-     [pat] -> currentVars >>= asTclList . globMatch (T.asBStr pat)
+     [pat] -> currentVars >>= asTclList . globMatches (T.asBStr pat)
      _  -> argErr "info vars"
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool

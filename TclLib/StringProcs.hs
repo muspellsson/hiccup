@@ -70,6 +70,7 @@ matchTests = TestList [
     ,"a?c" `doesnt_match` "ab" 
     ,"a??d" `matches` "abcd" 
     ,"f??d" `matches` "feed" 
+    ,"b??n" `matches` "been"
     ,"a" `doesnt_match` "ab" 
     ,"ab" `doesnt_match` "a" 
     ,"a*" `matches` "abcde" 
