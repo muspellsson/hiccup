@@ -9,6 +9,7 @@ module Common (RetVal, TclM
        ,withLocalScope
        ,withNS
        ,makeProcMap
+       ,mergeProcMaps
        ,getProc
        ,getProcNS
        ,regProc
@@ -110,6 +111,9 @@ showFrame frref = do
 makeProcMap :: [(String,TclProc)] -> ProcMap
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 
+mergeProcMaps :: [ProcMap] -> ProcMap
+mergeProcMaps = Map.unions
+
 toTclProcT (n,v) = (n, TclProcT n errStr v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
@@ -137,8 +141,6 @@ getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getProcMap #-}
 
 getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
-
-getGlobalFrame = gets tclGlobalNS >>= (`refExtract` nsFrame)
 
 putProcMap p = do nsref <- gets tclCurrNS
                   io (modifyIORef nsref (\v -> v { nsProcs = p }))

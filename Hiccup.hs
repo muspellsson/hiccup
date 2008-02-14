@@ -1,15 +1,16 @@
 {-# LANGUAGE BangPatterns #-}
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
-import qualified Data.Map as Map
 import Control.Monad.Error
+import Data.Time.Clock (diffUTCTime,getCurrentTime)
 import Data.IORef
+
+import Util
 import qualified TclObj as T
 import TclObj (strEq,strNe)
 import Core
 import Common
-import Util
-import Data.Time.Clock (diffUTCTime,getCurrentTime)
+import ProcArgs
 
 import TclLib.IOProcs
 import TclLib.ListProcs
@@ -18,9 +19,9 @@ import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
 import TclLib.MathProcs
-import ProcArgs
-import Test.HUnit 
 import ExprParse
+
+import Test.HUnit 
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
@@ -32,7 +33,7 @@ coreProcs = makeProcMap $
   ("source", procSource), ("incr", procIncr), ("time", procTime), ("expr", procExpr)]
 
 
-baseProcs = Map.unions [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
+baseProcs = mergeProcMaps [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
 
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
@@ -75,12 +76,10 @@ procSource args = case args of
                   [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
                   _   -> argErr "source"
 
-
-procProc, procSet, procReturn, procUpLevel :: TclProc
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2
      [s1]    -> varGet (T.asBStr s1)
-     _       -> argErr ("set " ++ show args ++ " " ++ show (length args))
+     _       -> argErr "set"
 
 procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
