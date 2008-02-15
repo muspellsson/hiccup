@@ -2,7 +2,6 @@
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
 import Control.Monad.Error
-import Data.Time.Clock (diffUTCTime,getCurrentTime)
 import Data.IORef
 
 import Util
@@ -19,7 +18,7 @@ import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
 import TclLib.MathProcs
-import ExprParse
+import TclLib.UtilProcs
 
 import Test.HUnit 
 
@@ -29,11 +28,11 @@ coreProcs = makeProcMap $
   ("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
-  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal),
-  ("source", procSource), ("incr", procIncr), ("time", procTime), ("expr", procExpr)]
+  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
-baseProcs = mergeProcMaps [coreProcs, controlProcs, nsProcs, mathProcs, ioProcs, listProcs, arrayProcs, stringProcs]
+baseProcs = mergeProcMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
+                           ioProcs, listProcs, arrayProcs, stringProcs, utilProcs]
 
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
@@ -72,9 +71,6 @@ runInterp' t (Interpreter i) = do
 runTcl v = mkInterp >>= runInterp v
 runTclWithArgs v args = mkInterpWithArgs args >>= runInterp v
 
-procSource args = case args of
-                  [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
-                  _   -> argErr "source"
 
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2
@@ -107,12 +103,6 @@ procEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia == ib)
                   _                  -> procEq [a,b]
 procEql _ = argErr "=="
-
-
-procExpr args = do  
-  al <- mapM subst args 
-  let s = concat (map T.asStr al) 
-  riExpr s
 
 procEval args = case args of
                  [s] -> evalTcl s
@@ -159,31 +149,7 @@ info_body args = case args of
 asTclList = return . T.mkTclList . map T.mkTclBStr
 
 
-procIncr [vname]     = incr vname 1
-procIncr [vname,val] = T.asInt val >>= incr vname
-procIncr _           = argErr "incr"
 
-incr :: T.TclObj -> Int -> TclM RetVal
-incr n !i =  varModify (T.asBStr n) $
-                 \v -> do ival <- T.asInt v
-                          return $! (T.mkTclInt (ival + i))
-
-procTime args =
-   case args of
-     [code]     -> do tspan <- dotime code
-                      return (T.mkTclStr (show tspan))
-     [code,cnt] -> do count <- T.asInt cnt
-                      unless (count > 0) (tclErr "invalid number of iterations in time")
-                      ts <- mapM (\_ -> dotime code) [1..count]
-                      let str = show ((sum ts) / fromIntegral (length ts))
-                      return (T.mkTclStr (str ++ " per iteration"))
-     _      -> argErr "time"
- where dotime code = do
-         startt <- io getCurrentTime
-         evalTcl code
-         endt <- io getCurrentTime
-         let tspan = diffUTCTime endt startt
-         return tspan
 
 
 procReturn args = case args of
@@ -216,7 +182,7 @@ procGlobal args = case args of
       [] -> argErr "global"
       _  -> mapM_ (inner . T.asBStr) args >> ret
  where inner g = do len <- stackLevel
-                    upvar len g g >> ret
+                    upvar len g g
 
 procProc [name,args,body] = do
   let pname = T.asBStr name
