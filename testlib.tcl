@@ -1,8 +1,9 @@
-set assertcount 0
 namespace eval testlib {
   variable current_test "Test"
   variable trace_test 0
   variable tests
+  variable passcount 0
+  variable assertcount 0
 }
 
 proc die s {
@@ -12,12 +13,14 @@ proc die s {
 
 proc assertPass {} {
   puts -nonewline "."
-  incr ::assertcount
+  incr ::testlib::assertcount
+  incr ::testlib::passcount
 }
 
 proc assertFail why {
-  variable testlib::current_test
-  die "'$current_test' failed: $why"
+  variable ::testlib::current_test
+  incr ::testlib::assertcount
+  puts "'$current_test' failed: $why"
 }
 
 
@@ -62,9 +65,23 @@ proc assert code {
 proc test {name body} {
   set testlib::current_test $name
   set testlib::tests($name) $body
-  uplevel "proc test_proc {} {$body}"
+  set testlib::test_results($name) "not run"
+}
+
+proc run_tests {} {
+  puts "Running [array size testlib::tests] tests."
+  foreach tn [array names ::testlib::tests] {
+    uplevel "run_test {$tn}"
+  }
+  puts stdout "\nDone. Passed $testlib::passcount / $testlib::assertcount checks."
+}
+
+proc run_test tname {
+  uplevel "proc test_proc {} {$::testlib::tests($tname)}"
   set ret [catch { uplevel test_proc } retval]
-  if { == $ret 1 } { assertFail "Error in test {$name}: $retval" }
+  if { == $ret 1 } { assertFail "Error in test {$tname}: $retval" }
+  puts -nonewline "|"
+  rename test_proc {}
 }
 
 proc with_test {tn code} {

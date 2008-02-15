@@ -2,12 +2,6 @@
 source include.tcl
 source testlib.tcl
 
-proc announce { } { 
-  puts "Running tests"
-}
-
-announce
-
 test "upvar" {
 
   proc uptest {var v} {
@@ -1149,5 +1143,4 @@ test "ns variable array 'array size'" {
   finalize { namespace foo }
 }
 
-puts ""
-puts stdout "Done. Passed $assertcount checks."
+run_tests
