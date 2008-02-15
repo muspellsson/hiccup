@@ -52,16 +52,25 @@ checkWritable c = do r <- io (hIsWritable c)
                      if r then return c else (tclErr "channel wasn't opened for writing")
 
 procOpen args = case args of
-         [fn] -> do eh <- io (IOE.try (openFile (T.asStr fn) ReadMode)) 
-                    case eh of
-                      Left e -> if IOE.isDoesNotExistError e 
-                                      then tclErr $ "could not open " ++ show (T.asStr fn) ++ ": no such file or directory"
-                                      else tclErr (show e)
-                      Right h -> do
-                          chan <- io (T.mkChan h)
-                          addChan chan
-                          treturn (T.chanName chan)
+         [fn]   -> openChan fn ReadMode
+         [fn,m] -> parseMode (T.asStr m) >>= openChan fn 
          _    -> argErr "open"
+ where parseMode m =
+         case m of
+          "w" -> return WriteMode 
+          "r" -> return ReadMode
+          "a" -> return AppendMode
+          _   -> fail "Unknown file mode"
+       openChan fn m = do
+        eh <- io $ IOE.try (openFile (T.asStr fn) m) 
+        case eh of
+         Left e -> if IOE.isDoesNotExistError e 
+                     then tclErr $ "could not open " ++ show (T.asStr fn) ++ ": no such file or directory"
+                     else tclErr (show e)
+         Right h -> do
+           chan <- io (T.mkChan h)
+           addChan chan
+           treturn (T.chanName chan)
 
 procClose args = case args of
          [ch] -> do h <- lookupChan (T.asBStr ch)
