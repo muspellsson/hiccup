@@ -710,8 +710,15 @@ test "array set" {
 
 test "array get" {
   array set arr { x "1 2" y {2 3} "handy man" 3 }
-
   checkthat [llength [array get arr]] == 6
+  checkthat [llength [array get donkey]] == 0
+}
+
+test "array get pat" {
+  array set arr { x "1 2" y {2 3} "handy man" 3 }
+  checkthat [llength [array get arr]] == 6
+  checkthat [llength [array get arr x]] == 2
+  checkthat [llength [array get arr ?]] == 4
 }
 
 test "proc must be complete" {

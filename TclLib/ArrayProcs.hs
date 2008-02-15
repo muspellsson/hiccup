@@ -30,9 +30,13 @@ toPairs _ = []
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
 
 array_get args = case args of
-         [name] ->  do arr <- getOrEmpty name
-                       return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (Map.toList arr)
+         [name] -> runGet name (const True)
+         [name,pat] ->  runGet name (globMatch (T.asBStr pat))
          _      -> argErr "array get"
+ where runGet name filt = do
+        arr <- getOrEmpty name
+        return . T.mkTclList $ concatMap (\(k,v) -> [T.mkTclBStr k, v]) (filter (filt . fst) (Map.toList arr))
+ 
 
 array_names args = case args of
          [name] -> getKeys name >>= retlist
