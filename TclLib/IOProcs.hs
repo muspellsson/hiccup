@@ -12,7 +12,7 @@ import Util
 
 ioProcs = makeProcMap $ 
  [("puts",procPuts),("gets",procGets),
-  ("open", procOpen), ("close", procClose),
+  ("open", procOpen), ("close", procClose),("flush", procFlush),
   ("exit", procExit)]
 
 
@@ -78,6 +78,12 @@ procClose args = case args of
                     io (hClose (T.chanHandle h))
                     ret
          _    -> argErr "close"
+
+procFlush args = case args of
+     [ch] -> do h <- lookupChan (T.asBStr ch)
+                io (hFlush (T.chanHandle h))
+                ret
+     _    -> argErr "flush"
 
 procExit args = case args of
             [] -> io (exitWith ExitSuccess)
