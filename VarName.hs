@@ -1,4 +1,6 @@
 module VarName (parseVarName, 
+                nsTail,
+                nsQualifiers,
                 parseNS,
                 parseProc,
                 VarName(..), 
@@ -55,6 +57,13 @@ parseArrRef str = case B.elemIndex '(' str of
                              then let (pre,post) = B.splitAt start str
                                   in (pre, Just (B.tail (B.init post)))
                              else (str, Nothing)
+nsTail str = case parseNS str of
+               Left _      -> str
+               Right (_,t) -> t
+
+nsQualifiers str = case B.findSubstrings nsSep str of
+                      [] -> B.empty
+                      lst -> B.take (last lst) str
 
 parseNS str = 
   case explodeNS str of
@@ -74,7 +83,7 @@ splitWith str sep =
                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
 {-# INLINE splitWith #-}
  
-varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS] where 
+varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS, testNSTail, testNsQuals] where 
   bp = pack
   splitWithTests = TestList [
       ("one::two","::") `splitsTo` ["one","two"]
@@ -98,6 +107,22 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS]
       ,parseVarName (bp "x(a)") ~=? NSRef Local (VarName (bp "x") (Just (bp "a")))
       ,parseVarName (bp "::x") ~=? NSRef (NS [bp ""]) (VarName (bp "x") Nothing)
     ]
+
+  testNSTail = TestList [
+       nsTail (bp "boo") ~=? (bp "boo")
+       ,nsTail (bp "::boo") ~=? (bp "boo")
+       ,nsTail (bp "baby::boo") ~=? (bp "boo")
+       ,nsTail (bp "::baby::boo") ~=? (bp "boo")
+       ,nsTail (bp "::") ~=? (bp "")
+    ]
+  testNsQuals = TestList [
+      "boo" `should_be` ""
+      ,"::" `should_be` ""
+      ,"a::b" `should_be` "a"
+      ,"a::b::c" `should_be` "a::b"
+      ,"::a::b::c" `should_be` "::a::b"
+    ]
+   where should_be b a = nsQualifiers (bp b) ~=? (bp a)
 
   testArr = TestList [
      "december" `should_be` Nothing

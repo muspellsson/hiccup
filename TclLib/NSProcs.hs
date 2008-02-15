@@ -2,6 +2,7 @@ module TclLib.NSProcs (nsProcs) where
 
 import Common
 import Core (evalTcl)
+import VarName
 import qualified TclObj as T
 
 nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
@@ -13,6 +14,8 @@ procNamespace = makeEnsemble "namespace" [
      ("parent", ns_parent),
      ("children", ns_children),
      ("delete", ns_delete),
+     ("tail", ns_tail),
+     ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
 
 procVariable args = case args of
@@ -43,3 +46,11 @@ ns_exists args = case args of
 ns_delete args = case args of
    []    -> argErr "namespace delete"
    nsl   -> mapM_ (deleteNS . T.asBStr) nsl >> ret
+
+ns_tail args = case args of
+   [s] -> return . T.mkTclBStr $ (nsTail (T.asBStr s))
+   _   -> argErr "namespace tail"
+
+ns_qualifiers args = case args of
+   [s] -> return . T.mkTclBStr $ (nsQualifiers (T.asBStr s))
+   _   -> argErr "namespace qualifiers"

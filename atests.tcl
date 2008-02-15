@@ -1143,4 +1143,18 @@ test "ns variable array 'array size'" {
   finalize { namespace foo }
 }
 
+test "namespace tail" {
+  checkthat [namespace tail boo] == boo
+  checkthat [namespace tail ::oh::no] == no
+  checkthat [namespace tail oh::no] == no
+  checkthat [namespace tail ::] == {}
+}
+
+test "namespace qualifiers" {
+  checkthat [namespace qualifiers boo] == {}
+  checkthat [namespace qualifiers ::oh::no] == ::oh
+  checkthat [namespace qualifiers oh::no] == oh
+  checkthat [namespace qualifiers ::] == {}
+}
+
 run_tests

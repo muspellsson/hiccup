@@ -148,10 +148,6 @@ info_body args = case args of
 
 asTclList = return . T.mkTclList . map T.mkTclBStr
 
-
-
-
-
 procReturn args = case args of
       [s] -> throwError (ERet s)
       []  -> throwError (ERet T.empty)

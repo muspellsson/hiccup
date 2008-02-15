@@ -96,6 +96,7 @@ data TclVar = ScalarVar T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Sh
 
 type TclArray = Map.Map BString T.TclObj
 
+{-
 showStack = do st <- getStack
                mapM_ showFrame st
 
@@ -105,7 +106,7 @@ showFrame frref = do
   let tag = frTag fr 
   updata <- mapM (\(k,(ur,un)) -> getTag ur >>= \rt -> return (k,(rt,un))) (Map.toList (upMap fr))
   (io . print) (tag,vars,updata)
-  
+-}
   
 
 makeProcMap :: [(String,TclProc)] -> ProcMap
