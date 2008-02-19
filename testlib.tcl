@@ -63,7 +63,6 @@ proc assert code {
 }
 
 proc test {name body} {
-  set testlib::current_test $name
   set testlib::tests($name) $body
   set testlib::test_results($name) "not run"
 }
@@ -78,6 +77,7 @@ proc run_tests {} {
 
 proc run_test tname {
   uplevel "proc test_proc {} {$::testlib::tests($tname)}"
+  set ::testlib::current_test $tname
   set ret [catch { uplevel test_proc } retval]
   if { == $ret 1 } { assertFail "Error in test {$tname}: $retval" }
   puts -nonewline "|"
