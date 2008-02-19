@@ -82,7 +82,7 @@ procUnset args = case args of
      _       -> argErr "unset"
 
 procRename args = case args of
-    [old,new] -> varRename (T.asBStr old) (T.asBStr new)
+    [old,new] -> varRename (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
 
 procEq args = case args of
@@ -184,6 +184,7 @@ procProc [name,args,body] = do
   let pname = T.asBStr name
   params <- parseParams pname args
   regProc pname (T.asBStr body) (procRunner params body)
+  ret
 procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
 
 procRunner pl body args = do

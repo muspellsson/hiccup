@@ -1157,4 +1157,33 @@ test "namespace qualifiers" {
   checkthat [namespace qualifiers ::] == {}
 }
 
+test "procs declared in namespace global" {
+  proc ::woot {} { return 4545 }
+  checkthat [::woot] == 4545
+}
+
+test "procs declared in foo namespace" {
+  namespace eval foo {}
+  proc foo::ret5 {} { return 5 }
+
+  checkthat [foo::ret5] == 5
+  checkthat [::foo::ret5] == 5
+
+  proc ::foo::ret6 {} { return 6 }
+
+  checkthat [foo::ret6] == 6
+  checkthat [::foo::ret6] == 6
+  finalize { namespace foo }
+}
+
+test "proc in namespace that doesn't exist fails" {
+  assertErr {
+    proc foo::bar {} { return 1 }
+  }
+
+  assertErr {
+    proc ::foo::bar {} { return 1 }
+  }
+}
+
 run_tests

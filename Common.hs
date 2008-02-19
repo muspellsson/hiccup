@@ -141,11 +141,6 @@ getStack = gets tclStack
 getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getProcMap #-}
 
-getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
-
-putProcMap p = do nsref <- gets tclCurrNS
-                  io (modifyIORef nsref (\v -> v { nsProcs = p }))
-
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = getStack >>= putStack . f
@@ -184,29 +179,6 @@ getProcNS (NSRef (NS nsl) k) = do
   ns <- readRef nsref
   return $ getProc' k (nsProcs ns)
 
-deleteNS name = do 
- let nsl = explodeNS name
- ns <- getNamespace nsl >>= readRef
- case nsParent ns of
-   Nothing -> return ()
-   Just p -> removeChild p (last nsl)
-
-removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
-                   
-
-getNamespace nsl = case nsl of
-       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
-                    getEm xs base
-       []     -> fail "Something unexpected happened in getNamespace"
- where getEm []     ns = return ns
-       getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- nsref `refExtract`  nsChildren
-                           case Map.lookup k kids of
-                               Nothing -> fail $ "can't find namespace " ++ show k
-                               Just v  -> return v
-
-existsNS ns = (getNamespace (explodeNS ns) >> return True) `catchError` (\_ -> return False)
-
 getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
 getProcNorm i = do
   currpm <- getProcMap
@@ -214,16 +186,31 @@ getProcNorm i = do
     Nothing -> do globpm <- getGlobalProcMap
                   return (getProc' i globpm)
     x       -> return x
+ where getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
+
 
 getProc' :: ProcKey -> ProcMap -> Maybe TclProcT
 getProc' i m = Map.lookup i m
 
-rmProc :: BString -> TclM ()
-rmProc name = getProcMap >>= putProcMap . Map.delete name
 
-regProc :: BString -> BString -> TclProc -> TclM RetVal
-regProc name body pr = (getProcMap >>= putProcMap . pmInsert (TclProcT name body pr)) >> ret
- where pmInsert proc m = Map.insert (procName proc) proc m
+rmProc name = gets tclCurrNS >>= \nsr ->  changeProcs nsr (Map.delete name)
+
+regProc name body pr = case parseNS name of
+    Left _        -> regProc' name body pr
+    Right (nsl,n) -> regProcNS (NSRef (NS nsl) n) body pr
+
+regProc' name body pr = do
+   gns <- gets tclCurrNS
+   changeProcs gns (pmInsert (TclProcT name body pr))
+
+pmInsert proc m = Map.insert (procName proc) proc m
+
+regProcNS (NSRef Local k) body pr = regProc' k body pr
+regProcNS (NSRef nst@(NS nsl) k) body pr 
+ | isGlobal nst = regProc' k body pr
+ | otherwise    = do  
+    nsref <- getNamespace nsl
+    changeProcs nsref (pmInsert (TclProcT k body pr))
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
@@ -264,13 +251,12 @@ varModify !n f = do
 varExists :: BString -> TclM Bool
 varExists name = (varGet name >> return True) `catchError` (\_ -> return False)
 
-varRename :: BString -> BString -> TclM RetVal
 varRename old new = do
   mpr <- getProc old
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old
-                 if not (B.null new) then regProc new (procBody pr) (procFn pr) else ret
+                 unless (B.null new) (regProc new (procBody pr) (procFn pr))
 
 varUnset :: BString -> TclM RetVal
 varUnset name = do
@@ -372,6 +358,29 @@ upvar n d s = do
    upfr <- getUpFrame n
    s `linkToFrame` (upfr, d)
 {-# INLINE upvar #-}
+
+deleteNS name = do 
+ let nsl = explodeNS name
+ ns <- getNamespace nsl >>= readRef
+ case nsParent ns of
+   Nothing -> return ()
+   Just p -> removeChild p (last nsl)
+
+removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
+
+getNamespace nsl = case nsl of
+       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
+                    getEm xs base
+       []     -> fail "Something unexpected happened in getNamespace"
+ where getEm []     ns = return ns
+       getEm (x:xs) ns = getKid x ns >>= getEm xs
+       getKid k nsref = do kids <- nsref `refExtract`  nsChildren
+                           case Map.lookup k kids of
+                               Nothing -> fail $ "can't find namespace " ++ show k
+                               Just v  -> return v
+
+existsNS ns = (getNamespace (explodeNS ns) >> return True) `catchError` (\_ -> return False)
+
 
 variableNS name val = do
   let (NSRef ns (VarName n _)) = parseVarName name
@@ -488,6 +497,8 @@ changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
 changeVars !fr fun = io (modifyIORef fr (\f -> f { frVars = fun (frVars f) } ))
 {-# INLINE changeVars #-}
+
+changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = fun (nsProcs f) } ))
 
 makeEnsemble name subs = top
   where top args = case args of
