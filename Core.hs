@@ -35,7 +35,7 @@ evalRToken (CmdTok t)      = runCmd t
 evalRToken (VarRef vn)     = varGetNS vn
 evalRToken (ArrRef ns n i) = evalRToken i >>= \ni -> varGetNS (NSRef ns (VarName n (Just (T.asBStr ni))))
 evalRToken (CatLst l)      = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
-evalRToken (Block s p)     = return $ T.fromBlock s p
+evalRToken (Block s p)     = return $! T.fromBlock s p
 
 runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do

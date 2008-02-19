@@ -223,8 +223,7 @@ rmProc name = getProcMap >>= putProcMap . Map.delete name
 
 regProc :: BString -> BString -> TclProc -> TclM RetVal
 regProc name body pr = (getProcMap >>= putProcMap . pmInsert (TclProcT name body pr)) >> ret
-
-pmInsert proc m = Map.insert (procName proc) proc m
+ where pmInsert proc m = Map.insert (procName proc) proc m
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
@@ -327,6 +326,7 @@ varGet !n = varGetNS (parseVarName n)
 
 varGetNS :: NSRef VarName -> TclM RetVal
 varGetNS (NSRef ns vn) = runInNS ns (varGet2 vn)
+{-# INLINE varGetNS #-}
 
 varGet2 vn = do
   frref <- getFrame

@@ -189,7 +189,7 @@ procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ s
 procRunner pl body args = do
   locals <- bindArgs pl args
   withLocalScope locals (evalTcl body `catchError` herr)
- where herr (ERet s)  = return s
+ where herr (ERet s)  = return $! s
        herr EBreak    = tclErr "invoked \"break\" outside of a loop"
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
        herr e         = throwError e

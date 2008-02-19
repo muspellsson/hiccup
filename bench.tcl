@@ -73,5 +73,25 @@ while {<= 1 $runcount } {
   decr runcount
 }
 
+namespace eval Count {
+  variable count 0
+
+  proc bump { { step 1 } } {
+    variable ::Count::count
+    incr count $step
+  }
+
+  proc get {} {
+    return $::Count::count
+  }
+}
+
+Count::bump
+Count::bump
+Count::bump
+
+puts "Count: [Count::get]"
+
+
 set top 3000
 puts "Sum from 1 to ${top}: [sum [range 1 $top]]"
