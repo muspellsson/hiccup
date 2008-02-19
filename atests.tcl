@@ -1184,6 +1184,14 @@ test "proc in namespace that doesn't exist fails" {
   assertErr {
     proc ::foo::bar {} { return 1 }
   }
+
+  namespace eval foo {}
+
+  assertNoErr {
+    proc foo::bar {} { return 1 }
+  }
+
+  finalize { namespace foo }
 }
 
 run_tests

@@ -17,7 +17,7 @@ extra-source-files:  example.tcl atests.tcl include.tcl
 Executable:          hiccup
 Other-Modules:       Hiccup, TclObj, VarName, Common, Util, Core, RToken, BSParse,
                      TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, TclChan,
-                     TclLib.ControlProcs
+                     TclLib.ControlProcs, TclLib.UtilProcs
 Main-is:             Main.hs
 ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W
 ghc-prof-options:    -auto-all -prof
