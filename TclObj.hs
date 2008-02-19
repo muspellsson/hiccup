@@ -9,6 +9,7 @@ module TclObj (
  ,fromBlock
  ,fromBool
  ,empty
+ ,isEmpty
  ,tclTrue
  ,tclFalse
  ,ITObj
@@ -72,6 +73,9 @@ mkTclInt !i = TclInt i bsval
 {-# INLINE mkTclInt #-}
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
+isEmpty (TclInt _ _) = False
+isEmpty v = BS.null (asBStr v)
+
 
 tclTrue = mkTclInt 1
 tclFalse = mkTclInt 0

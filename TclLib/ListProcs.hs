@@ -1,5 +1,6 @@
 module TclLib.ListProcs (listProcs,procList) where
 import Common
+import Util
 import qualified TclObj as T
 import Control.Monad
 import qualified Data.Sequence as S
@@ -23,12 +24,18 @@ procLlength args = case args of
         _     -> argErr "llength"
 
 procLset args = case args of
+        [name,val] -> varModify (T.asBStr name) (\_ -> return val)
         [name,ind,val] ->  varModify (T.asBStr name) $
                            \old -> do
                                items <- T.asSeq old
-                               i <- T.asInt ind
-                               return $! T.mkTclList' (S.update i val items)
+                               if T.isEmpty ind 
+                                  then return $! val
+                                  else do
+                                      i <- T.asInt ind
+                                      rangeCheck items i
+                                      return $! T.mkTclList' (S.update i val items)
         _              -> argErr "lset"
+ where rangeCheck seq i = if i < 0 || i >= (S.length seq) then tclErr "list index out of range" else return ()
                               
 
 

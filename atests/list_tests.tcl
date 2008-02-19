@@ -1,5 +1,7 @@
 
 test "list test" {
+  checkthat [list] eq {}
+
   set bean [list 1 2 3 4 5 {6 7 8}]
 
   checkthat [llength $bean] == 6
@@ -29,4 +31,23 @@ test "lappend" {
   lappend x 2 3 "entropy kills"
   checkthat [llength $x] == 4
   checkthat $x eq "1 2 3 {entropy kills}"
+}
+
+test "lset no index" {
+  checkthat [not [info exists boo]]
+  assertErr  { lset boo 5 }
+  set boo 2
+  lset boo 5
+  checkthat $boo == 5
+  lset boo {} 6
+  checkthat $boo == 6
+}
+
+test "lset single index" {
+  set lst [list 1 2 3]
+  lset lst 0 ONE
+  checkthat $lst eq {ONE 2 3}
+  
+  assertErr { lset lst 40 TOO_HIGH }
+  assertErr { lset lst -3 TOO_LOW }
 }
