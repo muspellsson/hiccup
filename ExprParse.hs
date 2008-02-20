@@ -23,6 +23,8 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
+data EVal = EInt !Int | EFloat !Double | EStr String deriving (Eq,Show)
+
 data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
 exprCompile :: (Monad m) => String -> m ((BString -> m T.TclObj) -> m T.TclObj)
@@ -79,13 +81,14 @@ runExpr exp lu =
     _                 -> fail $ "expr can't currently eval: " ++ (show exp)
  where nop _ = fail "sorry, not implemented"
        objap = objapply lu
-       procMath f (a,b) = do ai <- T.asInt a
-                             bi <- T.asInt b
-                             return $! T.mkTclInt (ai `f` bi)
-       procCmp f (a,b)  = do ai <- T.asInt a
-                             bi <- T.asInt b
-                             return $! T.fromBool (ai `f` bi)
-       procStr f (a,b)  = return $ T.fromBool ((T.asBStr a) `f` (T.asBStr b))
+
+procMath f (a,b) = do ai <- T.asInt a
+                      bi <- T.asInt b
+                      return $! T.mkTclInt (ai `f` bi)
+procCmp f (a,b)  = do ai <- T.asInt a
+                      bi <- T.asInt b
+                      return $! T.fromBool (ai `f` bi)
+procStr f (a,b)  = return $! T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor

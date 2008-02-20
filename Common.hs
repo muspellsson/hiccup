@@ -2,7 +2,7 @@
 module Common (RetVal, TclM
        ,TclState
        ,Err(..)
-       ,TclProc,TclProcT(..)
+       ,TclProc,procFn,procBody
        ,runTclM
        ,makeState
        ,runCheckResult
@@ -17,7 +17,7 @@ module Common (RetVal, TclM
        ,varGet
        ,varModify
        ,varSet
-       ,varSet2
+       ,varSetHere
        ,varExists
        ,varUnset
        ,varRename
@@ -215,11 +215,9 @@ regProcNS (NSRef nst@(NS nsl) k) body pr
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
 
-varSetNS (NSRef ns vn) v = runInNS ns (varSet2 vn v)
+varSetNS (NSRef ns vn) v = runInNS ns getFrame >>= varSet' vn v
 
-varSet2 vn v = do
-  frref <- getFrame
-  varSet' vn v frref
+varSetHere vn v = getFrame >>= varSet' vn v
 
 varSet' vn v frref = do
      isUpped <- upped (vnName vn) frref 

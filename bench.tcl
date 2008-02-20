@@ -86,9 +86,11 @@ namespace eval Count {
   }
 }
 
-Count::bump
-Count::bump
-Count::bump
+proc repeat {n code} {
+  for {set i 0} { <= $i $n } {incr i} $code
+}
+
+repeat 250 { Count::bump }
 
 puts "Count: [Count::get]"
 

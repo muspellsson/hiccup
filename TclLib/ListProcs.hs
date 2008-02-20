@@ -1,6 +1,5 @@
 module TclLib.ListProcs (listProcs,procList) where
 import Common
-import Util
 import qualified TclObj as T
 import Control.Monad
 import qualified Data.Sequence as S
@@ -8,15 +7,19 @@ import Data.Sequence ((><))
 
 listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
-   ("llength",procLlength), ("lappend", procLappend), ("lset", procLset)]
+   ("llength",procLlength), ("lappend", procLappend), 
+   ("lset", procLset), ("lassign", procLassign)]
 
 procList = return . T.mkTclList
 
 procLindex args = case args of
           [l]   -> return l
           [l,i] -> do items <- T.asSeq l
-                      ind   <- T.asInt i
-                      if ind >= S.length items then ret else return (S.index items ind)
+                      if T.isEmpty i 
+                           then return l 
+                           else do
+                            ind   <- T.asInt i
+                            if ind >= S.length items || ind < 0 then ret else return (S.index items ind)
           _     -> argErr "lindex"
 
 procLlength args = case args of
@@ -37,6 +40,13 @@ procLset args = case args of
         _              -> argErr "lset"
  where rangeCheck seq i = if i < 0 || i >= (S.length seq) then tclErr "list index out of range" else return ()
                               
+procLassign args = case args of
+  (list:(varnames@(_:_))) -> do l <- T.asList list
+                                let (src,rest) = splitAt (length varnames) l
+                                zipWithM_ setter varnames (src ++ repeat T.empty)
+                                return (T.mkTclList rest)
+  _ -> argErr "lassign"
+ where setter n v = varSet (T.asBStr n) v
 
 
 procLappend args = case args of

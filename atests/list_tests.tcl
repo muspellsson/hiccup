@@ -5,8 +5,6 @@ test "list test" {
   set bean [list 1 2 3 4 5 {6 7 8}]
 
   checkthat [llength $bean] == 6
-  checkthat [lindex $bean 3] == 4
-  checkthat [lindex $bean 5] eq {6 7 8}
 
   checkthat [llength "peanut"] == 1
   checkthat [llength "peanut ontology"] == 2
@@ -17,13 +15,23 @@ test "list test" {
   checkthat [llength {a b # c d}] == 5
 
   checkthat [llength [list [list 1 2 3] [list 3 4 5]]] == 2
-  checkthat [lindex 4] == 4
-  checkthat [lindex $bean 8] eq "" 
 
   set boo [list {} {} {} {}]
   checkthat [llength $boo] == 4
 }
 
+test "lindex" {
+  checkthat [lindex 4] == 4
+  checkthat [lindex 4 {}] == 4
+
+  set bean [list 1 2 3 4 5 {6 7 8}]
+
+  checkthat [lindex $bean 3] == 4
+  checkthat [lindex $bean 5] eq {6 7 8}
+  checkthat [lindex $bean 8] eq "" 
+
+  checkthat [lindex $bean -3] eq {} 
+}
 
 test "lappend" {
   set x {}
@@ -50,4 +58,24 @@ test "lset single index" {
   
   assertErr { lset lst 40 TOO_HIGH }
   assertErr { lset lst -3 TOO_LOW }
+}
+
+test "lassign basic" {
+  lassign { 1 2 3 } a b c
+  checkthat $a == 1
+  checkthat $b == 2
+  checkthat $c == 3
+}
+
+test "lassign return" {
+  checkthat [lassign {0 1 2 3} x] eq {1 2 3}
+  checkthat [lassign {0 1 2} a b c] eq {}
+}
+
+test "lassign length difference" {
+  lassign { 0 1 } a b c d
+  checkthat $a == 0
+  checkthat $b == 1
+  checkthat $c eq ""
+  checkthat $d eq ""
 }
