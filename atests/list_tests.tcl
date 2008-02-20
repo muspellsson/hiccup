@@ -31,6 +31,8 @@ test "lindex" {
   checkthat [lindex $bean 8] eq "" 
 
   checkthat [lindex $bean -3] eq {} 
+
+  checkthat [lindex $bean end] eq {6 7 8}
 }
 
 test "lappend" {

@@ -1,6 +1,8 @@
 module TclLib.ListProcs (listProcs,procList) where
 import Common
+import Util
 import qualified TclObj as T
+import TclObj ((.==))
 import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
@@ -18,9 +20,11 @@ procLindex args = case args of
                       if T.isEmpty i 
                            then return l 
                            else do
-                            ind   <- T.asInt i
+                            ind   <- toInd items i
                             if ind >= S.length items || ind < 0 then ret else return (S.index items ind)
           _     -> argErr "lindex"
+ where toInd s i = T.asInt i `orElse` tryEnd s i
+       tryEnd s i = if i .== "end" then return ((S.length s) - 1) else return (-1)
 
 procLlength args = case args of
         [lst] -> T.asSeq lst >>= return . T.mkTclInt . S.length
