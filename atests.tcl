@@ -1044,4 +1044,24 @@ test "proc in namespace that doesn't exist fails" {
   finalize { namespace foo }
 }
 
+test "rename with ns qualifiers" {
+  namespace eval foo {
+    proc bar {} { return "omg!" }
+  }
+
+  assertNoErr { ::foo::bar }
+
+  rename ::foo::bar ::foo::baz
+
+  assertErr { ::foo::bar }
+  checkthat [::foo::baz] eq "omg!"
+
+  rename ::foo::baz whatnot
+  assertErr { ::foo::baz }
+
+  checkthat [whatnot] eq "omg!"
+
+  finalize { namespace foo proc whatnot }
+}
+
 run_tests

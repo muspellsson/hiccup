@@ -82,7 +82,7 @@ procUnset args = case args of
      _       -> argErr "unset"
 
 procRename args = case args of
-    [old,new] -> varRename (T.asBStr old) (T.asBStr new) >> ret
+    [old,new] -> renameProc (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
 
 procEq args = case args of

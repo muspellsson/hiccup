@@ -20,7 +20,7 @@ module Common (RetVal, TclM
        ,varSetHere
        ,varExists
        ,varUnset
-       ,varRename
+       ,renameProc
        ,getArray
        ,addChan
        ,removeChan
@@ -177,23 +177,32 @@ getProcNS (NSRef Local k) = getProcNorm k
 getProcNS (NSRef (NS nsl) k) = do
   nsref <- getNamespace nsl
   ns <- readRef nsref
-  return $ getProc' k (nsProcs ns)
+  return $ pmLookup k (nsProcs ns)
 
 getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
 getProcNorm i = do
   currpm <- getProcMap
-  case getProc' i currpm of
+  case pmLookup i currpm of
     Nothing -> do globpm <- getGlobalProcMap
-                  return (getProc' i globpm)
+                  return (pmLookup i globpm)
     x       -> return x
  where getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
 
 
-getProc' :: ProcKey -> ProcMap -> Maybe TclProcT
-getProc' i m = Map.lookup i m
+pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
+pmLookup i m = Map.lookup i m
 
+rmProc name = case parseNS name of
+  Left _        -> rmProc' name
+  Right (nsl,n) -> rmProcNS nsl n
 
-rmProc name = gets tclCurrNS >>= \nsr ->  changeProcs nsr (Map.delete name)
+rmProc' name = gets tclCurrNS >>= rmFromNS name
+
+rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
+
+rmProcNS nsl n   
+  | isGlobal (NS nsl) = rmProc' n
+  | otherwise         = getNamespace nsl >>= rmFromNS n
 
 regProc name body pr = case parseNS name of
     Left _        -> regProc' name body pr
@@ -249,7 +258,7 @@ varModify !n f = do
 varExists :: BString -> TclM Bool
 varExists name = (varGet name >> return True) `catchError` (\_ -> return False)
 
-varRename old new = do
+renameProc old new = do
   mpr <- getProc old
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
