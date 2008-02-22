@@ -119,22 +119,25 @@ procCatch args = case args of
                          _      -> retIsErr e
 
 procInfo = makeEnsemble "info" [
-  noarg "commands" (commandNames >>= asTclList),
-  noarg "locals"   (localVars    >>= asTclList),
-  noarg "globals"  (globalVars   >>= asTclList),
+  matchp "locals" localVars,
+  matchp "globals" globalVars,
+  matchp "vars" currentVars,
+  matchp "commands" commandNames,
   noarg "level"    (liftM T.mkTclInt stackLevel),
-  ("vars", info_vars),
   ("exists", info_exists),
   ("body", info_body)]
  where noarg n f = (n, no_args n f)
+       matchp n f = (n, matchList ("info " ++ n) f)
        no_args n f args = case args of
                            [] -> f
                            _  -> argErr $ "info " ++ n
 
-info_vars args = case args of
-     []    -> currentVars >>= asTclList
-     [pat] -> currentVars >>= asTclList . globMatches (T.asBStr pat)
-     _  -> argErr "info vars"
+matchList name f args = case args of
+     []    -> f >>= asTclList
+     [pat] -> getMatches pat
+     _     -> argErr name
+ where getMatches pat = f >>= asTclList . globMatches (T.asBStr pat)
+
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
