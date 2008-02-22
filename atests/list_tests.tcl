@@ -86,6 +86,12 @@ test "lsort basic" {
   checkthat [lsort {}] eq {}
   checkthat [lsort {a b c}] eq {a b c}
   checkthat [lsort {c b a}] eq {a b c}
+
+  checkthat [lsort -ascii {c b a}] eq {a b c}
+}
+
+test "lsort bad arg" {
+  assertErr { lsort -badarg {a b c} }
 }
 
 test "lsort decreasing" {
@@ -99,4 +105,10 @@ test "lsort nocase" {
 
   checkthat [lsort $lst] eq {A B C a b c}
   checkthat [lsort -nocase $lst] eq {A a b B c C}
+}
+
+test "lsort integer" {
+  checkthat [lsort -integer [list 1 2 3]] eq [list 1 2 3]
+  checkthat [lsort -integer [list 3 2 1]] eq [list 1 2 3]
+  checkthat [lsort -integer -decreasing [list 1 2 3]] eq [list 3 2 1]
 }

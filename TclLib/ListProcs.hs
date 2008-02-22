@@ -61,12 +61,13 @@ procLappend args = case args of
                            return $ T.mkTclList' (items >< (S.fromList news))
         _        -> argErr "lappend"
 
-
-data SortType = AsciiSort deriving (Eq,Show)
+data SortType = AsciiSort | IntSort deriving (Eq,Show)
 data SortFlags = SF { sortType :: SortType, sortReverse :: Bool, noCase :: Bool } deriving (Eq, Show)
 
 accumFlags [] sf = return sf
 accumFlags (x:xs) sf = case T.asStr x of
+              "-ascii"      -> accumFlags xs (sf { sortType = AsciiSort })
+              "-integer"    -> accumFlags xs (sf { sortType = IntSort })
               "-decreasing" -> accumFlags xs (sf { sortReverse = True })
               "-increasing" -> accumFlags xs (sf { sortReverse = False })
               "-nocase"     -> accumFlags xs (sf { noCase = True })
@@ -81,9 +82,21 @@ procLsort args =  case args of
                          dosort sf lst
  where dosort sf lst = do
               items <- T.asList lst 
-              return (T.mkTclList (sortEm sf items))
+              sortEm sf items >>= return . T.mkTclList
 
-sortEm (SF stype rev nocase) lst = post $ map snd $ sortBy (comparing fst) paired
-  where paired = map (\x -> (caser (T.asBStr x), x)) lst
-        caser = if nocase then downCase else id
-        post = if rev then reverse else id
+ifTrue fun b = if b then fun else id
+
+-- NOTE: This is so ugly.
+sortEm :: SortFlags -> [T.TclObj] -> TclM [T.TclObj]
+sortEm (SF stype rev nocase) lst = do 
+     pairs <- modder
+     return $ post pairs
+  where paired f = mapM (\x -> f x >>= \nx -> return (nx, x)) lst
+        caser = downCase `ifTrue` nocase
+        retSortFst :: (Ord a) => [(a,T.TclObj)] -> TclM [T.TclObj]
+        retSortFst = return . map snd . sortBy (comparing fst)
+        post = reverse `ifTrue` rev
+        modder = case stype of
+                  AsciiSort -> paired (return . caser . T.asBStr) >>= retSortFst
+                  IntSort   -> paired (T.asInt) >>= retSortFst
+
