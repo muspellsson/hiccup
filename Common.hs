@@ -138,7 +138,7 @@ currentVars = do f <- getFrame
 commandNames = getProcMap >>= return . map procName . Map.elems
 
 getStack = gets tclStack
-getProcMap = gets tclCurrNS >>= (`refExtract` nsProcs)
+getProcMap = getCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getProcMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
@@ -186,7 +186,7 @@ getProcNorm i = do
     Nothing -> do globpm <- getGlobalProcMap
                   return (pmLookup i globpm)
     x       -> return x
- where getGlobalProcMap = gets tclGlobalNS >>= (`refExtract` nsProcs)
+ where getGlobalProcMap = getGlobalNS >>= (`refExtract` nsProcs)
 
 
 pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
@@ -196,7 +196,7 @@ rmProc name = case parseNS name of
   Left _        -> rmProc' name
   Right (nsl,n) -> rmProcNS nsl n
 
-rmProc' name = gets tclCurrNS >>= rmFromNS name
+rmProc' name = getCurrNS >>= rmFromNS name
 
 rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
 
@@ -209,7 +209,7 @@ regProc name body pr = case parseNS name of
     Right (nsl,n) -> regProcNS (NSRef (NS nsl) n) body pr
 
 regProc' name body pr = do
-   gns <- gets tclCurrNS
+   gns <- getCurrNS
    changeProcs gns (pmInsert (TclProcT name body pr))
 
 pmInsert proc m = Map.insert (procName proc) proc m
@@ -376,7 +376,7 @@ deleteNS name = do
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
 
 getNamespace nsl = case nsl of
-       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
+       (x:xs) -> do base <- if B.null x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getNamespace"
  where getEm []     ns = return ns
@@ -399,7 +399,7 @@ variableNS name val = do
           else n `linkToFrame` (nsfr, n)
   ret
  where
-   destNS Local    = gets tclCurrNS
+   destNS Local    = getCurrNS
    destNS (NS nsl) = getNamespace nsl
    varVal = maybe Undefined ScalarVar val
    sameTags f1 f2 = do
@@ -435,23 +435,24 @@ withNS name f = do
      newCurr <- getOrCreateNamespace name
      withExistingNS newCurr f
 
+
 withExistingNS newCurr f = do
-     nsref <- gets tclCurrNS
+     nsref <- getCurrNS
      putCurrNS newCurr
      (op newCurr) `ensure` (putCurrNS nsref)
  where op nsr = do vm <- getNSFrame nsr
                    withScope' vm f
 
 getFrameVars :: FrameRef -> TclM VarMap
-getFrameVars frref = frref `refExtract` frVars
+getFrameVars = (`refExtract` frVars)
 
-getUpMap frref = frref `refExtract` upMap
+getUpMap = (`refExtract` upMap)
 
 getNSFrame :: IORef Namespace -> TclM FrameRef
 getNSFrame nsref = nsref `refExtract` nsFrame 
 
 getOrCreateNamespace ns = case explodeNS ns of
-       (x:xs) -> do base <- if B.null x then gets tclGlobalNS else gets tclCurrNS >>= getKid x
+       (x:xs) -> do base <- if B.null x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getOrCreateNamespace"
  where getEm []     ns = return ns
@@ -462,25 +463,29 @@ getOrCreateNamespace ns = case explodeNS ns of
                                Just v  -> return v
 
 putCurrNS ns = modify (\s -> s { tclCurrNS = ns })
+getCurrNS = gets tclCurrNS
+
+getGlobalNS = gets tclGlobalNS
 
 readRef = io . readIORef
+{-# INLINE readRef #-}
 
 refExtract ref f = readRef ref >>= return . f
 {-# INLINE refExtract #-}
 
 currentNS = do
-  ns <- gets tclCurrNS >>= readRef
+  ns <- getCurrNS >>= readRef
   return (nsFullName ns)
 
 parentNS = do
- ns <- gets tclCurrNS >>= readRef
+ ns <- getCurrNS >>= readRef
  case nsParent ns of
    Nothing -> return B.empty
    Just v  -> readRef v >>= return . nsFullName
 
 childrenNS :: TclM [BString]
 childrenNS = do
-  ns <- gets tclCurrNS >>= readRef
+  ns <- getCurrNS >>= readRef
   (return . Map.keys . nsChildren) ns
 
 ensure action p = do
