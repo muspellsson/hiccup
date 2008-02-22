@@ -81,3 +81,22 @@ test "lassign length difference" {
   checkthat $c eq ""
   checkthat $d eq ""
 }
+
+test "lsort basic" { 
+  checkthat [lsort {}] eq {}
+  checkthat [lsort {a b c}] eq {a b c}
+  checkthat [lsort {c b a}] eq {a b c}
+}
+
+test "lsort decreasing" {
+  checkthat [lsort -increasing {c b a}] eq {a b c}
+  checkthat [lsort -decreasing {c b a}] eq {c b a}
+  checkthat [lsort -decreasing {a b c}] eq {c b a}
+}
+
+test "lsort nocase" {
+  set lst { A b a c B C }
+
+  checkthat [lsort $lst] eq {A B C a b c}
+  checkthat [lsort -nocase $lst] eq {A a b B c C}
+}

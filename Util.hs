@@ -29,6 +29,8 @@ listEscape s = if (B.elem ' ' s && not hasBracks) || B.null s
   where hasBracks = bdepth /= 0
         bdepth    = brackDepth s
 
+downCase = B.map toLower
+
 brackDepth s = match 0 0 False
  where match i c esc = if i >= B.length s 
                           then c

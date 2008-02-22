@@ -1064,4 +1064,13 @@ test "rename with ns qualifiers" {
   finalize { namespace foo proc whatnot }
 }
 
+test "uplevel in ns" { 
+  set g 0
+  namespace eval foo { 
+    uplevel { set g [namespace current] }
+  }
+  
+  checkthat $g eq {::}
+}
+
 run_tests
