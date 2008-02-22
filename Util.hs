@@ -7,6 +7,7 @@ import Data.Char (toLower)
 
 type BString = B.ByteString
 
+joinWithBS bsl bs = B.concat (intersperse bs bsl)
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 {-# INLINE joinWith #-}
 pack = B.pack

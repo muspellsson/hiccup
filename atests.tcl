@@ -267,9 +267,9 @@ test "foreach break and continue" {
   checkthat $v == 1
 }
 
-test "join and foreach" {
+test "foreach misc" {
   set misc { 1 2 3 4 5 6 }
-  proc join { lsx mid } {
+  proc join2 { lsx mid } {
     set res ""
     set first_time 1
     foreach ind $lsx {
@@ -283,7 +283,7 @@ test "join and foreach" {
     return $res
   }
 
-  checkthat [join $misc +] eq "1+2+3+4+5+6"
+  checkthat [join2 $misc +] eq "1+2+3+4+5+6"
 }
 
 test "for loop" {

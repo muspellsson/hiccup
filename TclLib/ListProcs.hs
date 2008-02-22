@@ -12,7 +12,8 @@ import Data.Sequence ((><))
 listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), 
-   ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort)]
+   ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
+   ("join", procJoin)]
 
 procList = return . T.mkTclList
 
@@ -54,6 +55,13 @@ procLassign args = case args of
   _ -> argErr "lassign"
  where setter n v = varSet (T.asBStr n) v
 
+procJoin args = case args of
+   [lst]     -> dojoin lst (pack " ")
+   [lst,sep] -> dojoin lst (T.asBStr sep)
+   _         -> argErr "join"
+ where dojoin ll sep = do
+         lst <- T.asList ll
+         return $ T.mkTclBStr (joinWithBS (map T.asBStr lst) sep)
 
 procLappend args = case args of
         (n:news) -> varModify (T.asBStr n)  $

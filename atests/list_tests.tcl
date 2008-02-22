@@ -112,3 +112,12 @@ test "lsort integer" {
   checkthat [lsort -integer [list 3 2 1]] eq [list 1 2 3]
   checkthat [lsort -integer -decreasing [list 1 2 3]] eq [list 3 2 1]
 }
+
+test "join" { 
+  checkthat [join {}] eq {}
+  checkthat [join {1 2 3}] eq "1 2 3"
+  checkthat [join {1 2 3} ","] eq "1,2,3"
+  checkthat [join {1 2 3} " | "] eq "1 | 2 | 3"
+  checkthat [join {1} " | "] eq "1"
+  assertErr { join " \{ " }
+}
