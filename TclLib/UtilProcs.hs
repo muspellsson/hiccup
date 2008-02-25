@@ -3,13 +3,16 @@ module TclLib.UtilProcs ( utilProcs ) where
 
 import Data.Time.Clock (diffUTCTime,getCurrentTime)
 import Control.Monad (unless)
+import Control.Concurrent (threadDelay)
 import Util
 import Core (evalTcl, subst)
 import Common
 import ExprParse
 import qualified TclObj as T
 
-utilProcs = makeProcMap [("time", procTime),("source", procSource), ("incr", procIncr), ("expr", procExpr)]
+utilProcs = makeProcMap [
+         ("time", procTime),("source", procSource), 
+         ("incr", procIncr), ("expr", procExpr), ("after", procAfter)]
 
 procIncr args = case args of
          [vname]     -> incr vname 1
@@ -37,6 +40,14 @@ procTime args =
          endt <- io getCurrentTime
          let tspan = diffUTCTime endt startt
          return tspan
+
+procAfter args = 
+    case args of 
+      [mss] -> do ms <- T.asInt mss
+                  io $ threadDelay (1000 * ms)
+                  ret
+      _     -> argErr "after"
+                  
 
 procSource args = case args of
                   [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr

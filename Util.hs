@@ -101,5 +101,3 @@ utilTests = TestList [joinWithTests, listEscapeTests] where
     ] 
    where escapesAs a b = pack b ~=? listEscape (pack a)
          noEscape a = pack a ~=? listEscape (pack a)
-
-

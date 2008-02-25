@@ -17,9 +17,9 @@ import Util
 import qualified Data.ByteString.Char8 as B
 import Test.HUnit
 
-data NSRef a = NSRef NSTag a deriving (Eq,Show)
+data NSRef a = NSRef NSTag !a deriving (Eq,Show)
 
-data NSTag = NS [BString] | Local deriving (Eq,Show)
+data NSTag = NS ![BString] | Local deriving (Eq,Show)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
 

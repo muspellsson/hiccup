@@ -117,6 +117,13 @@ test "array get pat" {
   checkthat [llength [array get arr ?]] == 4
 }
 
+test "array exists with ind" {
+  set x(4) 4
+  set x(5) 5
+  checkthat [array exists x]
+  checkthat [not [array exists x(4)]]
+}
+
 test "array reset no-no" {
   set x(1) 44
   checkthat $x(1) == 44

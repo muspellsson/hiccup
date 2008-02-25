@@ -35,6 +35,9 @@ ns_parent args = case args of
           [] -> parentNS >>= treturn
           _  -> argErr "namespace parent"
 
+ns_export args = mapM_ (exportNS . T.asBStr) args >> ret
+          
+
 ns_children args = case args of
           [] -> childrenNS >>= return . T.mkTclList . map T.mkTclBStr
           _  -> argErr "namespace children"
