@@ -1,11 +1,11 @@
 module RToken (Cmd, toCmd, RToken(..), rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
-import BSParse (TclWord(..), wrapInterp, runParse, BString)
+import BSParse (TclWord(..), doInterp, runParse, BString)
 import VarName
 import Test.HUnit
 
 type Cmd = (Either (NSRef BString) RToken, [RToken])
-data RToken = Lit !BString | CatLst [RToken] | CmdTok Cmd 
+data RToken = Lit !BString | CatLst [RToken] | CmdTok Cmd | ExpTok RToken
               | VarRef (NSRef VarName) | ArrRef NSTag !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
 
@@ -14,7 +14,7 @@ isEmpty (CatLst l) = null l
 isEmpty _          = False
 
 compile :: BString -> RToken
-compile str = case wrapInterp str of
+compile str = case doInterp str of
                    Left s  -> Lit s
                    Right x -> handle x
  where f (Left match) = case parseVarName match of 
@@ -30,6 +30,7 @@ compile str = case wrapInterp str of
 compToken :: TclWord -> RToken
 compToken (Word s)               = compile s
 compToken (NoSub s res)          = Block s (fromParsed res)
+compToken (Expand t)             = ExpTok (compToken t)
 compToken (Subcommand _ c)       = compCmd c
 
 compCmd c = CmdTok (toCmd c)

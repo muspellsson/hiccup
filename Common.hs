@@ -398,7 +398,10 @@ variableNS name val = do
       t2 <- getTag f2
       return (t1 == t2)
 
-exportNS name = return ()
+exportNS name = do
+  nsr <- getCurrNS
+  io $ modifyIORef nsr (\n -> n { nsExport = (name:(nsExport n)) })
+  
   
 getTag frref = do
   f <- readRef frref
