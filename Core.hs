@@ -27,26 +27,37 @@ getSubst s = do
        uncmd (Left (NSRef Local n), args) = ((Lit n):args)
        uncmd (Left n, _) = error (show n)
 
-subst s = getSubst s >>= evalRToken
+subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
 
-evalRToken :: RToken -> TclM T.TclObj
-evalRToken (Lit s)         = return $! T.mkTclBStr s
-evalRToken (CmdTok t)      = runCmd t
-evalRToken (VarRef vn)     = varGetNS vn
-evalRToken (ArrRef ns n i) = evalRToken i >>= \ni -> varGetNS (NSRef ns (VarName n (Just (T.asBStr ni))))
-evalRToken (CatLst l)      = mapM evalRToken l >>= treturn . B.concat . map T.asBStr
-evalRToken (ExpTok _)      = tclErr "expand not supported yet"
-evalRToken (Block s p)     = return $! T.fromBlock s p
+
+evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
+evalRTokens []     acc = return $! reverse acc
+evalRTokens (x:xs) acc = case x of
+            Lit s     -> evalRTokens xs ((T.mkTclBStr s):acc)
+            CmdTok t  -> nextWith (runCmd t)
+            VarRef vn -> nextWith (varGetNS vn)
+            Block s p -> evalRTokens xs ((T.fromBlock s p):acc)
+            ArrRef ns n i -> do
+                 ni <- evalRTokens [i] [] >>= return . T.asBStr . head
+                 nextWith (varGetNS (NSRef ns (VarName n (Just ni)))) 
+            CatLst l -> nextWith (evalRTokens l [] >>= treturn . B.concat . map T.asBStr) 
+            ExpTok t -> do 
+                 [rs] <- evalRTokens [t] [] 
+                 l <- T.asList rs
+                 evalRTokens xs ((reverse l) ++ acc)
+ where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
 
 runCmd :: Cmd -> TclM RetVal
 runCmd (n,args) = do
-  evArgs <- mapM evalRToken args
+  evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs
   return $! res
  where go (Left p@(NSRef _ name)) a = getProcNS p >>= \pr -> callProc name pr a
-       go (Right rt) a = do o <- evalRToken rt
+       go (Right rt) a = do lst <- evalRTokens [rt] []
+                            let (o:rs) = lst ++ a
                             let name = T.asBStr o
-                            getProc name >>= \pr -> callProc name pr a
+                            getProc name >>= \pr -> callProc name pr rs
+
 
 callProc !pn !mproc args = do
    case mproc of

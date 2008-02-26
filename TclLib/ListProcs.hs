@@ -13,7 +13,7 @@ listProcs = makeProcMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), 
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
-   ("join", procJoin)]
+   ("join", procJoin), ("concat", procConcat)]
 
 procList = return . T.mkTclList
 
@@ -62,6 +62,8 @@ procJoin args = case args of
  where dojoin ll sep = do
          lst <- T.asList ll
          return $ T.mkTclBStr (joinWithBS (map T.asBStr lst) sep)
+
+procConcat args = treturn . (`joinWith` ' ') . map (T.trim . T.asBStr) $ args
 
 procLappend args = case args of
         (n:news) -> varModify (T.asBStr n)  $

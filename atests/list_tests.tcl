@@ -121,3 +121,9 @@ test "join" {
   checkthat [join {1} " | "] eq "1"
   assertErr { join " \{ " }
 }
+
+test "concat" {
+  checkthat [concat a b {c d e} {f {g h}}] eq "a b c d e f {g h}"
+  checkthat [concat "a   b   c" { d e f }] eq "a   b   c d e f"
+  checkthat [concat "a b {c " d " e} f"] eq "a b {c d e} f"
+}

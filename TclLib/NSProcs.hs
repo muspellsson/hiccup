@@ -15,6 +15,7 @@ procNamespace = makeEnsemble "namespace" [
      ("children", ns_children),
      ("delete", ns_delete),
      ("tail", ns_tail),
+     ("export", ns_export),
      ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
 

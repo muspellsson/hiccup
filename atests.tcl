@@ -696,6 +696,15 @@ test "switch --" {
   }
 }
 
+test "expand" {
+  checkthat [+ {*}[list 1 1]] == 2
+  checkthat [+ {*}5 {*}5] == 10
+  set boo [list 3 3]
+  checkthat [list {*}$boo] eq $boo
+
+  checkthat [concat {*}$boo] eq "3 3"
+}
+
 test "list escaping" {
   set x [list 1 2 3 \{ \} 6]
   checkthat [llength $x] == 6
