@@ -84,7 +84,10 @@ data Namespace = TclNS {
 
 
 type FrameRef = IORef TclFrame
-data TclFrame = TclFrame { frVars :: !VarMap, upMap :: Map.Map BString (FrameRef,BString), frTag :: Int  }
+data TclFrame = TclFrame { 
+      frVars :: !VarMap, 
+      upMap :: Map.Map BString (FrameRef,BString), 
+      frTag :: Int  }
 type TclStack = [FrameRef]
 data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclCurrNS :: IORef Namespace, tclGlobalNS :: IORef Namespace }
 

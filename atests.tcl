@@ -308,6 +308,10 @@ test "eval tests" {
 
   assertNoErr { eval "" }
   assertNoErr { eval " " }
+
+  assertErr { eval } # Eval needs 1 or more args
+
+  checkthat [eval * 4 4] == 16 # Eval concats multiple args
 }
 
 test "expr" {

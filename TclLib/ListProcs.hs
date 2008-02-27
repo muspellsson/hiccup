@@ -1,4 +1,4 @@
-module TclLib.ListProcs (listProcs,procList) where
+module TclLib.ListProcs (listProcs,procList,procConcat) where
 import Common
 import Util
 import Data.List (sortBy)

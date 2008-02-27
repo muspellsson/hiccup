@@ -31,7 +31,7 @@ compToken :: TclWord -> RToken
 compToken (Word s)               = compile s
 compToken (NoSub s res)          = Block s (fromParsed res)
 compToken (Expand t)             = ExpTok (compToken t)
-compToken (Subcommand _ c)       = compCmd c
+compToken (Subcommand c)         = compCmd c
 
 compCmd c = CmdTok (toCmd c)
 
