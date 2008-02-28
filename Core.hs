@@ -24,7 +24,7 @@ getSubst s = do
     let toks = concatMap uncmd cmds
     return (CatLst toks)
  where uncmd (Right n,args) = (n:args)
-       uncmd (Left (NSRef Local n), args) = ((Lit n):args)
+       uncmd (Left (NSQual Local n), args) = ((Lit n):args)
        uncmd (Left n, _) = error (show n)
 
 subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
@@ -39,7 +39,7 @@ evalRTokens (x:xs) acc = case x of
             Block s p -> evalRTokens xs ((T.fromBlock s p):acc)
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
-                 nextWith (varGetNS (NSRef ns (VarName n (Just ni)))) 
+                 nextWith (varGetNS (NSQual ns (VarName n (Just ni)))) 
             CatLst l -> nextWith (evalRTokens l [] >>= treturn . B.concat . map T.asBStr) 
             ExpTok t -> do 
                  [rs] <- evalRTokens [t] [] 
@@ -52,7 +52,7 @@ runCmd (n,args) = do
   evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs
   return $! res
- where go (Left p@(NSRef _ name)) a = getProcNS p >>= \pr -> callProc name pr a
+ where go (Left p@(NSQual _ name)) a = getProcNS p >>= \pr -> callProc name pr a
        go (Right rt) a = do lst <- evalRTokens [rt] []
                             let (o:rs) = lst ++ a
                             let name = T.asBStr o

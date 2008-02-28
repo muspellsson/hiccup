@@ -782,7 +782,7 @@ test "global namespace" {
 }
 
 test "namespace current" {
-  #checkthat [namespace current] == "::"
+  checkthat [namespace current] == "::"
   checkthat [namespace parent] == {}
 }
 
@@ -792,7 +792,7 @@ test "namespace proc 1" {
     namespace eval temp {
       proc one {} { return 1 }
       checkthat [namespace current] == "::temp"
-      checkthat [namespace parent] == ""
+      checkthat [namespace parent] == "::"
       checkthat [one] == 1
     }
 
@@ -834,9 +834,9 @@ test "double ns" {
 
 test "namespace exists" { 
   checkthat [namespace exists imaginary] == 0
-# not yet
-#  checkthat [namespace exists "::"] == 1
-  checkthat [namespace exists {}] == 1
+  # Dang it.
+  # checkthat [namespace exists "::"] 
+  checkthat [namespace exists {}]
 }
 
 test "ns level" {
@@ -861,6 +861,16 @@ test "simple variable" {
    set ::foo::wow 3
    checkthat $foo::wow == 3 
  }
+}
+
+test "namespace varible array syntax" {
+  finalize { ns temp } {
+    assertErr {
+      namespace eval temp {
+        variable boo(1)
+      }
+    }
+  }
 }
 
 test "namespace variable evil" {

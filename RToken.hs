@@ -4,9 +4,9 @@ import BSParse (TclWord(..), doInterp, runParse, BString)
 import VarName
 import Test.HUnit
 
-type Cmd = (Either (NSRef BString) RToken, [RToken])
+type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | CatLst [RToken] | CmdTok Cmd | ExpTok RToken
-              | VarRef (NSRef VarName) | ArrRef NSTag !BString RToken 
+              | VarRef (NSQual VarName) | ArrRef NSTag !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
 
 isEmpty (Lit x)    = B.null x
@@ -18,7 +18,7 @@ compile str = case doInterp str of
                    Left s  -> Lit s
                    Right x -> handle x
  where f (Left match) = case parseVarName match of 
-                          NSRef ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
+                          NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
                           vn                              -> VarRef vn
        f (Right x)    = compCmd x
        handle (b,m,a) = let front = [Lit b, f m]
@@ -51,12 +51,12 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"x(1) -> ArrRef x 1" ~: "$x(1)" `compiles_to` (arrref "x" (lit "1"))  
       ,"CatLst" ~: "$x$y" `compiles_to` (CatLst [varref "x", varref "y"])  
       ,"lit" ~: "incr x -1" `compiles_to` lit "incr x -1"
-      ,"cmd" ~: "[double 4]" `compiles_to` CmdTok (Left (NSRef Local (B.pack "double")), [lit "4"])
+      ,"cmd" ~: "[double 4]" `compiles_to` CmdTok (Left (NSQual Local (B.pack "double")), [lit "4"])
     ]
 
   compTokenTests = TestList [ 
       "1" ~: (mkwd "x")  `tok_to` (lit "x")  
-      ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (NSRef Local (B.pack "puts"))), [lit "4"])])
+      ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (NSQual Local (B.pack "puts"))), [lit "4"])])
     ]
   
   block s v = Block (B.pack s) (Right v)

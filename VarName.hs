@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module VarName (parseVarName, 
                 nsTail,
                 nsQualifiers,
@@ -5,7 +6,7 @@ module VarName (parseVarName,
                 parseProc,
                 VarName(..), 
                 showVN, 
-                NSRef(..), 
+                NSQual(..), 
                 NSTag(..),
                 isGlobal,
                 isLocal,
@@ -17,7 +18,7 @@ import Util
 import qualified Data.ByteString.Char8 as B
 import Test.HUnit
 
-data NSRef a = NSRef NSTag !a deriving (Eq,Show)
+data NSQual a = NSQual !NSTag !a deriving (Eq,Show)
 
 data NSTag = NS ![BString] | Local deriving (Eq,Show)
 
@@ -39,13 +40,13 @@ isLocal _     = False
 parseVarName n = 
    let (name,ind) = parseArrRef n 
    in case parseNS name of
-       Left _       -> NSRef Local (VarName name ind)
-       Right (ns,n) -> NSRef (NS ns) (VarName n ind)
+       Left _       -> NSQual Local (VarName name ind)
+       Right (ns,n) -> NSQual (NS ns) (VarName n ind)
 
 parseProc name =
    case parseNS name of
-     Left _       -> NSRef Local name
-     Right (ns,n) -> NSRef (NS ns) n
+     Left _       -> NSQual Local name
+     Right (ns,n) -> NSQual (NS ns) n
 
 showVN :: VarName -> String
 showVN (VarName name Nothing) = show name
@@ -65,7 +66,7 @@ nsQualifiers str = case B.findSubstrings nsSep str of
                       [] -> B.empty
                       lst -> B.take (last lst) str
 
-parseNS str = 
+parseNS !str = 
   case explodeNS str of
     [str] -> Left str
     nsr   -> let (n:rx) = reverse nsr 
@@ -77,9 +78,9 @@ splitWith str sep =
     case B.findSubstrings sep str of
         []     -> [str]
         il     -> extract il str
- where slen             = B.length sep 
-       extract [] s     = [s]
-       extract (i:ix) s = let (b,a) = B.splitAt i s 
+ where slen              = B.length sep 
+       extract [] !s     = [s]
+       extract (i:ix) !s = let (b,a) = B.splitAt i s 
                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
 {-# INLINE splitWith #-}
  
@@ -103,9 +104,9 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
    ]
 
   testParseVarName = TestList [
-      parseVarName (bp "x") ~=? NSRef Local (VarName (bp "x") Nothing)
-      ,parseVarName (bp "x(a)") ~=? NSRef Local (VarName (bp "x") (Just (bp "a")))
-      ,parseVarName (bp "::x") ~=? NSRef (NS [bp ""]) (VarName (bp "x") Nothing)
+      parseVarName (bp "x") ~=? NSQual Local (VarName (bp "x") Nothing)
+      ,parseVarName (bp "x(a)") ~=? NSQual Local (VarName (bp "x") (Just (bp "a")))
+      ,parseVarName (bp "::x") ~=? NSQual (NS [bp ""]) (VarName (bp "x") Nothing)
     ]
 
   testNSTail = TestList [
