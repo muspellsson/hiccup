@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.UtilProcs ( utilProcs ) where
 
-import Data.Time.Clock (diffUTCTime,getCurrentTime)
+import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import Util
@@ -12,7 +12,8 @@ import qualified TclObj as T
 
 utilProcs = makeProcMap [
          ("time", procTime),("source", procSource), 
-         ("incr", procIncr), ("expr", procExpr), ("after", procAfter)]
+         ("incr", procIncr), ("expr", procExpr), 
+	 ("after", procAfter), ("update", procUpdate)]
 
 procIncr args = case args of
          [vname]     -> incr vname 1
@@ -43,11 +44,23 @@ procTime args =
 
 procAfter args = 
     case args of 
-      [mss] -> do ms <- T.asInt mss
-                  io $ threadDelay (1000 * ms)
-                  ret
+      [mss]    -> do
+            ms <- T.asInt mss
+            io $ threadDelay (1000 * ms)
+            ret
+      [mss,act] -> do
+            ms <- T.asInt mss 
+	    let secs = (fromIntegral ms) / 1000.0
+	    currT <- io getCurrentTime
+	    let dline = addUTCTime secs currT
+	    evtAdd act dline
       _     -> argErr "after"
-                  
+
+procUpdate args = case args of
+     [] -> do evts <- evtGetDue
+              mapM_ evalTcl evts
+              ret
+     _  -> argErr "update"
 
 procSource args = case args of
                   [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr

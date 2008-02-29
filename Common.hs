@@ -26,6 +26,8 @@ module Common (RetVal, TclM
        ,addChan
        ,removeChan
        ,getChan
+       ,evtAdd
+       ,evtGetDue
        ,uplevel
        ,upvar
        ,makeEnsemble
@@ -55,6 +57,8 @@ import Control.Monad.State.Strict
 import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
+
+import qualified EventMgr as Evt
 
 import qualified TclObj as T
 import TclChan
@@ -94,8 +98,10 @@ data TclFrame = TclFrame {
       frTag :: Int  }
 
 type TclStack = [FrameRef]
+
 data TclState = TclState { 
     tclChans :: ChanMap, 
+    tclEvents :: Evt.EventMgr T.TclObj,
     tclStack :: TclStack, 
     tclGlobalNS :: !NSRef }
 
@@ -144,7 +150,9 @@ makeState' chans vlist procs = do fr <- frameWithVars (Map.fromList (mapSnd Scal
                                   gns <- globalNS fr
                                   ns <- newIORef (gns { nsProcs = procs })
                                   setFrNS fr ns
-                                  return (TclState chans [fr] ns)
+                                  return $! TclState {  tclChans = chans,
+				                        tclEvents = Evt.emptyMgr,
+				                        tclStack = [fr], tclGlobalNS = ns } 
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
@@ -189,6 +197,18 @@ modChan f = modify (\s -> s { tclChans = f (tclChans s) })
 getChan n = onChan (\m -> return (lookupChan n m))
 addChan c    = modChan (insertChan c)
 removeChan c = modChan (deleteChan c)
+
+evtAdd e t = do 
+  em <- gets tclEvents
+  (tag,m) <- io $ Evt.addEvent e t em
+  modify (\s -> s { tclEvents = m })
+  treturn tag
+
+evtGetDue = do
+  em <- gets tclEvents
+  (d,em') <- io $ Evt.getDue em
+  when (not (null d)) $ modify (\s -> s { tclEvents = em' })
+  return d
 
 upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 {-# INLINE upped #-}
