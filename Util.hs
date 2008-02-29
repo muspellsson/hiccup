@@ -13,6 +13,8 @@ joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
 pack = B.pack
 {-# INLINE pack #-}
 unpack = B.unpack
+bsNull = B.null
+{-# INLINE bsNull #-}
 
 mapSnd f = map (\(a,b) -> (a, f b))
 mapFst f = map (\(a,b) -> (f a, b))

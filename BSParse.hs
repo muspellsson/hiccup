@@ -2,7 +2,6 @@
 module BSParse ( runParse, doInterp, TclWord(..), dropWhite, parseList
             ,Result
             ,TokCmd
-            ,BString
             ,bsParseTests
   ) where
 

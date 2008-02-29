@@ -6,7 +6,7 @@ import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 import RToken
 import Util
-import VarName
+import VarName (arrName, NSQual(..), isLocal)
 
 import Test.HUnit
 
@@ -24,8 +24,7 @@ getSubst s = do
     let toks = concatMap uncmd cmds
     return (CatLst toks)
  where uncmd (Right n,args) = (n:args)
-       uncmd (Left (NSQual Local n), args) = ((Lit n):args)
-       uncmd (Left n, _) = error (show n)
+       uncmd (Left (NSQual nst n), args) = if isLocal nst then ((Lit n):args) else error (show (nst,n))
 
 subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
 
@@ -39,7 +38,7 @@ evalRTokens (x:xs) acc = case x of
             Block s p -> evalRTokens xs ((T.fromBlock s p):acc)
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
-                 nextWith (varGetNS (NSQual ns (VarName n (Just ni)))) 
+                 nextWith (varGetNS (NSQual ns (arrName n ni))) 
             CatLst l -> nextWith (evalRTokens l [] >>= treturn . B.concat . map T.asBStr) 
             ExpTok t -> do 
                  [rs] <- evalRTokens [t] [] 
@@ -65,7 +64,7 @@ callProc !pn !mproc args = do
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
                        Just uk -> (procFn uk) ((T.mkTclBStr pn):args)
-     Just proc -> (procFn proc) args 
+     Just proc -> (procFn proc) $! args 
 {-# INLINE callProc #-}
 
 doCond :: T.TclObj -> TclM Bool

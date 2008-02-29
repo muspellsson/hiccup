@@ -565,9 +565,19 @@ test "unset with upvar" {
   checkthat [info exists x] == 1
   unset_x
   checkthat [info exists x] == 0
+
+  finalize { proc unset_x }
 }
 
+test "unset array elt" {
+  set x(4) 4
+  set x(5) 5
+  checkthat [array size x] == 2
+  checkthat $x(4) == 4
+  unset x(4)
 
+  checkthat [array size x] == 1
+}
 
 test "proc must be complete" {
   assertErr { proc banana }
@@ -612,12 +622,10 @@ test "for loop 2" {
 
 proc ignore _ { return {} }
 
-ignore {
-  test "global ns proc" {
-    # not yet
-    checkthat [::+ 1 1] == 2
-    checkthat [+ 1 1] == 2
-  }
+test "global ns proc" {
+  # not yet
+  checkthat [::+ 1 1] == 2
+  checkthat [+ 1 1] == 2
 }
 
 test "switch" {
@@ -1094,6 +1102,27 @@ test "uplevel in ns" {
   }
   
   checkthat $g eq {::}
+}
+
+test "globally qualified proc in ns" {
+  finalize { ns foo proc blah } {
+    namespace eval foo { 
+      proc ::blah {} { return 4 }
+    }
+
+    assertErr { ::foo::blah }
+    assertNoErr { ::blah; blah }
+
+    ignore {
+      # not yet
+      assertNoErr {
+        namespace eval foo {
+          rename ::blah {}
+        }
+      }
+      assertErr { ::blah }
+    }
+  }
 }
 
 run_tests

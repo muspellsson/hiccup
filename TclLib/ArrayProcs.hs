@@ -6,7 +6,7 @@ import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad
 import qualified Data.Map as Map
-import VarName
+import VarName (arrName)
 import Text.Printf
 
 arrayProcs = makeProcMap [("array", procArray), ("parray", procParray)]
@@ -20,9 +20,13 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (T.asStr a) (T.asStr b))
 
 
-procArray = makeEnsemble "array" [("get", array_get), ("size", array_size), ("exists", array_exists), ("set", array_set), ("names", array_names)]
+procArray = makeEnsemble "array" [
+              ("get", array_get), ("size", array_size), 
+              ("exists", array_exists), ("set", array_set), 
+              ("names", array_names), ("unset", array_unset)
+    ]
 
-arrSet n i v = varSetHere (VarName n (Just i)) v
+arrSet n i v = varSetHere (arrName n i) v
 
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs _ = [] 
@@ -60,6 +64,14 @@ array_set args = case args of
                            then mapM_ (\(a,b) -> arrSet (T.asBStr a2) (T.asBStr a) b) (toPairs l) >> ret
                            else tclErr "list must have even number of elements"
           _       -> argErr "array set"
+
+array_unset args = case args of
+     [name]     -> varUnset (T.asBStr name)
+     [name,pat] -> do let n = T.asBStr name 
+                      arr <- getArray n
+                      -- mapM_ (\ind -> varUnsetNS (arrName n ind)) (Map.keys arr)
+                      ret
+     _          -> argErr "array unset"
 
 array_exists args = case args of
        [a2] -> do b <- (getArray (T.asBStr a2) >> return True) `ifFails` False

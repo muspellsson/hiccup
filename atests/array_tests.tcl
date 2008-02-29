@@ -129,3 +129,23 @@ test "array reset no-no" {
   checkthat $x(1) == 44
   assertErr { set x 2 }
 }
+
+test "array unset full" {
+  set x(4) 4
+  set x(5) 5
+  checkthat [array exists x]
+  array unset x
+  checkthat [not [array exists x]]
+}
+
+test "array unset patt" {
+  set x(cat) 1
+  set x(dog) 2
+  set x(car) 2
+
+  array unset x b*
+  checkthat [array size x] == 3
+
+  array unset x ca?
+  checkthat [array size x] == 1
+}

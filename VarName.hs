@@ -5,6 +5,8 @@ module VarName (parseVarName,
                 parseNS,
                 parseProc,
                 VarName(..), 
+                arrName,
+                isArr,
                 showVN, 
                 NSQual(..), 
                 NSTag(..),
@@ -24,6 +26,12 @@ data NSTag = NS ![BString] | Local deriving (Eq,Show)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
 
+arrName !an !ind = VarName an (Just ind)
+{-# INLINE arrName #-}
+
+isArr (VarName _ (Just _)) = True
+isArr _                    = False
+
 nsSep = pack "::"
 
 explodeNS bstr = bstr `splitWith` nsSep
@@ -37,11 +45,11 @@ isLocal Local = True
 isLocal _     = False
 {-# INLINE isLocal #-}
 
-parseVarName n = 
-   let (name,ind) = parseArrRef n 
-   in case parseNS name of
-       Left _       -> NSQual Local (VarName name ind)
-       Right (ns,n) -> NSQual (NS ns) (VarName n ind)
+parseVarName name = 
+   case parseNS name of
+       Left _       -> NSQual Local (mkVar name)
+       Right (ns,n) -> NSQual (NS ns) (mkVar n)
+ where mkVar n = let (n',ind) = parseArrRef n in VarName n' ind
 
 parseProc name =
    case parseNS name of

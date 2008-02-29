@@ -20,6 +20,7 @@ module Common (RetVal, TclM
        ,varSetHere
        ,varExists
        ,varUnset
+       ,varUnsetNS
        ,renameProc
        ,getArray
        ,addChan
@@ -91,8 +92,12 @@ data TclFrame = TclFrame {
       upMap :: Map.Map BString (FrameRef,BString), 
       frNS :: NSRef,
       frTag :: Int  }
+
 type TclStack = [FrameRef]
-data TclState = TclState { tclChans :: ChanMap, tclStack :: TclStack, tclGlobalNS :: !NSRef }
+data TclState = TclState { 
+    tclChans :: ChanMap, 
+    tclStack :: TclStack, 
+    tclGlobalNS :: !NSRef }
 
 type TclProc = [T.TclObj] -> TclM T.TclObj
 data TclProcT = TclProcT { procName :: BString, procBody :: BString,  procFn :: TclProc }
@@ -143,8 +148,8 @@ makeState' chans vlist procs = do fr <- frameWithVars (Map.fromList (mapSnd Scal
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getProcMap = getCurrNS >>= (`refExtract` nsProcs)
-{-# INLINE getProcMap #-}
+getNsProcMap = getCurrNS >>= (`refExtract` nsProcs)
+{-# INLINE getNsProcMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
@@ -169,7 +174,7 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getProcMap >>= return . map procName . Map.elems
+commandNames = getNsProcMap >>= return . map procName . Map.elems
 
 
 tclErr = throwError . EDie
@@ -188,9 +193,7 @@ removeChan c = modChan (deleteChan c)
 upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 {-# INLINE upped #-}
 
-getProc pname = case parseNS pname of
-    Left n        -> getProcNorm n
-    Right (nsl,n) -> getProcNS (NSQual (NS nsl) n)
+getProc !pname = getProcNS (parseProc pname)
 
 getProcNS (NSQual Local n) = getProcNorm n
 getProcNS (NSQual nst n) = do
@@ -201,7 +204,7 @@ getProcNS (NSQual nst n) = do
 
 getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
 getProcNorm !i = do
-  currpm <- getProcMap
+  currpm <- getNsProcMap
   case pmLookup i currpm of
     Nothing -> do globpm <- getGlobalProcMap
                   return (pmLookup i globpm)
@@ -213,35 +216,27 @@ pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
 pmLookup !i !m = Map.lookup i m
 
 rmProc name = rmProcNS (parseProc name)
-
-rmProc' name = getCurrNS >>= rmFromNS name
-
 rmProcNS (NSQual nst n)
-  | isGlobal nst = rmProc' n
+  | isLocal  nst = getCurrNS >>= rmFromNS n
+  | isGlobal nst = getGlobalNS >>= rmFromNS n
   | otherwise    = getNamespace nst >>= rmFromNS n
-rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
-
+ where rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
 
 regProc name body pr = regProcNS (parseProc name) body pr
 
-regProc' name body pr = do
-   gns <- getCurrNS
-   changeProcs gns (pmInsert (TclProcT name body pr))
-
-
-regProcNS (NSQual Local k) body pr = regProc' k body pr
 regProcNS (NSQual nst k) body pr 
- | isGlobal nst = regProc' k body pr
- | otherwise    = do  
-    nsref <- getNamespace nst
-    changeProcs nsref (pmInsert (TclProcT k body pr))
-
-pmInsert proc m = Map.insert (procName proc) proc m
+ | isGlobal nst = getGlobalNS >>= regInNS
+ | isLocal nst  = getCurrNS >>= regInNS
+ | otherwise    = getNamespace nst >>= regInNS
+ where 
+  newProc = TclProcT k body pr
+  pmInsert proc m = Map.insert (procName proc) proc m
+  regInNS nsr = changeProcs nsr (pmInsert newProc)
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
 
-varSetNS (NSQual ns vn) v = lookupNsFrame ns >>= varSet' vn v
+varSetNS qvn v = usingNsFrame qvn (\n f -> varSet' n v f)
 
 varSetHere vn v = getFrame >>= varSet' vn v
 
@@ -249,18 +244,19 @@ varSet' vn v frref = do
      isUpped <- upped (vnName vn) frref 
      case isUpped of
          Just (f,s) -> varSet' (vn {vnName = s}) v f
-         Nothing    -> modEnv >> return v
- where modEnv = do
-                ev <- getFrameVars frref
-                let str = vnName vn
-                case vnInd vn of
-                  Nothing -> case Map.lookup str ev of
-                              Just (ArrayVar _) -> fail $ "can't set " ++ showVN vn ++ ": variable is array"
-                              _                 -> changeVars frref (Map.insert str (ScalarVar v))
-                  Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str ev of
-                               ArrayVar prev ->  changeVars frref (Map.insert str (ArrayVar (Map.insert i v prev)))
-                               Undefined     ->  changeVars frref (Map.insert str (ArrayVar (Map.singleton i v)))
-                               _     -> fail $ "Can't set " ++ showVN vn ++ ": variable isn't array"
+         Nothing    -> modVar >> return v
+ where modVar = do
+       vm <- getFrameVars frref
+       let str = vnName vn
+       let changeVar = insertVar frref str
+       case vnInd vn of
+         Nothing -> case Map.lookup str vm of
+                      Just (ArrayVar _) -> fail $ "can't set " ++ showVN vn ++ ": variable is array"
+                      _                 -> changeVar (ScalarVar v)
+         Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str vm of
+                      ArrayVar prev ->  changeVar (ArrayVar (Map.insert i v prev))
+                      Undefined     ->  changeVar (ArrayVar (Map.singleton i v))
+                      _     -> fail $ "Can't set " ++ showVN vn ++ ": variable isn't array"
 
 
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
@@ -283,32 +279,43 @@ renameProc old new = do
                  unless (B.null new) (regProc new (procBody pr) (procFn pr))
 
 varUnset :: BString -> TclM RetVal
-varUnset name = do
-  let (NSQual ns (VarName n _)) = parseVarName name
-  lookupNsFrame ns >>= varUnset' n
-  ret
+varUnset name = varUnsetNS (parseVarName name)
 
-lookupNsFrame Local = getFrame
-lookupNsFrame !ns = getNamespace ns >>= getNSFrame
-{-# INLINE lookupNsFrame #-}
+varUnsetNS qns = usingNsFrame qns varUnset' >> ret
 
-varUnset' name frref = do
-   isUpped <- upped name frref
-   case isUpped of
-      Nothing    -> do vmap <- getFrameVars frref
-                       verifyNameIn vmap
-                       changeVars frref (Map.delete name)
-      Just (f,s) -> do umap <- getUpMap frref
-                       verifyNameIn umap
-                       changeUpMap frref (Map.delete name)
-                       varUnset' s f
- where bad = tclErr ("can't unset " ++ show name ++ ": no such variable")
-       verifyNameIn m = unless (Map.member name m) bad
+usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
+ where lookupNsFrame Local = getFrame 
+       lookupNsFrame !ns   = getNamespace ns >>= getNSFrame
+{-# INLINE usingNsFrame #-}
+
+varUnset' vn frref = do
+     isUpped <- upped (vnName vn) frref 
+     case isUpped of
+         Nothing    -> modVar 
+         Just (f,s) -> do 
+             when (not (isArr vn)) $ do 
+                 changeUpMap frref (Map.delete (vnName vn))
+             varUnset' (vn {vnName = s}) f
+ where noExist = cantUnset "no such variable" 
+       cantUnset why = fail $ "can't unset " ++ showVN vn ++ ": " ++ why
+       modVar = do
+         vm <- getFrameVars frref
+         let str = vnName vn
+         let deleteVar = changeVars frref (Map.delete str)
+         val <- maybe noExist return (Map.lookup str vm)
+         case vnInd vn of
+           Nothing -> deleteVar
+           Just i  -> case val of
+                        ArrayVar prev -> case Map.lookup i prev of 
+                                           Nothing -> cantUnset "no such element in array"
+                                           Just _  -> insertVar frref str (prev `modArr` (Map.delete i))
+                        ScalarVar _   -> cantUnset "variable isn't array"
+                        _             -> noExist
+
+modArr v f = ArrayVar (f v)
 
 getArray :: BString -> TclM TclArray
-getArray name = do
-  let (NSQual ns nm) = parseProc name
-  lookupNsFrame ns >>= getArray' nm
+getArray name = usingNsFrame (parseProc name) getArray'
 
 getArray' name frref = do
    var <- varLookup name frref
@@ -327,20 +334,20 @@ varGet :: BString -> TclM RetVal
 varGet !n = varGetNS (parseVarName n)
 
 varGetNS :: NSQual VarName -> TclM RetVal
-varGetNS (NSQual !ns !vn) = lookupNsFrame ns >>= varGet' vn
+varGetNS qns = usingNsFrame qns varGet'
 {-# INLINE varGetNS #-}
 
-varGet' vn@(VarName name ind) !frref = do
-  var <- varLookup name frref
+varGet' vn !frref = do
+  var <- varLookup (vnName vn) frref
   case var of
    Nothing -> cantReadErr "no such variable"
-   Just o  -> o `withInd` ind
+   Just o  -> o `getInd` (vnInd vn)
  where cantReadErr why  = tclErr $ "can't read " ++ showVN vn ++ ": " ++ why
-       withInd (ScalarVar o) Nothing = return o
-       withInd (ScalarVar _) _       = cantReadErr "variable isn't array"
-       withInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
-       withInd (ArrayVar _)  _       = cantReadErr "variable is array"
-       withInd Undefined     _       = cantReadErr "no such variable"
+       getInd (ScalarVar o) Nothing = return o
+       getInd (ScalarVar _) _       = cantReadErr "variable isn't array"
+       getInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
+       getInd (ArrayVar _)  _       = cantReadErr "variable is array"
+       getInd Undefined     _       = cantReadErr "no such variable"
 
 
 uplevel :: Int -> TclM a -> TclM a
@@ -391,14 +398,13 @@ getNamespace' nsl = case nsl of
 
 existsNS ns = (getNamespace' (explodeNS ns) >> return True) `catchError` (\_ -> return False)
 
-
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
   ensureNotArr ind
   nsfr <- getNamespace ns >>= getNSFrame
   fr <- getFrame
   same <- sameTags fr nsfr
-  if same then changeVars fr (Map.insert name varVal)
+  if same then insertVar fr name varVal
           else n `linkToFrame` (nsfr, n)
   ret
  where
@@ -458,7 +464,7 @@ getFrameVars :: FrameRef -> TclM VarMap
 getFrameVars !frref = (frref `refExtract` frVars) >>= \r -> return $! r
 {-# INLINE getFrameVars #-}
 
-getUpMap !frref = (frref `refExtract` upMap) >>= \r -> r `seq` return $! r
+getUpMap !frref = (frref `refExtract` upMap) >>= \r ->return $! r
 {-# INLINE getUpMap #-}
 
 getNSFrame :: NSRef -> TclM FrameRef
@@ -523,6 +529,8 @@ changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
 changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq` f { frVars = r } ))
 {-# INLINE changeVars #-}
+
+insertVar fr k v = changeVars fr (Map.insert k v)
 
 changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = fun (nsProcs f) } ))
 
