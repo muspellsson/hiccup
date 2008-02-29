@@ -8,6 +8,7 @@ import Util
 import Core (evalTcl, subst)
 import Common
 import ExprParse
+import TclLib.ListProcs (procConcat)
 import qualified TclObj as T
 
 utilProcs = makeProcMap [
@@ -48,19 +49,22 @@ procAfter args =
             ms <- T.asInt mss
             io $ threadDelay (1000 * ms)
             ret
-      [mss,act] -> do
+      (mss:acts) -> do
             ms <- T.asInt mss 
 	    let secs = (fromIntegral ms) / 1000.0
 	    currT <- io getCurrentTime
 	    let dline = addUTCTime secs currT
+	    act <- procConcat acts
 	    evtAdd act dline
       _     -> argErr "after"
 
 procUpdate args = case args of
      [] -> do evts <- evtGetDue
-              mapM_ evalTcl evts
+              upglobal (mapM_ evalTcl evts)
               ret
      _  -> argErr "update"
+ where upglobal f = do sl <- stackLevel
+                       uplevel sl f
 
 procSource args = case args of
                   [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
