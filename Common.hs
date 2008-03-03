@@ -161,7 +161,8 @@ getNsProcMap = getCurrNS >>= (`refExtract` nsProcs)
 
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
-modStack f = getStack >>= putStack . f
+modStack f = modify (\v -> v { tclStack = f (tclStack v) })
+{-# INLINE modStack #-}
 getFrame = do st <- getStack
               case st of
                  (fr:_) -> return $! fr
@@ -296,7 +297,7 @@ renameProc old new = do
   case mpr of
    Nothing -> tclErr $ "bad command " ++ show old
    Just pr -> do rmProc old
-                 unless (B.null new) (regProc new (procBody pr) (procFn pr))
+                 unless (bsNull new) (regProc new (procBody pr) (procFn pr))
 
 varUnset :: BString -> TclM RetVal
 varUnset name = varUnsetNS (parseVarName name)
@@ -406,7 +407,7 @@ getNamespace Local = getCurrNS
 getNamespace (NS nsl) = getNamespace' nsl
 {-# INLINE getNamespace #-}
 getNamespace' nsl = case nsl of
-       (x:xs) -> do base <- if B.null x then getGlobalNS else getCurrNS >>= getKid x
+       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getNamespace"
  where getEm []     ns = return $! ns
@@ -491,7 +492,7 @@ getNSFrame :: NSRef -> TclM FrameRef
 getNSFrame !nsref = nsref `refExtract` nsFrame 
 
 getOrCreateNamespace ns = case explodeNS ns of
-       (x:xs) -> do base <- if B.null x then getGlobalNS else getCurrNS >>= getKid x
+       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getOrCreateNamespace"
  where getEm []     ns = return ns

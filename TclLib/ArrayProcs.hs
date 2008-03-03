@@ -6,7 +6,7 @@ import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad
 import qualified Data.Map as Map
-import VarName (arrName)
+import VarName 
 import Text.Printf
 
 arrayProcs = makeProcMap [("array", procArray), ("parray", procParray)]
@@ -69,7 +69,9 @@ array_unset args = case args of
      [name]     -> varUnset (T.asBStr name)
      [name,pat] -> do let n = T.asBStr name 
                       arr <- getArray n
-                      -- mapM_ (\ind -> varUnsetNS (arrName n ind)) (Map.keys arr)
+                      let (NSQual nst (VarName vn x)) = parseVarName n
+                      let withInd i = (NSQual nst (VarName vn (Just i)))
+                      mapM_ (\ind -> varUnsetNS (withInd ind)) (globMatches (T.asBStr pat) (Map.keys arr))
                       ret
      _          -> argErr "array unset"
 
