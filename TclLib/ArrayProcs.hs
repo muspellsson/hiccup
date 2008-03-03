@@ -70,6 +70,7 @@ array_unset args = case args of
      [name,pat] -> do let n = T.asBStr name 
                       arr <- getArray n
                       let (NSQual nst (VarName vn x)) = parseVarName n
+                      when (x /= Nothing) $ tclErr "what the heck just happened"
                       let withInd i = (NSQual nst (VarName vn (Just i)))
                       mapM_ (\ind -> varUnsetNS (withInd ind)) (globMatches (T.asBStr pat) (Map.keys arr))
                       ret
