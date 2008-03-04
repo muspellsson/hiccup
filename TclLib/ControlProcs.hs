@@ -66,14 +66,15 @@ chunkBy lst n = let (a,r) = splitAt n lst
                 in a : (if null r then [] else r `chunkBy` n)
 
 procSwitch args = case args of
-   [str,pairlst]     -> T.asList pairlst >>= doSwitch (exactMatch str) 
+   [str,pairlst]     -> T.asList pairlst >>= doSwitch (exacter str) 
    [opt,str,pairlst] -> if opt .== "--" || opt .== "-exact"
-                         then T.asList pairlst >>= doSwitch (exactMatch str) 
+                         then T.asList pairlst >>= doSwitch (exacter str) 
                          else if opt .== "-glob" 
                                  then T.asList pairlst >>= doSwitch (globber str)
                                  else tclErr $ "switch: bad option " ++ show opt
    _                 -> argErr "switch"
  where globber s = let bs = T.asBStr s in \o -> globMatch (T.asBStr o) bs
+       exacter s = let bs = T.asBStr s in \o -> exactMatch (T.asBStr o) bs
 
 doSwitch matchP lst = do 
    pl <- toPairs lst

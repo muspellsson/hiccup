@@ -47,6 +47,7 @@ module Common (RetVal, TclM
        ,childrenNS
        ,variableNS
        ,exportNS
+       ,importNS
        ,commandNames
        ,commonTests
     ) where
@@ -158,6 +159,7 @@ getStack = gets tclStack
 {-# INLINE getStack  #-}
 getNsProcMap = getCurrNS >>= (`refExtract` nsProcs)
 {-# INLINE getNsProcMap #-}
+getGlobalProcMap = getGlobalNS >>= (`refExtract` nsProcs)
 
 putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
@@ -230,11 +232,10 @@ getProcNorm !i = do
     Nothing -> do globpm <- getGlobalProcMap
                   return (pmLookup i globpm)
     x       -> return $! x
- where getGlobalProcMap = getGlobalNS >>= (`refExtract` nsProcs)
-
 
 pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
 pmLookup !i !m = Map.lookup i m
+{-# INLINE pmLookup #-}
 
 rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n)
@@ -440,8 +441,10 @@ variableNS name val = do
 exportNS name = do
   nsr <- getCurrNS
   io $ modifyIORef nsr (\n -> n { nsExport = (name:(nsExport n)) })
-  
-  
+
+importNS name = do
+  ret
+
 getTag frref = do
   f <- readRef frref
   return (frTag f)

@@ -107,7 +107,7 @@ procEql _ = argErr "=="
 procEval args = case args of
                  []   -> argErr "eval"
                  [s]  -> evalTcl s
-                 _    -> procConcat args >>= evalTcl
+                 _    -> evalTcl (T.objconcat args)
 
 procCatch args = case args of
            [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retIsErr

@@ -1,4 +1,4 @@
-module TclLib.ListProcs (listProcs,procList,procConcat) where
+module TclLib.ListProcs (listProcs,procList) where
 import Common
 import Util
 import Data.List (sortBy)
@@ -63,7 +63,7 @@ procJoin args = case args of
          lst <- T.asList ll
          return $ T.mkTclBStr (joinWithBS (map T.asBStr lst) sep)
 
-procConcat args = treturn . (`joinWith` ' ') . map (T.trim . T.asBStr) $ args
+procConcat = return . T.objconcat
 
 procLappend args = case args of
         (n:news) -> varModify (T.asBStr n)  $

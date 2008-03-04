@@ -24,6 +24,7 @@ module TclObj (
  ,strEq
  ,strNe
  ,trim
+ ,objconcat
  ,tclObjTests ) where
 
 import qualified BSParse as P
@@ -145,6 +146,9 @@ trueValues = map pack ["1", "true", "yes", "on"]
 (.==) :: TclObj -> String -> Bool
 (.==) bs str = (asBStr bs) == pack str
 {-# INLINE (.==) #-}
+
+objconcat :: [TclObj] -> TclObj
+objconcat = mkTclBStr . (`joinWith` ' ') . map (trim . asBStr) 
 
 -- # TESTS # --
 

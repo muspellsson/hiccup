@@ -8,7 +8,6 @@ import Util
 import Core (evalTcl, subst)
 import Common
 import ExprParse
-import TclLib.ListProcs (procConcat)
 import qualified TclObj as T
 
 utilProcs = makeProcMap [
@@ -54,8 +53,7 @@ procAfter args =
 	    let secs = (fromIntegral ms) / 1000.0
 	    currT <- io getCurrentTime
 	    let dline = addUTCTime secs currT
-	    act <- procConcat acts
-	    evtAdd act dline
+	    evtAdd (T.objconcat acts) dline
       _     -> argErr "after"
 
 procUpdate args = case args of

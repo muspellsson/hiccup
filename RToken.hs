@@ -6,7 +6,7 @@ import VarName
 import Test.HUnit
 
 type Cmd = (Either (NSQual BString) RToken, [RToken])
-data RToken = Lit !BString | CatLst [RToken] 
+data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok Cmd | ExpTok RToken
               | VarRef (NSQual VarName) | ArrRef NSTag !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
@@ -15,9 +15,20 @@ isEmpty (Lit x)    = B.null x
 isEmpty (CatLst l) = null l
 isEmpty _          = False
 
+-- Bit hacky, but better than no literal handling
+litIfy s 
+ | B.length s == 1 = let c = B.index s 0 
+                     in case c of
+                          '0' -> LitInt 0
+                          '1' -> LitInt 1
+                          '2' -> LitInt 2
+                          _   -> Lit s
+ | otherwise       = Lit s
+
+
 compile :: BString -> RToken
 compile str = case doInterp str of
-                   Left s  -> Lit s
+                   Left s  -> litIfy s
                    Right x -> handle x
  where f (Left match) = case parseVarName match of 
                           NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
@@ -50,7 +61,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
   compTests = TestList [ 
       "x -> x" ~: "x" `compiles_to` (lit "x")  
       ,"$x -> VarRef x" ~: "$x" `compiles_to` (varref "x")  
-      ,"x(1) -> ArrRef x 1" ~: "$x(1)" `compiles_to` (arrref "x" (lit "1"))  
+      ,"x(G) -> ArrRef x G" ~: "$x(G)" `compiles_to` (arrref "x" (lit "G"))  
       ,"CatLst" ~: "$x$y" `compiles_to` (CatLst [varref "x", varref "y"])  
       ,"lit" ~: "incr x -1" `compiles_to` lit "incr x -1"
       ,"cmd" ~: "[double 4]" `compiles_to` cmdTok (Left (vlocal (pack "double")), [lit "4"])

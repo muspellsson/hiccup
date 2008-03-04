@@ -44,7 +44,7 @@ proc sum lst {
 
 proc range {a b {step 1}} {
   set result {}
-  for {set i $a} {<= $i $b} "incr i $step" {
+  for {set i $a} {<= $i $b} {incr i $step} {
     lappend result $i
   }
   return $result

@@ -809,40 +809,6 @@ test "ns level" {
   }
 }
 
-test "simple variable" {
-  finalize { namespace foo } {
-    namespace eval foo {
-      variable wow 99
-    }
-   checkthat $foo::wow == 99
-   checkthat $::foo::wow == 99
-   set ::foo::wow 3
-   checkthat $foo::wow == 3 
- }
-}
-
-test "namespace varible array syntax" {
-  finalize { ns temp } {
-    assertErr {
-      namespace eval temp {
-        variable boo(1)
-      }
-    }
-  }
-}
-
-test "namespace variable evil" {
-  finalize { proc evil ns temp_ns } {
-    proc evil {} {
-      checkthat $::temp_ns::value == 4
-    }
-
-    namespace eval temp_ns {
-      variable value 4
-      ::evil
-    }
-  }
-}
 
 
 test "upvar in uplevel" {

@@ -16,6 +16,7 @@ procNamespace = makeEnsemble "namespace" [
      ("delete", ns_delete),
      ("tail", ns_tail),
      ("export", ns_export),
+     ("import", ns_import),
      ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
 
@@ -38,6 +39,10 @@ ns_parent args = case args of
 
 ns_export args = mapM_ (exportNS . T.asBStr) args >> ret
           
+ns_import args = do 
+  mapM_ (do_import . T.asBStr) args 
+  ret
+ where do_import n = importNS n
 
 ns_children args = case args of
           [] -> childrenNS >>= return . T.mkTclList . map T.mkTclBStr
