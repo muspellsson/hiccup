@@ -194,13 +194,21 @@ test "namespace qualifiers" {
 
 test "namespace import/export simple" {
   namespace eval foo { 
+    proc bat {} { return 1 }
     proc bar {} { return 2 }
-    namespace export bar
+    proc baz {} { return 3 }
+    proc buz {} { return 4 }
+    namespace export bar baz buz
   }
 
   namespace eval goo {
     assertErr { bar } 
-    namespace import foo::bar
+    assertErr { baz } 
+    assertErr { buz } 
+    namespace import ::foo::ba?
     checkthat [bar] == 2
+    checkthat [baz] == 3
+    assertErr { bat }
+    assertErr { buz }
   }
 }

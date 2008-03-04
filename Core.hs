@@ -64,8 +64,8 @@ callProc !pn !mproc args = do
      Nothing   -> do ukproc <- getProc (pack "unknown")
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
-                       Just uk -> (procFn uk) ((T.mkTclBStr pn):args)
-     Just proc -> (procFn proc) $! args 
+                       Just uk -> uk `applyTo` ((T.mkTclBStr pn):args)
+     Just proc -> proc `applyTo` args 
 {-# INLINE callProc #-}
 
 doCond :: T.TclObj -> TclM Bool

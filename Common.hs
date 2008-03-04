@@ -2,7 +2,7 @@
 module Common (RetVal, TclM
        ,TclState
        ,Err(..)
-       ,TclProc,procFn,procBody
+       ,TclProc,applyTo,procBody
        ,runTclM
        ,makeState
        ,runCheckResult
@@ -115,7 +115,16 @@ type TclArray = Map.Map BString T.TclObj
 data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
 type VarMap = Map.Map BString TclVar
 
+applyTo !(TclProcT _ _ !f) !args = f args
+{-# INLINE applyTo #-}
 
+mkProcAlias nsr pn args = do
+  pm <- nsr `refExtract` nsProcs
+  case pmLookup pn pm of
+    Nothing -> tclErr "bad imported command. Yikes"
+    Just p  -> p `applyTo` args
+  
+   
 {-
 showStack = do st <- getStack
                mapM_ showFrame st
@@ -443,7 +452,13 @@ exportNS name = do
   io $ modifyIORef nsr (\n -> n { nsExport = (name:(nsExport n)) })
 
 importNS name = do
-  ret
+    let (NSQual nst n) = parseProc name
+    nsr <- getNamespace nst
+    exported <- getExports nsr n
+    mapM (\pn -> regProcNS (NSQual Local pn) (pack "oh noes") (mkProcAlias nsr pn)) exported
+    return . T.mkTclList . map T.mkTclBStr $ exported
+ where getExports nsr pat = nsr `refExtract` nsExport >>= return . globMatches pat
+
 
 getTag frref = do
   f <- readRef frref
