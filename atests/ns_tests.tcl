@@ -216,4 +216,11 @@ test "namespace import/export simple" {
 test "namespace origin, global" {
   proc weezer {} { return "W" }
   checkthat [namespace origin weezer] eq {::weezer}
+  finalize { proc weezer }
+}
+
+test "namespace origin, ns" {
+  namespace eval boo { proc eep {} { return 0 } }
+  checkthat [namespace origin ::boo::eep] eq {::boo::eep}
+  finalize { ns boo }
 }

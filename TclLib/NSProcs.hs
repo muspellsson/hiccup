@@ -5,6 +5,7 @@ import Core (evalTcl)
 import VarName
 import Util (pack)
 import qualified TclObj as T
+import qualified Data.ByteString.Char8 as B
 
 nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
 
@@ -51,7 +52,7 @@ ns_origin args = case args of
      [pn] -> do pr <- getProc (T.asBStr pn)
                 case pr of
                   Nothing -> tclErr $ "invalid command name: " ++ show pn
-                  Just p  -> treturn . pack $ ("::" ++ T.asStr pn)
+                  Just p  -> treturn (getOrigin p)
      _    -> argErr "namespace origin"
 
 ns_children args = case args of

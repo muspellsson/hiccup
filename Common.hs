@@ -2,7 +2,7 @@
 module Common (RetVal, TclM
        ,TclState
        ,Err(..)
-       ,TclCmd,applyTo,procBody
+       ,TclCmd,applyTo,procBody,getOrigin
        ,runTclM
        ,makeState
        ,runCheckResult
@@ -110,14 +110,20 @@ type TclCmd = [T.TclObj] -> TclM T.TclObj
 data TclProcT = TclProcT { 
                    procName :: BString, 
                    procBody :: BString,  
-                   procOrigin :: NSTag,
+                   procOrigNS :: BString,
                    procFn :: TclCmd }
+
 type ProcKey = BString
 type ProcMap = Map.Map ProcKey TclProcT
 
 type TclArray = Map.Map BString T.TclObj
 data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
 type VarMap = Map.Map BString TclVar
+
+
+getOrigin p = if nso == nsSep then B.append nso pname else B.concat [nso, nsSep, pname]
+ where nso = procOrigNS p
+       pname = procName p
 
 applyTo !(TclProcT _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
@@ -150,7 +156,7 @@ globalNS fr = do
 makeProcMap :: [(String,TclCmd)] -> ProcMap
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 
-toTclProcT (n,v) = (n, TclProcT n errStr Local v)
+toTclProcT (n,v) = (n, TclProcT n errStr nsSep v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
 mergeProcMaps :: [ProcMap] -> ProcMap
@@ -265,9 +271,10 @@ regProcNS (NSQual nst k) body pr
  | isLocal nst  = getCurrNS >>= regInNS
  | otherwise    = getNamespace nst >>= regInNS
  where 
-  newProc = TclProcT k body nst pr
+  newProc = TclProcT k body undefined pr
   pmInsert proc m = Map.insert (procName proc) proc m
-  regInNS nsr = changeProcs nsr (pmInsert newProc)
+  regInNS nsr = do fn <- nsr `refExtract` nsName
+                   changeProcs nsr (pmInsert (newProc { procOrigNS = fn }))
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
