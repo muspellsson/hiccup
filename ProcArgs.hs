@@ -32,7 +32,7 @@ parseParams name args = T.asList (T.asBStr args) >>= countRet
 
 bindArgs params@(_,hasArgs,pl) args = walkBoth pl args [] 
   where walkBoth ((Left v):xs)      (a:as) !acc = walkBoth xs as ((v,a):acc)
-        walkBoth ((Left _):_)       []     _   = badArgs
+        walkBoth ((Left _):_)       []      _   = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) !acc = walkBoth xs as ((k,a):acc)
         walkBoth ((Right (k,v)):xs) []     !acc = walkBoth xs [] ((k,v):acc)
         walkBoth []                 xl     !acc = if hasArgs then return $! ((pack "args"),(T.mkTclList xl)):acc

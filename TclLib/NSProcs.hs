@@ -3,6 +3,7 @@ module TclLib.NSProcs (nsProcs) where
 import Common
 import Core (evalTcl)
 import VarName
+import Util (pack)
 import qualified TclObj as T
 
 nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
@@ -17,6 +18,7 @@ procNamespace = makeEnsemble "namespace" [
      ("tail", ns_tail),
      ("export", ns_export),
      ("import", ns_import),
+     ("origin", ns_origin),
      ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
 
@@ -43,6 +45,14 @@ ns_import args = do
   mapM_ (do_import . T.asBStr) args 
   ret
  where do_import n = importNS n
+
+ns_origin :: TclCmd
+ns_origin args = case args of
+     [pn] -> do pr <- getProc (T.asBStr pn)
+                case pr of
+                  Nothing -> tclErr $ "invalid command name: " ++ show pn
+                  Just p  -> treturn . pack $ ("::" ++ T.asStr pn)
+     _    -> argErr "namespace origin"
 
 ns_children args = case args of
           [] -> childrenNS >>= return . T.mkTclList . map T.mkTclBStr

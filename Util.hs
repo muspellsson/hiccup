@@ -17,6 +17,7 @@ bsNull = B.null
 {-# INLINE bsNull #-}
 
 mapSnd f = map (\(a,b) -> (a, f b))
+{-# INLINE mapSnd #-}
 mapFst f = map (\(a,b) -> (f a, b))
 
 ifFails f v = f `orElse` (return v)

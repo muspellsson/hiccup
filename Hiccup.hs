@@ -7,7 +7,7 @@ import Data.IORef
 import Util
 import qualified TclObj as T
 import TclObj (strEq,strNe)
-import Core
+import Core (evalTcl)
 import Common
 import ProcArgs
 
@@ -171,7 +171,7 @@ procUpLevel args = case args of
               (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
 
-procUpVar :: TclProc
+procUpVar :: TclCmd
 procUpVar args = case args of
      [d,s]    -> doUp 1 d s
      [si,d,s] -> T.asInt si >>= \i -> doUp i d s
@@ -184,12 +184,13 @@ procGlobal args = case args of
  where inner g = do len <- stackLevel
                     upvar len g g
 
-procProc [name,args,body] = do
-  let pname = T.asBStr name
-  params <- parseParams pname args
-  regProc pname (T.asBStr body) (procRunner params body)
-  ret
-procProc x = tclErr $ "proc: Wrong arg count (" ++ show (length x) ++ "): " ++ show (map T.asBStr x)
+procProc args = case args of
+  [name,alst,body] -> do
+    let pname = T.asBStr name
+    params <- parseParams pname alst
+    regProc pname (T.asBStr body) (procRunner params body)
+    ret
+  _               -> argErr "proc"
 
 procRunner pl body args = do
   locals <- bindArgs pl args

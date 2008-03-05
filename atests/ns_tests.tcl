@@ -212,3 +212,8 @@ test "namespace import/export simple" {
     assertErr { buz }
   }
 }
+
+test "namespace origin, global" {
+  proc weezer {} { return "W" }
+  checkthat [namespace origin weezer] eq {::weezer}
+}

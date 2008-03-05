@@ -9,14 +9,14 @@ mathProcs = makeProcMap $
  where m = procMath
        t = procTest
 
-procMath :: (Int -> Int -> Int) -> TclProc
+procMath :: (Int -> Int -> Int) -> TclCmd
 procMath op args = case args of
          [s1,s2] -> do res <- liftM2 op (T.asInt s1) (T.asInt s2)
                        return $! (T.mkTclInt res)
          _       -> argErr "math"
 {-# INLINE procMath #-}
 
-procTest :: (Int -> Int -> Bool) -> TclProc
+procTest :: (Int -> Int -> Bool) -> TclCmd
 procTest op args = case args of
          [s1,s2] -> do a1 <- T.asInt s1
                        a2 <- T.asInt s2
