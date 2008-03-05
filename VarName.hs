@@ -18,6 +18,7 @@ module VarName (parseVarName,
                 varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
+import Data.ByteString (findSubstrings)
 import Test.HUnit
 
 data NSQual a = NSQual !NSTag !a deriving (Eq,Show)
@@ -70,7 +71,7 @@ nsTail str = case parseNS str of
                Left _      -> str
                Right (_,t) -> t
 
-nsQualifiers str = case B.findSubstrings nsSep str of
+nsQualifiers str = case findSubstrings nsSep str of
                       [] -> B.empty
                       lst -> B.take (last lst) str
 
@@ -83,7 +84,7 @@ parseNS !str =
 
 splitWith :: BString -> BString -> [BString]
 splitWith str sep = 
-    case B.findSubstrings sep str of
+    case findSubstrings sep str of
         []     -> [str]
         il     -> extract il str
  where slen              = B.length sep 

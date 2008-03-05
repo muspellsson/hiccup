@@ -442,7 +442,6 @@ variableNS name val = do
   same <- sameTags fr nsfr
   if same then insertVar fr name varVal
           else n `linkToFrame` (nsfr, n)
-  ret
  where
    ensureNotArr Nothing  = return ()
    ensureNotArr (Just _) = tclErr $ "can't define " ++ show name ++ ": name refers to value in array"
@@ -575,6 +574,7 @@ changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq`
 {-# INLINE changeVars #-}
 
 insertVar fr k v = changeVars fr (Map.insert k v)
+{-# INLINE insertVar #-}
 
 changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = fun (nsProcs f) } ))
 
