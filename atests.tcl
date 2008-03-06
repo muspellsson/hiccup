@@ -933,4 +933,8 @@ test "globally qualified proc in ns" {
   }
 }
 
+test "list eval" {
+  checkthat [eval [list * 3 5]] == 15
+}
+
 run_tests

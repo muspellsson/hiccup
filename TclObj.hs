@@ -132,7 +132,7 @@ instance ITObj TclObj where
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _)  = fail "Can't parse an int value"
-  asParsed (TclList _ _) = fail "Can't parse a list value (for now)"
+  asParsed (TclList _ s) = asParsed (mkTclBStr s)
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
