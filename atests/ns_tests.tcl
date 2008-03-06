@@ -224,3 +224,15 @@ test "namespace origin, ns" {
   checkthat [namespace origin ::boo::eep] eq {::boo::eep}
   finalize { ns boo }
 }
+
+test "namespace origin after import" {
+  namespace eval boo { namespace export eep; proc eep {} { return OK } }
+  checkthat [namespace origin ::boo::eep] eq {::boo::eep}
+  checkthat [::boo::eep] eq OK
+
+  namespace import ::boo::*
+  checkthat [eep] eq OK
+  checkthat [namespace origin eep] eq {::boo::eep}
+
+  finalize { ns boo }
+}

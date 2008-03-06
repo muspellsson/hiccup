@@ -110,7 +110,7 @@ type TclCmd = [T.TclObj] -> TclM T.TclObj
 data TclProcT = TclProcT { 
                    procName :: BString, 
                    procBody :: BString,  
-                   procOrigNS :: BString,
+                   procOrigNS :: Maybe BString,
                    procFn :: TclCmd }
 
 type ProcKey = BString
@@ -121,20 +121,28 @@ data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,S
 type VarMap = Map.Map BString TclVar
 
 
-getOrigin p = if nso == nsSep then B.append nso pname else B.concat [nso, nsSep, pname]
- where nso = procOrigNS p
+getOrigin p = if nso == nsSep 
+                  then return $ B.append nso pname 
+                  else return $ B.concat [nso, nsSep, pname]
+ where nso = maybe nsSep id (procOrigNS p)
        pname = procName p
 
 applyTo !(TclProcT _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
 
-mkProcAlias nsr pn args = do
-  pm <- nsr `refExtract` nsProcs
-  case pmLookup pn pm of
-    Nothing -> tclErr "bad imported command. Yikes"
-    Just p  -> p `applyTo` args
+mkProcAlias nsr pn = do
+    pr <- getTheProc nsr pn 
+    case pr of
+      Nothing -> fail "trying to import proc that doesn't exist"
+      Just p  -> return $ p { procFn = inner } 
+ where inner args = do thep <- getTheProc nsr pn
+                       case thep of
+                        Nothing -> tclErr "bad imported command. Yikes"
+                        Just p  -> p `applyTo` args
   
-   
+getTheProc nsr pn = do
+  pm <- nsr `refExtract` nsProcs
+  return $ pmLookup pn pm   
 {-
 showStack = do st <- getStack
                mapM_ showFrame st
@@ -156,7 +164,7 @@ globalNS fr = do
 makeProcMap :: [(String,TclCmd)] -> ProcMap
 makeProcMap = Map.fromList . map toTclProcT . mapFst pack
 
-toTclProcT (n,v) = (n, TclProcT n errStr nsSep v)
+toTclProcT (n,v) = (n, TclProcT n errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
 mergeProcMaps :: [ProcMap] -> ProcMap
@@ -205,7 +213,7 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getNsProcMap >>= return . map procName . Map.elems
+commandNames = getNsProcMap >>= return . Map.keys
 
 
 tclErr = throwError . EDie
@@ -264,17 +272,19 @@ rmProcNS (NSQual nst n)
   | otherwise    = getNamespace nst >>= rmFromNS n
  where rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
 
-regProc name body pr = regProcNS (parseProc name) body pr
+regProc name body pr = 
+    let q@(NSQual _ n) = parseProc name
+    in regProcNS q (TclProcT n body Nothing pr)
 
-regProcNS (NSQual nst k) body pr 
+regProcNS (NSQual nst k) newProc
  | isGlobal nst = getGlobalNS >>= regInNS
  | isLocal nst  = getCurrNS >>= regInNS
  | otherwise    = getNamespace nst >>= regInNS
  where 
-  newProc = TclProcT k body undefined pr
-  pmInsert proc m = Map.insert (procName proc) proc m
+  pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
-                   changeProcs nsr (pmInsert (newProc { procOrigNS = fn }))
+                   changeProcs nsr (pmInsert (setOrigin fn newProc))
+  setOrigin fn x              = if procOrigNS x == Nothing then x { procOrigNS = Just fn } else x
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
@@ -372,6 +382,7 @@ varLookup !name !frref = do
    case isUpped of
       Nothing    -> getFrameVars frref >>= \m -> return $! (Map.lookup name m)
       Just (f,n) -> varLookup n f
+{-# INLINE varLookup #-}
 
 varGet :: BString -> TclM RetVal
 varGet !n = varGetNS (parseVarName n)
@@ -458,15 +469,16 @@ variableNS name val = do
       t2 <- getTag f2
       return (t1 == t2)
 
-exportNS name = do
+exportNS clear name = do
   nsr <- getCurrNS
-  io $ modifyIORef nsr (\n -> n { nsExport = (name:(nsExport n)) })
+  io $ modifyIORef nsr (\n -> n { nsExport = (name:(getPrev n)) })
+ where getPrev n = if clear then [] else nsExport n
 
 importNS name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
     exported <- getExports nsr n
-    mapM (\pn -> regProcNS (NSQual Local pn) (pack "oh noes") (mkProcAlias nsr pn)) exported
+    mapM (\pn -> mkProcAlias nsr pn >>= regProcNS (NSQual Local pn)) exported
     return . T.mkTclList . map T.mkTclBStr $ exported
  where getExports nsr pat = nsr `refExtract` nsExport >>= return . globMatches pat
 
@@ -531,20 +543,19 @@ getOrCreateNamespace ns = case explodeNS ns of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
 
-getCurrNS = getFrame >>= (`refExtract` frNS) >>= \n -> return $! n 
+getCurrNS = getFrame >>= readRef >>= \f -> return $! (frNS f)
 {-# INLINE getCurrNS #-}
 
 getGlobalNS = gets tclGlobalNS
 
+readRef :: IORef a -> TclM a
 readRef !r = (io . readIORef) r >>= \v -> return $! v
 {-# INLINE readRef #-}
 
 refExtract !ref !f = readRef ref >>= \d -> let r = f d in r `seq` (return $! r)
 {-# INLINE refExtract #-}
 
-currentNS = do
-  ns <- getCurrNS >>= readRef
-  return (nsName ns)
+currentNS = getCurrNS >>= readRef >>= return . nsName
 
 parentNS = do
  ns <- getCurrNS >>= readRef

@@ -3,9 +3,7 @@ module TclLib.NSProcs (nsProcs) where
 import Common
 import Core (evalTcl)
 import VarName
-import Util (pack)
 import qualified TclObj as T
-import qualified Data.ByteString.Char8 as B
 
 nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
 
@@ -40,7 +38,9 @@ ns_parent args = case args of
           [] -> parentNS >>= treturn
           _  -> argErr "namespace parent"
 
-ns_export args = mapM_ (exportNS . T.asBStr) args >> ret
+ns_export args = case args of
+       [] -> ret
+       _  -> mapM_ (exportNS False . T.asBStr) args >> ret
           
 ns_import args = do 
   mapM_ (do_import . T.asBStr) args 
@@ -52,7 +52,7 @@ ns_origin args = case args of
      [pn] -> do pr <- getProc (T.asBStr pn)
                 case pr of
                   Nothing -> tclErr $ "invalid command name: " ++ show pn
-                  Just p  -> treturn (getOrigin p)
+                  Just p  -> getOrigin p >>= treturn
      _    -> argErr "namespace origin"
 
 ns_children args = case args of
