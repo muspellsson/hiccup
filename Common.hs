@@ -141,20 +141,7 @@ mkProcAlias nsr pn = do
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
   
-getTheProc nsr pn = do
-  pm <- nsr `refExtract` nsProcs
-  return $ pmLookup pn pm   
-{-
-showStack = do st <- getStack
-               mapM_ showFrame st
-
-showFrame frref = do 
-  fr <- readRef frref
-  vars <- getFrameVars frref >>= return . Map.keys 
-  let tag = frTag fr 
-  updata <- mapM (\(k,(ur,un)) -> getTag ur >>= \rt -> return (k,(rt,un))) (Map.toList (upMap fr))
-  (io . print) (tag,vars,updata)
--}
+       getTheProc nsr pn = nsr `refExtract` nsProcs >>= return . pmLookup pn
   
 globalNS fr = do 
   return $ TclNS { nsName = nsSep, 
@@ -608,12 +595,12 @@ changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = fun (nsProcs f) }
 makeEnsemble name subs = top
   where top args = case args of
                    (x:xs) -> case Map.lookup (T.asBStr x) subMap of
-                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " ++ commaList "or" (map unpack (procMapNames subMap))
+                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " 
+			                             ++ commaList "or" (map unpack (procMapNames subMap))
                               Just f  -> (procFn f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
         subMap = makeProcMap subs
-
-procMapNames = map procName . Map.elems
+        procMapNames = map procName . Map.elems
 
 emptyProcMap = Map.empty
 emptyVarMap = Map.empty
