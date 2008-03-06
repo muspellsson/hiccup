@@ -236,3 +236,12 @@ test "namespace origin after import" {
 
   finalize { ns boo }
 }
+
+test "ns export pattern" {
+  namespace eval boo {
+    namespace export g* e*
+    proc golly {} { return OK }
+    proc golly {} { return OK }
+
+  }
+}
