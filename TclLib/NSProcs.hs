@@ -39,7 +39,7 @@ ns_parent args = case args of
           _  -> argErr "namespace parent"
 
 ns_export args = case args of
-       [] -> ret
+       [] -> getExportsNS >>= return . T.mkTclList . map T.mkTclBStr
        _  -> mapM_ (exportNS False . T.asBStr) args >> ret
           
 ns_import args = do 

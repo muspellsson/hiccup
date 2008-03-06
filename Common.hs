@@ -47,6 +47,7 @@ module Common (RetVal, TclM
        ,childrenNS
        ,variableNS
        ,exportNS
+       ,getExportsNS
        ,importNS
        ,commandNames
        ,commonTests
@@ -474,13 +475,21 @@ exportNS clear name = do
   io $ modifyIORef nsr (\n -> n { nsExport = (name:(getPrev n)) })
  where getPrev n = if clear then [] else nsExport n
 
+getExportsNS = do
+  getCurrNS >>= readRef >>= return . reverse . nsExport
+
 importNS name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
     exported <- getExports nsr n
     mapM (\pn -> mkProcAlias nsr pn >>= regProcNS (NSQual Local pn)) exported
     return . T.mkTclList . map T.mkTclBStr $ exported
- where getExports nsr pat = nsr `refExtract` nsExport >>= return . globMatches pat
+ where getExports nsr pat = do 
+               ns <- readRef nsr
+               let exlist = nsExport ns
+               let pnames = Map.keys (nsProcs ns) 
+	       let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
+               return (globMatches pat filt)
 
 
 getTag frref = do

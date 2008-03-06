@@ -241,7 +241,22 @@ test "ns export pattern" {
   namespace eval boo {
     namespace export g* e*
     proc golly {} { return OK }
-    proc golly {} { return OK }
+    proc eep {} { return OK }
+    proc faulty {} { return OK }
+  }
 
+  namespace import ::boo::*
+
+  checkthat [golly] eq OK
+  checkthat [eep] eq OK
+  assertErr { faulty }
+
+  finalize { namespace boo }
+}
+
+test "ns export no args returns pats" {
+  namespace eval boo {
+    namespace export a b? c*
+    checkthat [namespace export] eq [list a b? c*]
   }
 }
