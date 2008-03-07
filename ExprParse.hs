@@ -23,8 +23,6 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
   deriving (Show,Eq)
 
-data EVal = EInt !Int | EFloat !Double | EStr String deriving (Eq,Show)
-
 data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
 
 exprCompile :: (Monad m) => String -> m ((BString -> m T.TclObj) -> m T.TclObj)
