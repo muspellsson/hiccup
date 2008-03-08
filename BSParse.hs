@@ -8,8 +8,8 @@ module BSParse ( runParse, doInterp, TclWord(..), dropWhite, parseList
 import qualified Data.ByteString.Char8 as B
 import Control.Monad
 import Data.Ix
+import Util hiding (orElse,escapeStr)
 import Test.HUnit  -- IGNORE
-import Data.String
 
 data TclWord = Word !B.ByteString 
              | Subcommand TokCmd 
@@ -18,8 +18,6 @@ data TclWord = Word !B.ByteString
 
 type Result = Maybe ([TokCmd], BString)
 type TokCmd = (TclWord, [TclWord])
-
-type BString = B.ByteString
 
 runParse :: BString -> Result
 runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
@@ -267,9 +265,6 @@ testEscaped = TestList [
   ]
  where checkFalse str val = TestCase $ assertBool str (not val)
 
-instance IsString B.ByteString where
-  fromString = B.pack
-
 bp = id 
 mklit = Word . bp
 mkwd = Word . bp
@@ -419,7 +414,7 @@ runParseTests = TestList [
      "arr 3" ~: (pr ["set","buggy($bean)", "$koo"]) ?=? "set buggy($bean) $koo"
      ,"arr 4" ~: (pr ["set","buggy($bean)", "${wow}"]) ?=? "set buggy($bean) ${wow}"
      ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
-     -- not yet
+     -- not yet TODO
      -- ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
     ,"expand" ~: ([(mkwd "incr", [Expand (mkwd "$boo")])], "") ?=? "incr {*}$boo"
   ]

@@ -1,11 +1,16 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Util where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
 import Data.Char (toLower)
+import Data.String
 
 type BString = B.ByteString
+
+instance IsString B.ByteString where
+  fromString = B.pack
 
 joinWithBS bsl bs = B.concat (intersperse bs bsl)
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
@@ -47,14 +52,14 @@ brackDepth s = match 0 0 False
                                                _    -> match ni c False
                                        
 
-escapeStr s = case B.findIndex (`elem` " \n\t{}") s of
+escapeStr s = case B.findIndex (`B.elem` " \n\t{}") s of
                  Nothing -> [s]
                  Just i  -> let (b,a) = B.splitAt i s
                             in b : handle (B.head a) : escapeStr (B.drop 1 a)
- where handle '\n' = pack "\\n"
-       handle ' '  = pack "\\ "
-       handle '{'  = pack "\\{"
-       handle '}'  = pack "\\}"
+ where handle '\n' = "\\n"
+       handle ' '  = "\\ "
+       handle '{'  = "\\{"
+       handle '}'  = "\\}"
        handle _    = error "The impossible happened in handle"
 
 commaList :: String -> [String] -> String

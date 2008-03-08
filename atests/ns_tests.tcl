@@ -254,6 +254,23 @@ test "ns export pattern" {
   finalize { namespace boo }
 }
 
+test "ns export -clear" {
+  namespace eval boo {
+    proc aaa {} { return OK }
+    proc bbb {} { return OK }
+    namespace export aaa
+    namespace export -clear bbb
+  }
+
+  namespace eval baz {
+    namespace import ::boo::*
+    checkthat [bbb] eq OK
+    assertErr { aaa }
+  }
+
+  finalize { namespace boo namespace baz }
+}
+
 test "ns export no args returns pats" {
   namespace eval boo {
     namespace export a b? c*

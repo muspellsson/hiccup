@@ -545,7 +545,7 @@ getCurrNS = getFrame >>= readRef >>= \f -> return $! (frNS f)
 getGlobalNS = gets tclGlobalNS
 
 readRef :: IORef a -> TclM a
-readRef !r = (io . readIORef) r >>= \v -> return $! v
+readRef !r = (liftIO . readIORef) r
 {-# INLINE readRef #-}
 
 refExtract !ref !f = readRef ref >>= \d -> let r = f d in r `seq` (return $! r)

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module TclLib.NSProcs (nsProcs) where
 
 import Common
@@ -38,9 +39,11 @@ ns_parent args = case args of
           [] -> parentNS >>= treturn
           _  -> argErr "namespace parent"
 
-ns_export args = case args of
-       [] -> getExportsNS >>= return . T.mkTclList . map T.mkTclBStr
-       _  -> mapM_ (exportNS False . T.asBStr) args >> ret
+ns_export :: TclCmd
+ns_export args = case map T.asBStr args of
+       []     -> getExportsNS >>= return . T.mkTclList . map T.mkTclBStr
+       ("-clear":al) -> mapM_ (exportNS True) al >> ret
+       al            -> mapM_ (exportNS False) al >> ret
           
 ns_import args = do 
   mapM_ (do_import . T.asBStr) args 
