@@ -110,14 +110,17 @@ procEval args = case args of
                  _    -> evalTcl (T.objconcat args)
 
 procCatch args = case args of
-           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retIsErr
+           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retCodeToInt
            [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
- where retIsErr (EDie _) = return T.tclTrue
-       retIsErr _        = return T.tclFalse
+ where retCodeToInt c = case c of 
+                           (EDie _)  -> return T.tclTrue
+                           (ERet _)  -> return (T.mkTclInt 2)
+                           EBreak    -> return (T.mkTclInt 3)
+                           EContinue -> return (T.mkTclInt 4)
        retReason v e = case e of
                          EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return T.tclTrue
-                         _      -> retIsErr e
+                         _      -> retCodeToInt e
 
 procInfo = makeEnsemble "info" [
   matchp "locals" localVars,

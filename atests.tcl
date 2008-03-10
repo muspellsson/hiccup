@@ -347,6 +347,12 @@ test "errors and catch" {
 }
 
 
+test "catching return, break and continue" {
+  checkthat [catch return] == 2
+  checkthat [catch break] == 3
+  checkthat [catch continue] == 4
+}
+
 test "whitespace escaping" {
   set x \
    13
