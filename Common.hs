@@ -465,17 +465,25 @@ exportNS clear name = do
 getExportsNS = do
   getCurrNS >>= readRef >>= return . reverse . nsExport
 
-importNS name = do
+importNS force name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
     exported <- getExports nsr n
-    mapM (\pn -> mkProcAlias nsr pn >>= regProcNS (NSQual Local pn)) exported
+    mapM (importProc nsr) exported
     return . T.mkTclList . map T.mkTclBStr $ exported
- where getExports nsr pat = do 
+ where importProc nsr n = do
+            np <- mkProcAlias nsr n 
+            when (not force) $ do
+                 oldp <- getProcNS (NSQual Local n)
+                 case oldp of
+                    Nothing -> return ()
+                    Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
+            regProcNS (NSQual Local n) np
+       getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
                let pnames = Map.keys (nsProcs ns) 
-	       let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
+               let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
                return (globMatches pat filt)
 
 

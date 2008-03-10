@@ -12,9 +12,9 @@ test "namespace proc 1" {
       checkthat [one] == 1
     }
 
-    assertErr { one }
+    assert_err { one }
 
-    assertNoErr { ::+ 4 5 }
+    assert_noerr { ::+ 4 5 }
 
     checkthat [temp::one] == 1
     checkthat [::temp::one] == 1
@@ -245,7 +245,7 @@ test "ns export pattern" {
     proc faulty {} { return OK }
   }
 
-  namespace import ::boo::*
+  namespace import -force ::boo::*
 
   checkthat [golly] eq OK
   checkthat [eep] eq OK
@@ -276,4 +276,17 @@ test "ns export no args returns pats" {
     namespace export a b? c*
     checkthat [namespace export] eq [list a b? c*]
   }
+}
+
+test "ns import overwrite fails" {
+  namespace eval boo {
+    namespace export b*
+    proc baz {} { return OK }
+  }
+
+  proc baz {} { whatever }
+
+  assert_err { namespace import boo::baz }
+
+  finalize { namespace boo proc baz }
 }

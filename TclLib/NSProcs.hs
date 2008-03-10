@@ -45,10 +45,9 @@ ns_export args = case map T.asBStr args of
        ("-clear":al) -> mapM_ (exportNS True) al >> ret
        al            -> mapM_ (exportNS False) al >> ret
           
-ns_import args = do 
-  mapM_ (do_import . T.asBStr) args 
-  ret
- where do_import n = importNS n
+ns_import args = case map T.asBStr args of
+      ("-force":rest) -> mapM_ (importNS True) rest >> ret
+      al              -> mapM_ (importNS False) al >> ret
 
 ns_origin :: TclCmd
 ns_origin args = case args of

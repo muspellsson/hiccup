@@ -43,6 +43,10 @@ proc assertNoErr code {
   }
 }
 
+proc assert_noerr code {
+  uplevel [list assertNoErr $code]
+}
+
 proc assertErr code {
   set ret [catch "uplevel {$code}"]
   if { == $ret 1 } {
@@ -50,6 +54,10 @@ proc assertErr code {
   } else {
     assertFail "code should've failed: $code ($ret)"
   }
+}
+
+proc assert_err code {
+  uplevel [list assertErr $code]
 }
 
 proc get_err code { 
