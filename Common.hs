@@ -178,6 +178,7 @@ getNsProcMap = getCurrNS >>= (`refExtract` nsProcs)
 getGlobalProcMap = getGlobalNS >>= (`refExtract` nsProcs)
 
 putStack s = modify (\v -> v { tclStack = s })
+{-# INLINE putStack  #-}
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = modify (\v -> v { tclStack = f (tclStack v) })
 {-# INLINE modStack #-}
@@ -185,8 +186,6 @@ getFrame = do st <- getStack
               case st of
                  (fr:_) -> return $! fr
                  _      -> tclErr "stack badness"
-
-{-# INLINE putStack  #-}
 {-# INLINE getFrame  #-}
 
 io :: IO a -> TclM a
@@ -204,9 +203,10 @@ currentVars = do f <- getFrame
 commandNames = getNsProcMap >>= return . Map.keys
 
 
-tclErr = throwError . EDie
+tclErr :: String -> TclM a
+tclErr s = throwError (EDie s)
 
-argErr s = fail ("wrong # of args: " ++ s)
+argErr s = tclErr ("wrong # of args: " ++ s)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
