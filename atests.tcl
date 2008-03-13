@@ -630,7 +630,7 @@ test "for loop 2" {
 proc ignore _ { return {} }
 
 test "global ns proc" {
-  # not yet
+  # TODO not yet
   checkthat [::+ 1 1] == 2
   checkthat [+ 1 1] == 2
 }
@@ -928,7 +928,7 @@ test "globally qualified proc in ns" {
     assertNoErr { ::blah; blah }
 
     ignore {
-      # not yet
+      # TODO not yet
       assertNoErr {
         namespace eval foo {
           rename ::blah {}

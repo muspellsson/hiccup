@@ -173,9 +173,9 @@ makeState' chans vlist procs = do fr <- createFrame (Map.fromList (mapSnd Scalar
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsProcMap = getCurrNS >>= (`refExtract` nsProcs)
+getNsProcMap = getCurrNS >>= io . readIORef >>= \v -> return $! (nsProcs v)
 {-# INLINE getNsProcMap #-}
-getGlobalProcMap = getGlobalNS >>= (`refExtract` nsProcs)
+getGlobalProcMap = getGlobalNS >>= io . readIORef >>= \v -> return $! (nsProcs v)
 
 putStack s = modify (\v -> v { tclStack = s })
 {-# INLINE putStack  #-}
@@ -547,7 +547,7 @@ getOrCreateNamespace ns = case explodeNS ns of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
 
-getCurrNS = getFrame >>= readRef >>= \f -> return $! (frNS f)
+getCurrNS = getFrame >>= io . readIORef >>= \f -> return $! (frNS f)
 {-# INLINE getCurrNS #-}
 
 getGlobalNS = gets tclGlobalNS

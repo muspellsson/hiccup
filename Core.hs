@@ -30,8 +30,8 @@ subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
 
 
 evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
-evalRTokens []     acc = return $! reverse acc
-evalRTokens (x:xs) acc = case x of
+evalRTokens []     !acc = return $! reverse acc
+evalRTokens (x:xs) !acc = case x of
             Lit s     -> evalRTokens xs ((T.mkTclBStr s):acc)
             LitInt i  -> evalRTokens xs ((T.mkTclInt i):acc)
             CmdTok t  -> nextWith (runCmd t)
