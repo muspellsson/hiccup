@@ -290,3 +290,13 @@ test "ns import overwrite fails" {
 
   finalize { namespace boo proc baz }
 }
+
+test "default to global" {
+  namespace eval foo {
+    proc ret5 {} { return OK }
+  }
+
+  namespace eval other {
+    assert_noerr { foo::ret5 }
+  }
+}

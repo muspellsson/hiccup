@@ -115,7 +115,10 @@ data TclProcT = TclProcT {
                    procFn :: TclCmd }
 
 type ProcKey = BString
-type ProcMap = Map.Map ProcKey TclProcT
+data ProcMap = ProcMap { 
+      cmdMapEpoch :: !Int,
+      unProcMap :: !(Map.Map ProcKey TclProcT) 
+  } 
 
 type TclArray = Map.Map BString T.TclObj
 data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
@@ -150,13 +153,13 @@ globalNS fr = do
                    nsParent = Nothing, nsChildren = Map.empty }
 
 makeProcMap :: [(String,TclCmd)] -> ProcMap
-makeProcMap = Map.fromList . map toTclProcT . mapFst pack
+makeProcMap = ProcMap 0 . Map.fromList . map toTclProcT . mapFst pack
 
 toTclProcT (n,v) = (n, TclProcT n errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
 mergeProcMaps :: [ProcMap] -> ProcMap
-mergeProcMaps = Map.unions
+mergeProcMaps = ProcMap 0 . Map.unions . map unProcMap
 
 makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState = makeState' baseChans
@@ -200,7 +203,7 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getNsProcMap >>= return . Map.keys
+commandNames = getNsProcMap >>= return . Map.keys . unProcMap
 
 
 tclErr :: String -> TclM a
@@ -250,7 +253,7 @@ getProcNorm !i = do
     x       -> return $! x
 
 pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
-pmLookup !i !m = Map.lookup i m
+pmLookup !i !m = Map.lookup i (unProcMap m)
 {-# INLINE pmLookup #-}
 
 rmProc name = rmProcNS (parseProc name)
@@ -482,7 +485,7 @@ importNS force name = do
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
-               let pnames = Map.keys (nsProcs ns) 
+               let pnames = Map.keys (unProcMap (nsProcs ns))
                let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
                return (globMatches pat filt)
 
@@ -598,19 +601,20 @@ changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq`
 insertVar fr k v = changeVars fr (Map.insert k v)
 {-# INLINE insertVar #-}
 
-changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = fun (nsProcs f) } ))
+changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = update (nsProcs f) }))
+ where update (ProcMap e m) = ProcMap (e+1) (fun m)
 
 makeEnsemble name subs = top
   where top args = case args of
-                   (x:xs) -> case Map.lookup (T.asBStr x) subMap of
+                   (x:xs) -> case Map.lookup (T.asBStr x) (unProcMap subMap) of
                               Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " 
 			                             ++ commaList "or" (map unpack (procMapNames subMap))
                               Just f  -> (procFn f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
         subMap = makeProcMap subs
-        procMapNames = map procName . Map.elems
+        procMapNames = map procName . Map.elems . unProcMap
 
-emptyProcMap = Map.empty
+emptyProcMap = ProcMap 0 Map.empty
 emptyVarMap = Map.empty
 
 -- # TESTS # --
