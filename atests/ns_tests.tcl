@@ -297,6 +297,7 @@ test "default to global" {
   }
 
   namespace eval other {
+    foo::ret5
     assert_noerr { foo::ret5 }
   }
 }

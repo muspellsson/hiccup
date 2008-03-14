@@ -3,16 +3,19 @@ module VarName (parseVarName,
                 nsTail,
                 nsQualifiers,
                 parseNS,
+                explodeNS,
                 parseProc,
                 VarName(..), 
                 arrName,
                 isArr,
                 showVN, 
                 NSQual(..), 
+                NsName,
                 NSTag(..),
+                asGlobal,
                 isGlobal,
+                isGlobalQual,
                 isLocal,
-                explodeNS,
                 splitWith,
                 nsSep,
                 varNameTests) where
@@ -25,7 +28,10 @@ data NSQual a = NSQual !NSTag !a deriving (Eq,Show)
 
 data NSTag = NS ![BString] | Local deriving (Eq,Show)
 
+type NsName = ([BString],BString)
+
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
+
 
 arrName !an !ind = VarName an (Just ind)
 {-# INLINE arrName #-}
@@ -42,20 +48,27 @@ isGlobal (NS [x]) = B.null x
 isGlobal _        = False
 {-# INLINE isGlobal #-}
 
+isGlobalQual (NS (x:_)) = B.null x
+isGlobalQual _          = False
+{-# INLINE isGlobalQual #-}
+
+asGlobal (NS lst) = NS (B.empty:lst)
+asGlobal Local    = NS [B.empty]
+
 isLocal Local = True
 isLocal _     = False
 {-# INLINE isLocal #-}
 
+getQual ns = case parseNS ns of
+               ([],n) -> NSQual Local n 
+               (nl,n) -> NSQual (NS nl) n
+              
 parseVarName name = 
-   case parseNS name of
-       Left _       -> NSQual Local (mkVar name)
-       Right (ns,n) -> NSQual (NS ns) (mkVar n)
+   case getQual name of
+     NSQual nst n -> NSQual nst (mkVar n)
  where mkVar n = let (n',ind) = parseArrRef n in VarName n' ind
 
-parseProc name =
-   case parseNS name of
-     Left _       -> NSQual Local name
-     Right (ns,n) -> NSQual (NS ns) n
+parseProc = getQual
 
 showVN :: VarName -> String
 showVN (VarName name Nothing) = show name
@@ -68,18 +81,19 @@ parseArrRef str = case B.elemIndex '(' str of
                                   in (pre, Just (B.tail (B.init post)))
                              else (str, Nothing)
 nsTail str = case parseNS str of
-               Left _      -> str
-               Right (_,t) -> t
+               (_,t) -> t
 
 nsQualifiers str = case findSubstrings nsSep str of
                       [] -> B.empty
                       lst -> B.take (last lst) str
 
+
+parseNS :: BString -> NsName
 parseNS !str = 
   case explodeNS str of
-    [str] -> Left str
-    nsr   -> let (n:rx) = reverse nsr 
-             in Right (reverse rx, n)
+    [] -> ([],B.empty)
+    nsr -> let (n:rx) = reverse nsr 
+           in (reverse rx, n)
 {-# INLINE parseNS #-}
 
 splitWith :: BString -> BString -> [BString]
@@ -105,12 +119,13 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
    where splitsTo (a,b) r = map bp r ~=? ((bp a) `splitWith` (bp b))
 
   testParseNS = TestList [
-     parseNS (bp "boo") ~=? Left (bp "boo") 
-     ,parseNS (bp "::boo") ~=? Right ([B.empty], bp "boo") 
-     ,parseNS (bp "foo::boo") ~=? Right ([bp "foo"], bp "boo") 
-     ,parseNS (bp "::foo::boo") ~=? Right ([bp "", bp "foo"], bp "boo") 
-     ,parseNS (bp "woo::foo::boo") ~=? Right ([bp "woo", bp "foo"], bp "boo") 
+     "boo" `parses_to` ([], "boo") 
+     ,"::boo" `parses_to` ([""], "boo") 
+     ,"foo::boo" `parses_to`  (["foo"], "boo") 
+     ,"::foo::boo" `parses_to` (["", "foo"], "boo") 
+     ,"woo::foo::boo" `parses_to` (["woo", "foo"], "boo") 
    ]
+    where parses_to a (l,b) = (map bp l, bp b) ~=? parseNS (bp a) 
 
   testParseVarName = TestList [
       parseVarName (bp "x") ~=? NSQual Local (VarName (bp "x") Nothing)

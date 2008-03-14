@@ -165,20 +165,20 @@ makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
-makeState' chans vlist procs = do fr <- createFrame (Map.fromList (mapSnd ScalarVar vlist))
-                                  gns <- globalNS fr
-                                  ns <- newIORef (gns { nsProcs = procs })
-                                  setFrNS fr ns
-                                  return $! TclState {  tclChans = chans,
-				                                                tclEvents = Evt.emptyMgr,
-                                                        tclStack = [fr], 
-                                                        tclGlobalNS = ns } 
+makeState' chans vlist procs = do 
+    fr <- createFrame (Map.fromList (mapSnd ScalarVar vlist))
+    gns <- globalNS fr
+    ns <- newIORef (gns { nsProcs = procs })
+    setFrNS fr ns
+    return $! TclState { tclChans = chans,
+				                 tclEvents = Evt.emptyMgr,
+                         tclStack = [fr], 
+                         tclGlobalNS = ns } 
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsProcMap = getCurrNS >>= io . readIORef >>= \v -> return $! (nsProcs v)
+getNsProcMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsProcs v)
 {-# INLINE getNsProcMap #-}
-getGlobalProcMap = getGlobalNS >>= io . readIORef >>= \v -> return $! (nsProcs v)
 
 putStack s = modify (\v -> v { tclStack = s })
 {-# INLINE putStack  #-}
@@ -203,7 +203,7 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getNsProcMap >>= return . Map.keys . unProcMap
+commandNames = getCurrNS >>= getNsProcMap >>= return . Map.keys . unProcMap
 
 
 tclErr :: String -> TclM a
@@ -237,20 +237,19 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 
 getProc !pname = getProcNS (parseProc pname)
 
-getProcNS (NSQual Local n) = getProcNorm n
 getProcNS (NSQual nst n) = do
-  nsref <- getNamespace nst
-  procs <- nsref `refExtract` nsProcs
-  return $! pmLookup n procs
+  res <- (getNamespace nst >>= getProcNorm n) `orElse` (return Nothing)
+  if isNothing res && not (isGlobalQual nst)
+    then getNamespace (asGlobal nst) >>= getProcNorm n
+    else return $! res
 {-# INLINE getProcNS #-}
+isNothing Nothing = True
+isNothing _       = False
 
-getProcNorm :: ProcKey -> TclM (Maybe TclProcT)
-getProcNorm !i = do
-  currpm <- getNsProcMap
-  case pmLookup i currpm of
-    Nothing -> do globpm <- getGlobalProcMap
-                  return (pmLookup i globpm)
-    x       -> return $! x
+getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclProcT)
+getProcNorm !i !nsr = do
+  currpm <- getNsProcMap nsr
+  return $! (pmLookup i currpm)
 
 pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
 pmLookup !i !m = Map.lookup i (unProcMap m)
@@ -325,17 +324,27 @@ renameProc old new = do
 varUnset :: BString -> TclM RetVal
 varUnset name = varUnsetNS (parseVarName name)
 
-varUnsetNS qns = usingNsFrame qns varUnset' >> ret
+varUnsetNS :: NSQual VarName -> TclM RetVal
+varUnsetNS qns = usingNsFrame qns varUnset'
 
+usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
 usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  where lookupNsFrame Local = getFrame 
        lookupNsFrame !ns   = getNamespace ns >>= getNSFrame
 {-# INLINE usingNsFrame #-}
 
+{- This specialization is ugly, but GHC hasn't been doing it for me and it
+ - knocks a few percent off the runtime of my benchmarks. -}
+usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
+usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
+ where lookupNsFrame Local = getFrame 
+       lookupNsFrame !ns   = getNamespace ns >>= getNSFrame
+{-# INLINE usingNsFrame2 #-}
+
 varUnset' vn frref = do
      isUpped <- upped (vnName vn) frref 
      case isUpped of
-         Nothing    -> modVar 
+         Nothing    -> modVar >> ret
          Just (f,s) -> do 
              when (not (isArr vn)) $ do 
                  changeUpMap frref (Map.delete (vnName vn))
@@ -359,8 +368,9 @@ varUnset' vn frref = do
 modArr v f = ArrayVar (f v)
 
 getArray :: BString -> TclM TclArray
-getArray name = usingNsFrame (parseProc name) getArray'
+getArray name = usingNsFrame2 (parseProc name) getArray'
 
+getArray' :: BString -> FrameRef -> TclM TclArray
 getArray' name frref = do
    var <- varLookup name frref
    case var of
@@ -430,6 +440,7 @@ removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete c
 getNamespace Local = getCurrNS
 getNamespace (NS nsl) = getNamespace' nsl
 {-# INLINE getNamespace #-}
+
 getNamespace' nsl = case nsl of
        (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
@@ -437,9 +448,21 @@ getNamespace' nsl = case nsl of
  where getEm []     ns = return $! ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
        getKid k nsref = do kids <- nsref `refExtract`  nsChildren
+                           nsn <- nsref `refExtract` nsName
                            case Map.lookup k kids of
-                               Nothing -> fail $ "can't find namespace " ++ show k
+                               Nothing -> fail $ "can't find namespace " ++ show k ++ " in " ++ show nsn 
                                Just v  -> return $! v
+
+getOrCreateNamespace nsn = case nsn of
+       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
+                    getEm xs base
+       []     -> fail "Something unexpected happened in getOrCreateNamespace"
+ where getEm []     ns = return ns
+       getEm (x:xs) ns = getKid x ns >>= getEm xs
+       getKid k nsref = do kids <- nsref `refExtract` nsChildren
+                           case Map.lookup k kids of
+                               Nothing -> io (mkEmptyNS k nsref)
+                               Just v  -> return v
 
 existsNS ns = (getNamespace' (explodeNS ns) >> return True) `catchError` (\_ -> return False)
 
@@ -522,7 +545,7 @@ mkEmptyNS name parent = do
 
 withNS :: BString -> TclM a -> TclM a
 withNS name f = do
-     newCurr <- getOrCreateNamespace name
+     newCurr <- getOrCreateNamespace (explodeNS name)
      withExistingNS f newCurr
 
 withExistingNS f !nsref = do
@@ -539,16 +562,6 @@ getUpMap !frref = (frref `refExtract` upMap) >>= \r -> return $! r
 getNSFrame :: NSRef -> TclM FrameRef
 getNSFrame !nsref = nsref `refExtract` nsFrame 
 
-getOrCreateNamespace ns = case explodeNS ns of
-       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
-                    getEm xs base
-       []     -> fail "Something unexpected happened in getOrCreateNamespace"
- where getEm []     ns = return ns
-       getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- nsref `refExtract` nsChildren
-                           case Map.lookup k kids of
-                               Nothing -> io (mkEmptyNS k nsref)
-                               Just v  -> return v
 
 getCurrNS = getFrame >>= io . readIORef >>= \f -> return $! (frNS f)
 {-# INLINE getCurrNS #-}
