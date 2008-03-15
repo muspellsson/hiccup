@@ -23,14 +23,22 @@ proc assertFail why {
   puts "'$current_test' failed: $why"
 }
 
+proc verify { code { msg "" } } {
+  if { uplevel $code } {
+    if { == $::testlib::trace_test 1 } { puts "\"$code\" was true" }
+    assertPass
+  } else {
+    assertFail "\"$code\" was not true ($msg)"
+  }
+}
 
-proc checkthat { var { op == } { r 1 } } {
+proc checkthat { var { op == } { r 1 } { msg "" } } {
   set res [$op $var $r]
   if { == $res 1 } {
     if { == $::testlib::trace_test 1 } { puts "\"$var $op $r\" was true" }
     assertPass
   } else {
-    assertFail "\"$var $op $r\" was not true"
+    assertFail "\"$var $op $r\" was not true ($msg)"
   }
 }
 

@@ -415,6 +415,13 @@ test "parsing corners" {
   checkthat "$x: 4" eq "four: 4"
 }
 
+test "ns parsing with array lookup" {
+  assert_noerr {
+    set x(::) 4
+    set y $x(::)
+  }
+}
+
 test "equality of strings and nums" {
   set x 10
   set y " 10 "
@@ -798,9 +805,12 @@ test "global namespace" {
 
 test "namespace exists" { 
   checkthat [namespace exists imaginary] == 0
-  # Dang it.
-  # checkthat [namespace exists "::"] 
-  checkthat [namespace exists {}]
+  checkthat [namespace exists ::] 
+  verify { namespace exists {} }
+  namespace eval boo {
+    checkthat [namespace exists ::]
+    checkthat [namespace exists {}] == 0 "empty doesn't exist when not in global"
+  }
 }
 
 test "ns level" {

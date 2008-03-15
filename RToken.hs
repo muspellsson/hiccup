@@ -8,7 +8,7 @@ import Test.HUnit
 type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok Cmd | ExpTok RToken
-              | VarRef (NSQual VarName) | ArrRef NSTag !BString RToken 
+              | VarRef (NSQual VarName) | ArrRef (Maybe NSTag) !BString RToken 
               | Block !BString (Either String [Cmd]) deriving (Eq,Show)
 
 isEmpty (Lit x)    = B.null x
@@ -76,10 +76,10 @@ rtokenTests = TestList [compTests, compTokenTests] where
   mknosub s = NoSub (pack s) (runParse (pack s))
   mkwd = Word . pack
   lit = Lit . pack 
-  vlocal x = NSQual Local x
+  vlocal x = NSQual Nothing x
   cmdTok = CmdTok
   varref = VarRef . parseVarName . pack 
-  arrref s t = ArrRef Local (pack s) t
+  arrref s t = ArrRef Nothing (pack s) t
   tok_to a b = do let r = compToken a
                   assertEqual (show a ++ " compiles to " ++ show b) b r
   compiles_to a b = do let r = compile (pack a)

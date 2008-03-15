@@ -81,6 +81,10 @@ instance Error Err where
 
 type TclM = ErrorT Err (StateT TclState IO)
 
+checkpoint str f = f `catchError` handle
+ where handle (EDie es) = throwError (EDie (str ++ es))
+       handle e         = throwError e
+
 data Namespace = TclNS {
          nsName :: BString,
          nsProcs :: ProcMap,
@@ -170,6 +174,7 @@ makeState' chans vlist procs = do
     gns <- globalNS fr
     ns <- newIORef (gns { nsProcs = procs })
     setFrNS fr ns
+    addChildNS ns (pack "") ns
     return $! TclState { tclChans = chans,
 				                 tclEvents = Evt.emptyMgr,
                          tclStack = [fr], 
@@ -238,10 +243,12 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 getProc !pname = getProcNS (parseProc pname)
 
 getProcNS (NSQual nst n) = do
-  res <- (getNamespace nst >>= getProcNorm n) `orElse` (return Nothing)
-  if isNothing res && not (isGlobalQual nst)
-    then getNamespace (asGlobal nst) >>= getProcNorm n
-    else return $! res
+  res <- (getNamespace nst >>= getProcNorm n) `ifFails` Nothing
+  checkpoint "In getProcNS: " $
+    if isNothing res && not (isGlobalQual nst)
+      then let getter = if isNothing nst then getGlobalNS else getNamespace (asGlobal nst)
+	   in getter >>= getProcNorm n
+      else return $! res
 {-# INLINE getProcNS #-}
 isNothing Nothing = True
 isNothing _       = False
@@ -261,6 +268,7 @@ rmProcNS (NSQual nst n)
   | isGlobal nst = getGlobalNS >>= rmFromNS n
   | otherwise    = getNamespace nst >>= rmFromNS n
  where rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
+
 
 regProc name body pr = 
     let q@(NSQual _ n) = parseProc name
@@ -329,16 +337,16 @@ varUnsetNS qns = usingNsFrame qns varUnset'
 
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
 usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
- where lookupNsFrame Local = getFrame 
-       lookupNsFrame !ns   = getNamespace ns >>= getNSFrame
+ where lookupNsFrame Nothing = getFrame 
+       lookupNsFrame ns = getNamespace ns >>= getNSFrame
 {-# INLINE usingNsFrame #-}
 
 {- This specialization is ugly, but GHC hasn't been doing it for me and it
  - knocks a few percent off the runtime of my benchmarks. -}
 usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
 usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
- where lookupNsFrame Local = getFrame 
-       lookupNsFrame !ns   = getNamespace ns >>= getNSFrame
+ where lookupNsFrame Nothing = getFrame 
+       lookupNsFrame ns  = getNamespace ns >>= getNSFrame
 {-# INLINE usingNsFrame2 #-}
 
 varUnset' vn frref = do
@@ -429,19 +437,20 @@ upvar n d s = do
 {-# INLINE upvar #-}
 
 deleteNS name = do 
- let nsl = explodeNS name
+ nsl <- parseNSTag name
  ns <- getNamespace' nsl >>= readRef
  case nsParent ns of
    Nothing -> return ()
-   Just p -> removeChild p (last nsl)
+   Just p -> removeChild p (nsTail nsl)
 
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
+addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
 
-getNamespace Local = getCurrNS
-getNamespace (NS nsl) = getNamespace' nsl
+getNamespace Nothing = getCurrNS
+getNamespace (Just nst) = checkpoint "In getNamespace': " (getNamespace' nst)
 {-# INLINE getNamespace #-}
 
-getNamespace' nsl = case nsl of
+getNamespace' (NS _ nsl) = case nsl of
        (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getNamespace"
@@ -450,10 +459,10 @@ getNamespace' nsl = case nsl of
        getKid k nsref = do kids <- nsref `refExtract`  nsChildren
                            nsn <- nsref `refExtract` nsName
                            case Map.lookup k kids of
-                               Nothing -> fail $ "can't find namespace " ++ show k ++ " in " ++ show nsn 
+                               Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
                                Just v  -> return $! v
 
-getOrCreateNamespace nsn = case nsn of
+getOrCreateNamespace (NS _ nsn) = case nsn of
        (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getOrCreateNamespace"
@@ -464,7 +473,7 @@ getOrCreateNamespace nsn = case nsn of
                                Nothing -> io (mkEmptyNS k nsref)
                                Just v  -> return v
 
-existsNS ns = (getNamespace' (explodeNS ns) >> return True) `catchError` (\_ -> return False)
+existsNS ns = (parseNSTag ns >>= getNamespace' >> return True) `catchError` (\_ -> return False)
 
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
@@ -500,11 +509,11 @@ importNS force name = do
  where importProc nsr n = do
             np <- mkProcAlias nsr n 
             when (not force) $ do
-                 oldp <- getProcNS (NSQual Local n)
+                 oldp <- getProcNS (NSQual Nothing n)
                  case oldp of
                     Nothing -> return ()
                     Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            regProcNS (NSQual Local n) np
+            regProcNS (NSQual Nothing n) np
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
@@ -539,13 +548,13 @@ mkEmptyNS name parent = do
                               nsProcs = emptyProcMap, nsFrame = emptyFr, 
                               nsExport = [],
                               nsParent = Just parent, nsChildren = Map.empty }
-    modifyIORef parent (\n -> n { nsChildren = Map.insert name new (nsChildren n) })
+    addChildNS parent name new
     setFrNS emptyFr new
     return $! new
 
 withNS :: BString -> TclM a -> TclM a
 withNS name f = do
-     newCurr <- getOrCreateNamespace (explodeNS name)
+     newCurr <- parseNSTag name >>= getOrCreateNamespace
      withExistingNS f newCurr
 
 withExistingNS f !nsref = do

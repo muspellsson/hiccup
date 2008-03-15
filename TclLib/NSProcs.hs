@@ -70,7 +70,9 @@ ns_delete args = case args of
    nsl   -> mapM_ (deleteNS . T.asBStr) nsl >> ret
 
 ns_tail args = case args of
-   [s] -> return . T.mkTclBStr $ (nsTail (T.asBStr s))
+   [s] -> case parseNSTag (T.asBStr s) of
+           Nothing -> ret
+           Just v -> return . T.mkTclBStr $ (nsTail v)
    _   -> argErr "namespace tail"
 
 ns_qualifiers args = case args of

@@ -183,6 +183,7 @@ test "namespace tail" {
   checkthat [namespace tail ::oh::no] == no
   checkthat [namespace tail oh::no] == no
   checkthat [namespace tail ::] == {}
+  checkthat [namespace tail {}] == {}
 }
 
 test "namespace qualifiers" {
