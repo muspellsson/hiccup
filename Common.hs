@@ -242,40 +242,38 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 
 getProc !pname = getProcNS (parseProc pname)
 
+-- TODO: Special case for globals and locals when we're in the global NS?
 getProcNS (NSQual nst n) = do
   res <- (getNamespace nst >>= getProcNorm n) `ifFails` Nothing
-  checkpoint "In getProcNS: " $
-    if isNothing res && not (isGlobalQual nst)
-      then let getter = if isNothing nst then getGlobalNS else getNamespace (asGlobal nst)
-           in getter >>= getProcNorm n
-      else return $! res
+  if isNothing res && not (isGlobalQual nst)
+    then let getter = if isNothing nst then getGlobalNS else getNamespace (asGlobal nst)
+         in getter >>= getProcNorm n
+    else return $! res
+ where
+  isNothing Nothing = True
+  isNothing _       = False
 {-# INLINE getProcNS #-}
-isNothing Nothing = True
-isNothing _       = False
 
 getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclProcT)
 getProcNorm !i !nsr = do
   currpm <- getNsProcMap nsr
   return $! (pmLookup i currpm)
+{-# INLINE getProcNorm #-}
 
 pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
 pmLookup !i !m = Map.lookup i (unProcMap m)
 {-# INLINE pmLookup #-}
 
 rmProc name = rmProcNS (parseProc name)
-rmProcNS (NSQual nst n)
-  | isGlobal nst = getGlobalNS >>= rmFromNS n
-  | otherwise    = getNamespace nst >>= rmFromNS n
- where rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
+rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
+ where rmFromNS nsref = changeProcs nsref (Map.delete n) 
 
 
 regProc name body pr = 
     let q@(NSQual _ n) = parseProc name
     in regProcNS q (TclProcT n body Nothing pr)
 
-regProcNS (NSQual nst k) newProc
- | isGlobal nst = getGlobalNS >>= regInNS
- | otherwise    = getNamespace nst >>= regInNS
+regProcNS (NSQual nst k) newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
@@ -448,22 +446,20 @@ getNamespace Nothing    = getCurrNS
 getNamespace (Just nst) = getNamespace' nst
 {-# INLINE getNamespace #-}
 
-getNamespace' (NS gq nsl) = case nsl of
-       (x:xs) -> do base <- if bsNull x && gq then getGlobalNS else getCurrNS >>= getKid x
-                    getEm xs base
-       []     -> fail "Something unexpected happened in getNamespace"
- where getEm []     ns = return $! ns
-       getEm (x:xs) ns = getKid x ns >>= getEm xs
+getNamespace' (NS gq nsl) = do
+    base <- if gq then getGlobalNS else getCurrNS 
+    getEm nsl base
+ where getEm []     !ns = return $! ns -- TODO: This should be a fold.
+       getEm (x:xs) !ns = getKid x ns >>= getEm xs
        getKid k nsref = do kids <- nsref `refExtract`  nsChildren
                            case Map.lookup k kids of
                                Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
                                Just v  -> return $! v
 
-getOrCreateNamespace (NS _ nsn) = case nsn of
-       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
-                    getEm xs base
-       []     -> fail "Something unexpected happened in getOrCreateNamespace"
- where getEm []     ns = return ns
+getOrCreateNamespace (NS gq nsl) = do
+    base <- if gq then getGlobalNS else getCurrNS 
+    getEm nsl base
+ where getEm []     ns = return $! ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
        getKid k nsref = do kids <- nsref `refExtract` nsChildren
                            case Map.lookup k kids of

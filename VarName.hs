@@ -9,12 +9,9 @@ module VarName (parseVarName,
                 isArr,
                 showVN, 
                 NSQual(..), 
-                NsName,
                 NSTag(..),
                 asGlobal,
-                isGlobal,
                 isGlobalQual,
-                isLocal,
                 splitWith,
                 nsSep,
                 varNameTests) where
@@ -23,24 +20,18 @@ import qualified Data.ByteString.Char8 as B
 import Data.ByteString (findSubstrings)
 import Test.HUnit
 
-isLocal Nothing = True
-isLocal _ = False
 
 data NSQual a = NSQual !(Maybe NSTag) !a deriving (Eq,Show)
 
-data NSTag = NS Bool ![BString] deriving (Eq,Show)
-
-type NsName = ([BString],BString)
+data NSTag = NS !Bool ![BString] deriving (Eq,Show)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
-
 
 class BStringable a where
   toBStr :: a -> BString
 
 instance BStringable NSTag where
-  toBStr (NS _ []) = (pack "")
-  toBStr (NS _ lst) = (B.intercalate nsSep lst)
+  toBStr (NS g lst) = B.append (if g then nsSep else B.empty) (B.intercalate nsSep lst)
 
 arrName !an !ind = VarName an (Just ind)
 {-# INLINE arrName #-}
@@ -48,31 +39,27 @@ arrName !an !ind = VarName an (Just ind)
 isArr (VarName _ (Just _)) = True
 isArr _                    = False
 
-nsSep = pack "::"
+nsSep :: BString
+nsSep = "::"
 
-explodeNS bstr = bstr `splitWith` nsSep
-{-# INLINE explodeNS #-}
-
-isGlobal (Just (NS _ [x])) = B.null x
-isGlobal _   = False
-{-# INLINE isGlobal #-}
-
-isGlobalQual (Just (NS v (_:_))) = v
-isGlobalQual _          = False
+isGlobalQual (Just (NS v _)) = v
+isGlobalQual _               = False
 {-# INLINE isGlobalQual #-}
 
-asGlobal (Just (NS _ lst)) = Just (NS True (B.empty:lst))
-asGlobal Nothing = Just (NS True [B.empty])
+asGlobal (Just (NS _ lst)) = Just (NS True lst)
+asGlobal Nothing           = Just (NS True [])
 
-parseNSQual ns = case explodeNS ns of
-                  []  -> NSQual Nothing ""
-                  nsl -> NSQual (toNSTag ns (init nsl)) (last nsl)
+parseNSQual ns = case parseNSTag ns of
+                  Nothing -> NSQual Nothing ""
+                  Just (NS False [s]) -> NSQual Nothing s
+                  Just (NS gq []) -> NSQual (Just (NS gq [])) ""
+                  Just (NS gq nsl) -> NSQual (Just (NS gq (init nsl))) (last nsl)
 
 	       
-parseNSTag ns = toNSTag ns (explodeNS ns)
-toNSTag _ [] = fail "empty namespace designator"
-toNSTag s nl = return (NS (isAbs s) nl)
- where isAbs str = nsSep == B.take 2 str 
+parseNSTag ns = toNSTag (ns `splitWith` nsSep) where
+   toNSTag nl = if isAbs then return (NS True (tail nl))
+                         else return (NS False nl)
+   isAbs = nsSep == B.take 2 ns 
               
 parseVarName name = 
    case parseArrRef name of
@@ -131,28 +118,28 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
 
   testParseNSQual = TestList [
        "boo" `parses_to` (Nothing, "boo")
-       ,"::boo" `parses_to` (mkns True [""], "boo")
-       ,"::boo::flag" `parses_to` (mkns True ["","boo"], "flag")
+       ,"::boo" `parses_to` (mkns True [], "boo")
+       ,"::boo::flag" `parses_to` (mkns True ["boo"], "flag")
        ,"foo::bar" `parses_to` (mkns False ["foo"], "bar")
     ]
-   where parses_to a (b1,b2) = NSQual b1 (bp b2) ~=? parseNSQual a
+   where parses_to a (b1,b2) = ("parseNSQual " ++ show a) ~: NSQual b1 (bp b2) ~=? parseNSQual a
          mkns g v = Just (NS g v)
 
   testParseNS = TestList [
      "boo" `parses_to` (NS False ["boo"]) 
-     ,"::boo" `parses_to` (NS True ["", "boo"]) 
-     ,"::" `parses_to` (NS True ["",""]) 
+     ,"::boo" `parses_to` (NS True ["boo"]) 
+     ,"::" `parses_to` (NS True [""]) 
      ,"foo::boo" `parses_to`  NS False ["foo", "boo"] 
-     ,"::foo::boo" `parses_to` NS True ["", "foo", "boo"] 
+     ,"::foo::boo" `parses_to` NS True ["foo", "boo"] 
      ,"woo::foo::boo" `parses_to` NS False ["woo", "foo", "boo"] 
    ]
-    where parses_to a nst = (Just nst) ~=? parseNSTag a 
+    where parses_to a nst = ("parseNSTag " ++ show a) ~: (Just nst) ~=? parseNSTag a 
 
   testParseVarName = TestList [
       parseVarName "x" ~=? NSQual Nothing (VarName "x" Nothing)
       ,parseVarName "x(a)" ~=? NSQual Nothing (VarName "x" (Just "a"))
       ,parseVarName "boo::x(::)" ~=? NSQual (Just (NS False ["boo"])) (VarName "x" (Just "::"))
-      ,parseVarName "::x" ~=? NSQual (Just (NS True [""])) (VarName "x" Nothing)
+      ,parseVarName "::x" ~=? NSQual (Just (NS True [])) (VarName "x" Nothing)
     ]
 
   testNSTail = TestList [
@@ -173,8 +160,8 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
   
   testParseProc = TestList [
      "boo" `parses_to` (NSQual Nothing "boo")
-     ,"::boo" `parses_to` (NSQual (Just (NS True [""])) "boo")
-     ,"::some::boo" `parses_to` (NSQual (Just (NS True ["", "some"])) "boo")
+     ,"::boo" `parses_to` (NSQual (Just (NS True [])) "boo")
+     ,"::some::boo" `parses_to` (NSQual (Just (NS True ["some"])) "boo")
    ]
    where parses_to a b = b ~=? parseProc (bp a)
 

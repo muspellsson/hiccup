@@ -6,7 +6,7 @@ import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 import RToken
 import Util
-import VarName (arrName, NSQual(..), isLocal)
+import VarName (arrName, NSQual(..))
 
 import Test.HUnit
 
@@ -24,7 +24,7 @@ getSubst s = do
     let toks = concatMap uncmd cmds
     return (CatLst toks)
  where uncmd (Right n,args) = (n:args)
-       uncmd (Left (NSQual nst n), args) = if isLocal nst then ((Lit n):args) else error (show (nst,n))
+       uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
 
 subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
 
