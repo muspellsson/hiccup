@@ -247,7 +247,7 @@ getProcNS (NSQual nst n) = do
   checkpoint "In getProcNS: " $
     if isNothing res && not (isGlobalQual nst)
       then let getter = if isNothing nst then getGlobalNS else getNamespace (asGlobal nst)
-	   in getter >>= getProcNorm n
+           in getter >>= getProcNorm n
       else return $! res
 {-# INLINE getProcNS #-}
 isNothing Nothing = True
@@ -264,7 +264,6 @@ pmLookup !i !m = Map.lookup i (unProcMap m)
 
 rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n)
-  | isLocal  nst = getCurrNS >>= rmFromNS n
   | isGlobal nst = getGlobalNS >>= rmFromNS n
   | otherwise    = getNamespace nst >>= rmFromNS n
  where rmFromNS pname nsref = changeProcs nsref (Map.delete pname) 
@@ -276,7 +275,6 @@ regProc name body pr =
 
 regProcNS (NSQual nst k) newProc
  | isGlobal nst = getGlobalNS >>= regInNS
- | isLocal nst  = getCurrNS >>= regInNS
  | otherwise    = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
@@ -446,18 +444,17 @@ deleteNS name = do
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
 addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
 
-getNamespace Nothing = getCurrNS
-getNamespace (Just nst) = checkpoint "In getNamespace': " (getNamespace' nst)
+getNamespace Nothing    = getCurrNS
+getNamespace (Just nst) = getNamespace' nst
 {-# INLINE getNamespace #-}
 
-getNamespace' (NS _ nsl) = case nsl of
-       (x:xs) -> do base <- if bsNull x then getGlobalNS else getCurrNS >>= getKid x
+getNamespace' (NS gq nsl) = case nsl of
+       (x:xs) -> do base <- if bsNull x && gq then getGlobalNS else getCurrNS >>= getKid x
                     getEm xs base
        []     -> fail "Something unexpected happened in getNamespace"
  where getEm []     ns = return $! ns
        getEm (x:xs) ns = getKid x ns >>= getEm xs
        getKid k nsref = do kids <- nsref `refExtract`  nsChildren
-                           nsn <- nsref `refExtract` nsName
                            case Map.lookup k kids of
                                Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
                                Just v  -> return $! v

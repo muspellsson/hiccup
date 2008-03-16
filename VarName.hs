@@ -1,8 +1,7 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module VarName (parseVarName, 
                 nsTail,
                 nsQualifiers,
-                parseNS,
                 parseNSTag,
                 parseProc,
                 VarName(..), 
@@ -58,19 +57,22 @@ isGlobal (Just (NS _ [x])) = B.null x
 isGlobal _   = False
 {-# INLINE isGlobal #-}
 
-isGlobalQual (Just (NS _ (x:_))) = B.null x
+isGlobalQual (Just (NS v (_:_))) = v
 isGlobalQual _          = False
 {-# INLINE isGlobalQual #-}
 
 asGlobal (Just (NS _ lst)) = Just (NS True (B.empty:lst))
 asGlobal Nothing = Just (NS True [B.empty])
 
-parseNSQual ns = case parseNS ns of
-               (nl,n) -> NSQual (toNSTag nl) n 
+parseNSQual ns = case explodeNS ns of
+                  []  -> NSQual Nothing ""
+                  nsl -> NSQual (toNSTag ns (init nsl)) (last nsl)
+
 	       
-parseNSTag ns = toNSTag (explodeNS ns)
-toNSTag [] = fail "empty namespace designator"
-toNSTag nl = return (NS (B.null (head nl)) nl)
+parseNSTag ns = toNSTag ns (explodeNS ns)
+toNSTag _ [] = fail "empty namespace designator"
+toNSTag s nl = return (NS (isAbs s) nl)
+ where isAbs str = nsSep == B.take 2 str 
               
 parseVarName name = 
    case parseArrRef name of
@@ -95,21 +97,13 @@ nsTail (NS _ nsl) = last nsl
 
 nsTail_ x = case parseNSTag x of
               Nothing -> error "FAIL"
-	      Just v -> nsTail v
+              Just v -> nsTail v
 
 
 nsQualifiers str = case findSubstrings nsSep str of
                       [] -> B.empty
                       lst -> B.take (last lst) str
 
-
-parseNS :: BString -> NsName
-parseNS !str = 
-  case explodeNS str of
-    [] -> ([],B.empty) -- This should never happen..
-    nsr -> let (n:rx) = reverse nsr 
-           in (reverse rx, n)
-{-# INLINE parseNS #-}
 
 splitWith :: BString -> BString -> [BString]
 splitWith str sep = 
@@ -135,25 +129,34 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
     ]
    where splitsTo (a,b) r = map bp r ~=? ((bp a) `splitWith` (bp b))
 
-  testParseNSQual = TestList []
+  testParseNSQual = TestList [
+       "boo" `parses_to` (Nothing, "boo")
+       ,"::boo" `parses_to` (mkns True [""], "boo")
+       ,"::boo::flag" `parses_to` (mkns True ["","boo"], "flag")
+       ,"foo::bar" `parses_to` (mkns False ["foo"], "bar")
+    ]
+   where parses_to a (b1,b2) = NSQual b1 (bp b2) ~=? parseNSQual a
+         mkns g v = Just (NS g v)
+
   testParseNS = TestList [
-     "boo" `parses_to` ([], "boo") 
-     ,"::boo" `parses_to` ([""], "boo") 
-     ,"foo::boo" `parses_to`  (["foo"], "boo") 
-     ,"::foo::boo" `parses_to` (["", "foo"], "boo") 
-     ,"woo::foo::boo" `parses_to` (["woo", "foo"], "boo") 
+     "boo" `parses_to` (NS False ["boo"]) 
+     ,"::boo" `parses_to` (NS True ["", "boo"]) 
+     ,"::" `parses_to` (NS True ["",""]) 
+     ,"foo::boo" `parses_to`  NS False ["foo", "boo"] 
+     ,"::foo::boo" `parses_to` NS True ["", "foo", "boo"] 
+     ,"woo::foo::boo" `parses_to` NS False ["woo", "foo", "boo"] 
    ]
-    where parses_to a (l,b) = (map bp l, bp b) ~=? parseNS (bp a) 
+    where parses_to a nst = (Just nst) ~=? parseNSTag a 
 
   testParseVarName = TestList [
-      parseVarName (bp "x") ~=? NSQual Nothing (VarName (bp "x") Nothing)
-      ,parseVarName (bp "x(a)") ~=? NSQual Nothing (VarName (bp "x") (Just (bp "a")))
-      ,parseVarName (bp "boo::x(::)") ~=? NSQual (Just (NS False [bp "boo"])) (VarName (bp "x") (Just (bp "::")))
-      ,parseVarName (bp "::x") ~=? NSQual (Just (NS True [bp ""])) (VarName (bp "x") Nothing)
+      parseVarName "x" ~=? NSQual Nothing (VarName "x" Nothing)
+      ,parseVarName "x(a)" ~=? NSQual Nothing (VarName "x" (Just "a"))
+      ,parseVarName "boo::x(::)" ~=? NSQual (Just (NS False ["boo"])) (VarName "x" (Just "::"))
+      ,parseVarName "::x" ~=? NSQual (Just (NS True [""])) (VarName "x" Nothing)
     ]
 
   testNSTail = TestList [
-       nsTail_ (bp "boo") ~=? (bp "boo")
+       nsTail_ "boo" ~=? "boo"
        ,nsTail_ (bp "::boo") ~=? (bp "boo")
        ,nsTail_ (bp "baby::boo") ~=? (bp "boo")
        ,nsTail_ (bp "::baby::boo") ~=? (bp "boo")
@@ -169,16 +172,17 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
    where should_be b a = nsQualifiers (bp b) ~=? (bp a)
   
   testParseProc = TestList [
-     "boo" `parses_to` (NSQual Nothing (bp "boo"))
-     ,"::boo" `parses_to` (NSQual (Just (NS True [bp ""])) (bp "boo"))
-     ,"::some::boo" `parses_to` (NSQual (Just (NS True [bp "", bp "some"])) (bp "boo"))
+     "boo" `parses_to` (NSQual Nothing "boo")
+     ,"::boo" `parses_to` (NSQual (Just (NS True [""])) "boo")
+     ,"::some::boo" `parses_to` (NSQual (Just (NS True ["", "some"])) "boo")
    ]
    where parses_to a b = b ~=? parseProc (bp a)
 
   testInvert = TestList (map tryInvert vals)
     where vals = map bp ["boo", "::boo", "::", "::a::b", "a::b", ""]
           tryInvert v = v ~=? toBStr (up (parseNSTag v))
-	  up (Just x) = x
+          up (Just x) = x
+          up _        = error "Error in testInvert"
 
   testArr = TestList [
      "december" `should_be` Nothing

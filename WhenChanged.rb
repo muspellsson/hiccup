@@ -1,3 +1,4 @@
+MAX_TRIES = 3
 class WhenChanged
   def initialize( *fnames )
     @last_time = nil
@@ -9,7 +10,15 @@ class WhenChanged
   def run( interval )
     while true
       sleep(interval)
-      ctime = @fnames.map { |fn| File.stat(fn).ctime }.max
+      tries = 0
+      ctime = nil
+      begin 
+        tries += 1
+        ctime = @fnames.map { |fn| File.stat(fn).ctime }.max
+      rescue
+        raise if tries >= MAX_TRIES
+        retry
+      end
       if @last_time.nil? or ctime > @last_time
         puts(ctime - @last_time) unless @last_time.nil?
         puts `sh ./test.sh`
