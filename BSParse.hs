@@ -9,7 +9,7 @@ import qualified Data.ByteString.Char8 as B
 import Control.Monad
 import Data.Ix
 import Util hiding (orElse,escapeStr)
-import Test.HUnit  -- IGNORE
+import Test.HUnit 
 
 data TclWord = Word !B.ByteString 
              | Subcommand TokCmd 
@@ -185,21 +185,13 @@ getvar = getPred wordChar
 tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
 
 wrapWith fn wr s = fn s >>= \(!w,r) -> return (wr w, r) 
-{-# INLINE wrapWith #-}
+{-# INLINE vrapWith #-}
 
 wordToken = wordTokenRaw `wrapWith` Word
 wordTokenRaw  = (chain [parseChar '$', parseVar]) `orElse` getWord
 
-parseVar s = do hv <- safeHead s
-                case hv of
-                  '{' -> (brackVar `wrapWith` brackIt) s 
-                  _   -> chain [getWord, tryGet wordTokenRaw] s
- where brackIt w = B.concat ["{", w , "}"]
-
-{-
 parseVar = (brackVar `wrapWith` brackIt) `orElse` (chain [getWord, tryGet wordTokenRaw])
  where brackIt w = B.concat ["{", w , "}"]
--}
 
 brackVar x = eatChar '{' x >> nested x
 
