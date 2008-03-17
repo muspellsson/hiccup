@@ -90,10 +90,9 @@ proc repeat {n code} {
   for {set i 0} { <= $i $n } {incr i} $code
 }
 
-repeat 250 { Count::bump }
+repeat 350 { Count::bump }
 
 puts "Count: [Count::get]"
-
 
 set top 3000
 puts "Sum from 1 to ${top}: [sum [range 1 $top]]"

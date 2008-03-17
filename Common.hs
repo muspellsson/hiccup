@@ -49,6 +49,7 @@ module Common (RetVal, TclM
        ,exportNS
        ,getExportsNS
        ,importNS
+       ,checkpoint
        ,commandNames
        ,commonTests
     ) where
@@ -68,7 +69,6 @@ import VarName
 import Util
 
 import Test.HUnit
-
 
 type RetVal = T.TclObj 
 
@@ -176,7 +176,7 @@ makeState' chans vlist procs = do
     setFrNS fr ns
     addChildNS ns (pack "") ns
     return $! TclState { tclChans = chans,
-				                 tclEvents = Evt.emptyMgr,
+                         tclEvents = Evt.emptyMgr,
                          tclStack = [fr], 
                          tclGlobalNS = ns } 
 
@@ -246,8 +246,8 @@ getProc !pname = getProcNS (parseProc pname)
 getProcNS (NSQual nst n) = do
   res <- (getNamespace nst >>= getProcNorm n) `ifFails` Nothing
   if isNothing res && not (isGlobalQual nst)
-    then let getter = if isNothing nst then getGlobalNS else getNamespace (asGlobal nst)
-         in getter >>= getProcNorm n
+    then do ns2 <- if noNsQual nst then getGlobalNS else getNamespace (asGlobal nst)
+            getProcNorm n ns2
     else return $! res
  where
   isNothing Nothing = True
@@ -433,11 +433,11 @@ upvar n d s = do
 {-# INLINE upvar #-}
 
 deleteNS name = do 
- nsl <- parseNSTag name
- ns <- getNamespace' nsl >>= readRef
+ nst <- parseNSTag name 
+ ns <- getNamespace' nst >>= readRef
  case nsParent ns of
    Nothing -> return ()
-   Just p -> removeChild p (nsTail nsl)
+   Just p -> removeChild p (nsTail nst)
 
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
 addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
@@ -446,25 +446,24 @@ getNamespace Nothing    = getCurrNS
 getNamespace (Just nst) = getNamespace' nst
 {-# INLINE getNamespace #-}
 
+-- TODO: Unify namespace getters
 getNamespace' (NS gq nsl) = do
     base <- if gq then getGlobalNS else getCurrNS 
-    getEm nsl base
- where getEm []     !ns = return $! ns -- TODO: This should be a fold.
-       getEm (x:xs) !ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- nsref `refExtract`  nsChildren
-                           case Map.lookup k kids of
-                               Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
-                               Just v  -> return $! v
+    foldM getKid base nsl
+ where getKid !nsref !k = do 
+          kids <- nsref `refExtract`  nsChildren
+          case Map.lookup k kids of
+             Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
+             Just v  -> return $! v
 
 getOrCreateNamespace (NS gq nsl) = do
     base <- if gq then getGlobalNS else getCurrNS 
-    getEm nsl base
- where getEm []     ns = return $! ns
-       getEm (x:xs) ns = getKid x ns >>= getEm xs
-       getKid k nsref = do kids <- nsref `refExtract` nsChildren
-                           case Map.lookup k kids of
-                               Nothing -> io (mkEmptyNS k nsref)
-                               Just v  -> return v
+    foldM getKid base nsl
+ where getKid nsref k = do 
+          kids <- nsref `refExtract` nsChildren
+          case Map.lookup k kids of
+             Nothing -> io (mkEmptyNS k nsref)
+             Just v  -> return $! v
 
 existsNS ns = (parseNSTag ns >>= getNamespace' >> return True) `catchError` (\_ -> return False)
 

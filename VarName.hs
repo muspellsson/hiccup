@@ -12,6 +12,7 @@ module VarName (parseVarName,
                 NSTag(..),
                 asGlobal,
                 isGlobalQual,
+                noNsQual,
                 splitWith,
                 nsSep,
                 varNameTests) where
@@ -45,6 +46,12 @@ nsSep = "::"
 isGlobalQual (Just (NS v _)) = v
 isGlobalQual _               = False
 {-# INLINE isGlobalQual #-}
+
+noNsQual nst = case nst of
+         Nothing              -> True
+         (Just (NS False [])) -> True
+         _                    -> False
+{-# INLINE noNsQual #-}
 
 asGlobal (Just (NS _ lst)) = Just (NS True lst)
 asGlobal Nothing           = Just (NS True [])

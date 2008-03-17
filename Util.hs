@@ -25,7 +25,8 @@ mapSnd f = map (\(a,b) -> (a, f b))
 {-# INLINE mapSnd #-}
 mapFst f = map (\(a,b) -> (f a, b))
 
-ifFails f v = f `orElse` (return v)
+ifFails f v = f `catchError` (\_ -> return v)
+{-# INLINE ifFails #-}
 
 orElse f f2 = f `catchError` (\_ -> f2)
 
