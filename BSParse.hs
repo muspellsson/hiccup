@@ -185,7 +185,7 @@ getvar = getPred wordChar
 tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
 
 wrapWith fn wr s = fn s >>= \(!w,r) -> return (wr w, r) 
-{-# INLINE vrapWith #-}
+{-# INLINE wrapWith #-}
 
 wordToken = wordTokenRaw `wrapWith` Word
 wordTokenRaw  = (chain [parseChar '$', parseVar]) `orElse` getWord
