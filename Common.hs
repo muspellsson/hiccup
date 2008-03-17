@@ -162,6 +162,15 @@ makeProcMap = ProcMap 0 . Map.fromList . map toTclProcT . mapFst pack
 toTclProcT (n,v) = (n, TclProcT n errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
+tclErr :: String -> TclM a
+tclErr s = do
+  (setErrorInfo s) `orElse` ret
+  throwError (EDie s)
+
+setErrorInfo s = do
+  glFr <- getGlobalNS >>= getNSFrame
+  varSet' (VarName (pack "errorInfo") Nothing) (T.mkTclStr s) glFr
+
 mergeProcMaps :: [ProcMap] -> ProcMap
 mergeProcMaps = ProcMap 0 . Map.unions . map unProcMap
 
@@ -211,8 +220,6 @@ currentVars = do f <- getFrame
 commandNames = getCurrNS >>= getNsProcMap >>= return . Map.keys . unProcMap
 
 
-tclErr :: String -> TclM a
-tclErr s = throwError (EDie s)
 
 argErr s = tclErr ("wrong # of args: " ++ s)
 

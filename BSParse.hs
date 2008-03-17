@@ -118,11 +118,11 @@ parseInd str
                                          let (pre,post) = B.splitAt (ind+1) str
                                          return (pre, post)
 
-orElse a b = \v -> (a v) `mplus` (b v)
+orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
-chain lst rs = inner lst [] rs
- where inner [] !acc !r     = return (B.concat (reverse acc), r)
+chain lst !rs = inner lst [] rs
+ where inner []     !acc !r = return (B.concat (reverse acc), r)
        inner (f:fs) !acc !r = do (s,r2) <- f r 
                                  inner fs (s:acc) r2
  
@@ -195,6 +195,11 @@ parseVar s = do hv <- safeHead s
                   '{' -> (brackVar `wrapWith` brackIt) s 
                   _   -> chain [getWord, tryGet wordTokenRaw] s
  where brackIt w = B.concat ["{", w , "}"]
+
+{-
+parseVar = (brackVar `wrapWith` brackIt) `orElse` (chain [getWord, tryGet wordTokenRaw])
+ where brackIt w = B.concat ["{", w , "}"]
+-}
 
 brackVar x = eatChar '{' x >> nested x
 
