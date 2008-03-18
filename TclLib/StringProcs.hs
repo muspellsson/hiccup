@@ -17,7 +17,7 @@ procString = makeEnsemble "string" [
    ("toupper", string_Op "toupper" (B.map toUpper)),
    ("reverse", string_Op "reverse" B.reverse),
    ("length", string_length),
-   ("match", string_match),
+   ("match", string_match), ("compare", string_compare),
    ("index", string_index)
  ]
 
@@ -28,6 +28,13 @@ string_Op name op args = case args of
 string_length args = case args of
     [s] -> return $ T.mkTclInt (B.length (T.asBStr s))
     _   -> argErr "string length"
+
+string_compare args = case args of
+    [s1,s2] -> case compare (T.asBStr s1) (T.asBStr s2) of
+                  LT -> return (T.mkTclInt (-1))
+                  GT -> return (T.mkTclInt 1)
+                  EQ -> return (T.mkTclInt 0)
+    _       -> argErr "string compare"
 
 string_match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2

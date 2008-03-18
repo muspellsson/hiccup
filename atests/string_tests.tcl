@@ -39,3 +39,9 @@ test "string match" {
   checkthat [string match "?arry" "Larr?"] == 0
   checkthat [string match "L??ry" "Leary"] == 1
 }
+
+test "string compare" {
+  checkthat [string compare "hi" "hi"] == 0
+  checkthat [string compare "h" "hi"] == -1 
+  checkthat [string compare "hi" "h"] == 1 
+}
