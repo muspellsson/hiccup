@@ -3,6 +3,7 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Expr
+import qualified TclLib.MathProcs as M
 import Test.HUnit
 
 import qualified TclObj as T
@@ -13,7 +14,6 @@ import Util
 lexer :: P.TokenParser ()
 lexer = P.makeTokenParser emptyDef
 
-integer = P.natural lexer
 intOrFloat = P.naturalOrFloat lexer
 symbol  = P.symbol lexer
 schar c = char c >> P.whiteSpace lexer
@@ -53,23 +53,20 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-objapply :: (Monad m) => (BString -> m T.TclObj) -> ((T.TclObj,T.TclObj) -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
+objapply :: (Monad m) => (BString -> m T.TclObj) -> (T.TclObj -> T.TclObj -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
-  f (i1,i2)
+  f i1 i2
 
 funapply lu f x = do
   d <- runExpr x lu >>= T.asDouble
-  return . mkFloat $ (f d) 
- where mkFloat :: Double -> T.TclObj 
-       mkFloat f = T.mkTclStr (show f)
-
+  return . T.mkTclDouble $ (f d) 
 
 runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
   case exp of
-    (TOp OpPlus a b) -> objap (procMath (+)) a b
+    (TOp OpPlus a b) -> objap M.plus a b
     (TOp OpTimes a b) -> objap (procMath (*)) a b
     (TOp OpMinus a b) -> objap (procMath (-)) a b
     (TOp OpDiv a b) -> objap nop a b
@@ -90,13 +87,14 @@ runExpr exp lu =
  where nop _ = fail "sorry, not implemented"
        objap = objapply lu
 
-procMath f (a,b) = do ai <- T.asInt a
+
+procMath f a b =   do ai <- T.asInt a
                       bi <- T.asInt b
                       return $! T.mkTclInt (ai `f` bi)
-procCmp f (a,b)  = do ai <- T.asInt a
+procCmp f  a b   = do ai <- T.asInt a
                       bi <- T.asInt b
                       return $! T.fromBool (ai `f` bi)
-procStr f (a,b)  = return $! T.fromBool ((T.asBStr a) `f` (T.asBStr b))
+procStr f  a b   = return $! T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor

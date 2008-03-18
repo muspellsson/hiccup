@@ -6,6 +6,7 @@ module TclObj (
  ,mkTclList
  ,mkTclList'
  ,mkTclInt
+ ,mkTclDouble
  ,fromBlock
  ,fromBool
  ,empty
@@ -73,6 +74,9 @@ strNe o1            o2            = asBStr o1 /= asBStr o2
 mkTclInt !i = TclInt i bsval
  where bsval = pack (show i)
 {-# INLINE mkTclInt #-}
+
+mkTclDouble :: Double -> TclObj
+mkTclDouble !d = mkTclStr (show d)
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
 isEmpty (TclInt _ _) = False
