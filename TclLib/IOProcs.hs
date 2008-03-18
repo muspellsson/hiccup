@@ -14,8 +14,12 @@ import Util
 ioProcs = makeProcMap $ 
  [("puts",procPuts),("gets",procGets),
   ("open", procOpen), ("close", procClose),("flush", procFlush),
-  ("exit", procExit), ("source", procSource)]
+  ("exit", procExit), ("source", procSource), ("eof", procEof)]
 
+procEof args = case args of
+  [ch] -> do h <- getReadable ch
+             io (hIsEOF h) >>= return . T.fromBool 
+  _    -> argErr "eof"
 
 procPuts args = case args of
                  [s] -> tPutLn stdout s
@@ -43,7 +47,8 @@ procGets args = case args of
                                      varSet (T.asBStr vname) (T.mkTclBStr s)
                                      return $ T.mkTclInt (B.length s)
           _  -> argErr "gets"
- where getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
+
+getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 
 procSource args = case args of
                   [s] -> do 
