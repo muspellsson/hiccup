@@ -89,7 +89,7 @@ runExpr exp lu =
     (TFun "sin" v)  -> funapply lu sin v
     (TFun "cos" v)  -> funapply lu cos v
     (TFun "sqrt" v) -> funapply lu sqrt v
-    (TFun "rand" v) -> lu (pack "rand")
+    (TFun "rand" v) -> lu (pack "rand") -- TODO: Check args
     _               -> fail $ "expr can't currently eval: " ++ (show exp)
  where nop _ = fail "sorry, not implemented"
        objap = objapply lu

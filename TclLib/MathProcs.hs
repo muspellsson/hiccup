@@ -1,4 +1,4 @@
-module TclLib.MathProcs (mathProcs, plus, mathRand, mathSrand) where
+module TclLib.MathProcs (mathProcs, plus) where
 import Common
 import qualified TclObj as T
 import Control.Monad
