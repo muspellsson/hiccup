@@ -127,6 +127,7 @@ test "math test" {
   checkthat [pow 2 10] == 1024
 
   checkthat [expr { sqrt(2 + 2) }] eq 2.0
+  checkthat [+ 3.5 3.5] == 7.0
 }
 
 test "test if, elseif, else" {
