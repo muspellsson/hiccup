@@ -174,12 +174,14 @@ setErrorInfo s = do
 mergeProcMaps :: [ProcMap] -> ProcMap
 mergeProcMaps = ProcMap 0 . Map.unions . map unProcMap
 
+makeVarMap = Map.fromList . mapSnd ScalarVar
+
 makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
 makeState' chans vlist procs = do 
-    fr <- createFrame (Map.fromList (mapSnd ScalarVar vlist))
+    fr <- createFrame (makeVarMap vlist)
     gns <- globalNS fr
     ns <- newIORef (gns { nsProcs = procs })
     setFrNS fr ns
@@ -328,7 +330,7 @@ varExists name = (varGet name >> return True) `catchError` (\_ -> return False)
 renameProc old new = do
   mpr <- getProc old
   case mpr of
-   Nothing -> tclErr $ "bad command " ++ show old
+   Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProc old
                  unless (bsNull new) (regProc new (procBody pr) (procFn pr))
 
@@ -528,8 +530,8 @@ getTag frref = do
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
 withLocalScope vl f = do
-    fr <- io $! createFrame $! (Map.fromList . mapSnd ScalarVar) vl
-    getCurrNS >>= (liftIO . setFrNS fr) 
+    ns <- getCurrNS
+    fr <- io $! createFrameWithNS ns $! makeVarMap vl
     withScope fr f
 
 withScope :: FrameRef -> TclM a -> TclM a
@@ -612,6 +614,11 @@ treturn = return . T.mkTclBStr
 createFrame !vref = do
    tag <- liftM hashUnique newUnique
    res <- newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = undefined }
+   return $! res
+
+createFrameWithNS !nsref !vref = do
+   tag <- liftM hashUnique newUnique
+   res <- newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = nsref }
    return $! res
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))

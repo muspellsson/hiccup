@@ -35,4 +35,4 @@ proc run_things { {rep 1} {fci 3} { ci 11 } } {
   }
 }
 
-run_things
+run_things 5

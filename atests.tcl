@@ -636,8 +636,9 @@ test "for loop 2" {
 
 proc ignore _ { return {} }
 
+proc no_ignore code { uplevel $code }
+
 test "global ns proc" {
-  # TODO not yet
   checkthat [::+ 1 1] == 2
   checkthat [+ 1 1] == 2
 }
@@ -929,24 +930,20 @@ test "uplevel in ns" {
 }
 
 test "globally qualified proc in ns" {
-  finalize { ns foo proc blah } {
-    namespace eval foo { 
-      proc ::blah {} { return 4 }
-    }
+  namespace eval foo { 
+    proc ::blah {} { return 4 }
+  }
 
-    assertErr { ::foo::blah }
-    assertNoErr { ::blah; blah }
+  assertErr { ::foo::blah }
+  assertNoErr { ::blah; blah }
 
-    ignore {
-      # TODO not yet
-      assertNoErr {
-        namespace eval foo {
-          rename ::blah {}
-        }
-      }
-      assertErr { ::blah }
+  assertNoErr {
+    namespace eval foo {
+      rename ::blah {}
     }
   }
+  assertErr { ::blah }
+  finalize { ns foo } 
 }
 
 test "list eval" {
