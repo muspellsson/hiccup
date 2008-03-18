@@ -125,6 +125,8 @@ test "incr test" {
 test "math test" { 
   checkthat [pow 2 2] == 4
   checkthat [pow 2 10] == 1024
+
+  checkthat [expr { sqrt(2 + 2) }] eq 2.0
 }
 
 test "test if, elseif, else" {

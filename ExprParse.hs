@@ -14,6 +14,7 @@ lexer :: P.TokenParser ()
 lexer = P.makeTokenParser emptyDef
 
 integer = P.natural lexer
+intOrFloat = P.naturalOrFloat lexer
 symbol  = P.symbol lexer
 schar c = char c >> P.whiteSpace lexer
 identifier  = P.identifier lexer
@@ -58,6 +59,12 @@ objapply lu f x y = do
   i2 <- runExpr y lu
   f (i1,i2)
 
+funapply lu f x = do
+  d <- runExpr x lu >>= T.asDouble
+  return . mkFloat $ (f d) 
+ where mkFloat :: Double -> T.TclObj 
+       mkFloat f = T.mkTclStr (show f)
+
 
 runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
@@ -76,7 +83,10 @@ runExpr exp lu =
     (TOp OpStrNe a b) -> objap (procStr (/=)) a b
     (TVal v) -> return $! v
     (TVar n) -> lu (pack n)
-    _                 -> fail $ "expr can't currently eval: " ++ (show exp)
+    (TFun "sin" v)  -> funapply lu sin v
+    (TFun "cos" v)  -> funapply lu cos v
+    (TFun "sqrt" v) -> funapply lu sqrt v
+    _               -> fail $ "expr can't currently eval: " ++ (show exp)
  where nop _ = fail "sorry, not implemented"
        objap = objapply lu
 
@@ -107,10 +117,12 @@ factor = do schar '('
             x <- pexpr
             schar ')'
             return x
-         <|> myint <|> mystr <|> myvar <|> myfun  <?> "term"
+         <|> numval <|> mystr <|> myvar <|> myfun  <?> "term"
             
-myint = do i <- (integer <?> "integer")
-           return $ tInt (fromIntegral i)
+numval = do iorf <- intOrFloat 
+            return $ case iorf of
+                      Left  i -> tInt (fromIntegral i)
+                      Right f -> tFloat f
 mystr = do s <- stringLit
            return $ tStr s
         <?> "string"
@@ -122,7 +134,7 @@ myvar = do char '$'
 
 myfun = do s <- identifier
            char '('
-           inner <- factor
+           inner <- pexpr <|> (symbol "" >> return (tStr "")) 
            char ')'
            return $ TFun s inner
 
@@ -138,9 +150,10 @@ a ?=? x = ptest (Just a) x
 isBad x = ptest Nothing x
 
 aNumberTests = TestList
-     ["ANumber1" ~: (tInt 3) ?=? (myint, "3"),
+     ["ANumber1" ~: (tInt 3) ?=? (numval, "3"),
+      "double" ~: (tFloat 1.25) ?=? (numval, "1.25"),
       --"ANumber2" ~: (tInt (-1)) ?=? (myint, "-1"),
-      "ANumber3" ~: isBad (myint, "Button")]
+      "ANumber3" ~: isBad (numval, "Button")]
 
 stringTests = TestList [
     "string1" ~: (tStr "boo") ?=? (mystr, "\"boo\"") 
@@ -158,6 +171,7 @@ varTests = TestList [
  
 tInt i = TVal (T.mkTclInt i)
 tStr s = TVal (T.mkTclStr s)
+tFloat f = TVal (T.mkTclStr (show f))
 
 exprTests = TestList 
     [ "expr1" ~: (tInt 3) ?=? (pexpr, "3")
@@ -179,6 +193,7 @@ exprTests = TestList
      ,"varstorm4" ~: (((TVar "me") * (TVar "hey")) .== (TVar "st")) ?=? (pexpr, " $me * $hey  == $st ")
      ,"fun1" ~: (TFun "sin" (tInt 44)) ?=? (pexpr, "sin(44)")
      ,"fun2" ~: ((tInt 11) + (TFun "sin" (tInt 44))) ?=? (pexpr, "11 + sin(44)")
+     ,"fun3" ~: (TFun "rand" (tStr "")) ?=? (pexpr, "rand()")
  ]
 
 mint v = T.mkTclInt v

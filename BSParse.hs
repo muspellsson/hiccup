@@ -16,14 +16,17 @@ data TclWord = Word !B.ByteString
              | NoSub !B.ByteString Result  
              | Expand TclWord deriving (Show,Eq)
 
-type Result = Maybe ([TokCmd], BString)
+type Parser a = BString -> PResult a
+type PResult a = Maybe (a, BString)
+type Result = PResult [TokCmd]
 type TokCmd = (TclWord, [TclWord])
 
-runParse :: BString -> Result
+runParse :: Parser [TokCmd]
 runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
 
 asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
+mainparse :: Parser [TclWord]
 mainparse str = if B.null str
                    then return ([], B.empty)
                    else do
@@ -34,23 +37,28 @@ mainparse str = if B.null str
                         '#'  -> eatComment str
                         _    -> parseArgs str
 
+parseArgs :: Parser [TclWord]
 parseArgs = multi (dispatch . dropWhite)
 
+dispatch :: Parser TclWord
 dispatch str = do h <- safeHead str
                   case h of
                    '{' -> (parseExpand `orElse` parseNoSub) str
                    '[' -> (parseSub `wrapWith` Subcommand) str
                    '"' -> parseStr str
-                   '\\' -> handleEsc (B.drop 1 str)
+                   '\\' -> handleEsc str
                    _   -> wordToken str
 
-handleEsc s = do h <- safeHead s
-                 let rest = B.drop 1 s
-                 case h of
-                    '\n' -> (dispatch . dropWhite) rest
-                    v    -> case wordTokenRaw rest of
-                              Just (w, r) -> return (Word (B.concat ["\\", B.singleton v, w]), r)
-                              Nothing     -> return (Word (B.cons '\\' (B.singleton v)), rest)
+handleEsc :: Parser TclWord
+handleEsc str = do 
+  s <- eatChar '\\' str 
+  h <- safeHead s
+  let rest = B.drop 1 s
+  case h of
+     '\n' -> (dispatch . dropWhite) rest
+     v    -> case wordTokenRaw rest of
+                Just (w, r) -> return (Word (B.concat ["\\", B.singleton v, w]), r)
+                Nothing     -> return (Word (B.cons '\\' (B.singleton v)), rest)
 
 parseList s = if onlyWhite s
                then return []
@@ -100,8 +108,10 @@ getInterp str = do
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
+doVarParse :: Parser BString
 doVarParse s = eatChar '$' s >>= parseVarRef
 
+parseVarRef :: Parser BString
 parseVarRef s = do 
          let flist = [ parseVarTerm `orElse` getNS
                       ,tryGet parseVarRef
@@ -110,6 +120,7 @@ parseVarRef s = do
 
 getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
 
+parseVarTerm :: Parser BString
 parseVarTerm = getvar `orElse` brackVar
 
 parseInd str
@@ -126,7 +137,7 @@ chain lst !rs = inner lst [] rs
        inner (f:fs) !acc !r = do (s,r2) <- f r 
                                  inner fs (s:acc) r2
  
-
+parseLit :: BString -> Parser BString
 parseLit !w s = do 
       let wlen = B.length w
       let slen = B.length s
@@ -134,9 +145,11 @@ parseLit !w s = do
          then return (w, B.drop wlen s)
          else fail "didn't match"
 
+eatChar :: Char -> BString -> Maybe BString
 eatChar c s = parseChar c s >>= return . snd
 {-# INLINE eatChar #-}
 
+parseChar :: Char -> Parser BString
 parseChar !c s = case B.uncons s of
                    Nothing    -> failStr "empty string"
                    Just (h,t) -> if h == c then return (B.singleton h,t)
@@ -152,6 +165,7 @@ multi p s = do (w,r) <- p s
                        Just (wx,r2) -> return $! (w:wx,r2)
 {-# INLINE multi #-}
 
+parseSub :: Parser TokCmd
 parseSub s = do 
       (p,r) <- eatChar '[' s >>= parseArgs
       aft <- eatChar ']' (dropWhite r)
@@ -172,6 +186,7 @@ wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  ||
 -}
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
+parseWord :: Parser TclWord
 parseWord s = getWord s >>= \(w,r) -> return (Word w, r)
 
 getPred p s = if B.null w then fail "no match" else return $! (w,n)

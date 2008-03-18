@@ -20,6 +20,7 @@ module TclObj (
  ,asParsed
  ,asSeq
  ,asList
+ ,asDouble
  ,(.==)
  ,strEq
  ,strNe
@@ -133,6 +134,15 @@ instance ITObj TclObj where
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ _)  = fail "Can't parse an int value"
   asParsed (TclList _ s) = asParsed (mkTclBStr s)
+
+asDouble :: (Monad m) => TclObj -> m Double
+asDouble obj = do
+  case asInt obj of 
+    Just i  -> return $! (fromIntegral i)
+    Nothing -> let strval = asStr obj 
+               in case reads strval of
+                 [] -> fail $ "expected float but got " ++ show strval
+                 ((d,_):_) -> return $! d -- TODO: not quite right.
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
