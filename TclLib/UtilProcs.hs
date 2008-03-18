@@ -4,14 +4,13 @@ module TclLib.UtilProcs ( utilProcs ) where
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
-import Util
 import Core (evalTcl, subst)
 import Common
 import ExprParse
 import qualified TclObj as T
 
 utilProcs = makeProcMap [
-         ("time", procTime),("source", procSource), 
+         ("time", procTime),
          ("incr", procIncr), ("expr", procExpr), 
 	 ("after", procAfter), ("update", procUpdate)]
 
@@ -63,10 +62,6 @@ procUpdate args = case args of
      _  -> argErr "update"
  where upglobal f = do sl <- stackLevel
                        uplevel sl f
-
-procSource args = case args of
-                  [s] -> io (slurpFile (T.asStr s)) >>= evalTcl . T.mkTclBStr
-                  _   -> argErr "source"
 
 procExpr args = do  
   al <- mapM subst args 

@@ -3,6 +3,7 @@ import Common
 import Control.Monad (unless)
 import System.IO
 import System.Exit
+import Core (evalTcl)
 import qualified TclObj as T
 import qualified TclChan as T
 import qualified System.IO.Error as IOE 
@@ -13,7 +14,7 @@ import Util
 ioProcs = makeProcMap $ 
  [("puts",procPuts),("gets",procGets),
   ("open", procOpen), ("close", procClose),("flush", procFlush),
-  ("exit", procExit)]
+  ("exit", procExit), ("source", procSource)]
 
 
 procPuts args = case args of
@@ -44,6 +45,11 @@ procGets args = case args of
           _  -> argErr "gets"
  where getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 
+procSource args = case args of
+                  [s] -> do 
+		    let fn = T.asStr s 
+		    useFile fn (slurpFile fn) >>= evalTcl . T.mkTclBStr
+                  _   -> argErr "source"
 
 checkReadable c = do r <- io (hIsReadable c)
                      if r then return c else (tclErr "channel wasn't opened for reading")
@@ -62,15 +68,19 @@ procOpen args = case args of
           "a" -> return AppendMode
           _   -> fail "Unknown file mode"
        openChan fn m = do
-        eh <- io $ IOE.try (openFile (T.asStr fn) m) 
-        case eh of
-         Left e -> if IOE.isDoesNotExistError e 
-                     then tclErr $ "could not open " ++ show (T.asStr fn) ++ ": no such file or directory"
-                     else tclErr (show e)
-         Right h -> do
-           chan <- io (T.mkChan h)
-           addChan chan
-           treturn (T.chanName chan)
+        let name = T.asStr fn
+        h <- useFile name (openFile name m)
+        chan <- io (T.mkChan h)
+        addChan chan
+        treturn (T.chanName chan)
+
+useFile fn fun = do
+  eh <- io $ IOE.try fun
+  case eh of
+   Left e -> if IOE.isDoesNotExistError e 
+	       then tclErr $ "could not open " ++ show fn ++ ": no such file or directory"
+	       else tclErr (show e)
+   Right h -> return h
 
 procClose args = case args of
          [ch] -> do h <- lookupChan (T.asBStr ch)

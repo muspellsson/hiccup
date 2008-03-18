@@ -13,7 +13,7 @@ main = do args <- getArgs
              []  -> mkInterp >>= runRepl
              (f:fs) -> do fdata <- B.readFile f 
                           runTclWithArgs fdata (map B.pack fs) >>= (`unlessErr` (\_ -> return ()))
- where unlessErr x f = either (\e -> putStrLn ("error: " ++ B.unpack e)) f x
+ where unlessErr x f = either (\e -> B.putStrLn e) f x
        runRepl i = do mline <- readline "hiccup> "
                       case mline of
                         Nothing -> return ()
