@@ -128,6 +128,18 @@ test "math test" {
 
   checkthat [expr { sqrt(2 + 2) }] eq 2.0
   checkthat [+ 3.5 3.5] == 7.0
+
+}
+
+test "bool test" {
+  checkthat [expr { true || false }] == 1
+  checkthat [expr { false || true }] == 1
+  checkthat [expr { false || false }] == 0
+  checkthat [expr { true && false }] == 0
+  checkthat [expr { false && true }] == 0
+  checkthat [expr { false && false }] == 0
+  checkthat [expr { true && true }] == 1
+  checkthat [expr { on || off }] == 1
 }
 
 test "test if, elseif, else" {

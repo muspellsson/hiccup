@@ -193,7 +193,7 @@ getPred p s = if B.null w then fail "no match" else return $! (w,n)
  where (w,n) = B.span p s
 
 getWord = getPred p
- where p c = wordChar c || (c `B.elem` "+.-*()=/$:^%!&<>?")
+ where p c = wordChar c || (c `B.elem` "+.-*()=/$:^%!&<>|?")
 
 getvar = getPred wordChar
 

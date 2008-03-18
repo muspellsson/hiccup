@@ -20,9 +20,11 @@ runCmds []     = ret
 
 
 getSubst s = do 
-    cmds <- T.asParsed s
-    let toks = concatMap uncmd cmds
-    return (CatLst toks)
+    case T.asParsed s of
+      Just cmds -> do
+	let toks = concatMap uncmd cmds
+	return (CatLst toks)
+      Nothing   -> tclErr "subst failed: currently, doesn't work on stuff that we can't tokenize" -- TODO
  where uncmd (Right n,args) = (n:args)
        uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
 

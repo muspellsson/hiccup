@@ -49,7 +49,7 @@ compToken (Subcommand c)         = compCmd c
 compCmd c = CmdTok (toCmd c)
 
 fromParsed Nothing       = Left "parse failed"
-fromParsed (Just (tl,v)) = if B.null v then Right (map toCmd tl) else Left "incomplete parse"
+fromParsed (Just (tl,v)) = if B.null v then Right (map toCmd tl) else Left ("incomplete parse: " ++ show v)
 
 
 toCmd (x,xs) = (handleProc (compToken x), map compToken xs)

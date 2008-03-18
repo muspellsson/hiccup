@@ -21,7 +21,8 @@ identifier  = P.identifier lexer
 stringLit = P.stringLiteral lexer
 
 data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
-          OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq
+          OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq | OpAnd |
+	  OpOr
   deriving (Show,Eq)
 
 data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
@@ -43,6 +44,9 @@ instance Num TExp where
   signum = undefined
   negate = undefined
   fromInteger i =  TVal (T.mkTclInt (fromIntegral i))
+
+(.&&) = TOp OpAnd
+(.||) = TOp OpOr
 
 (.<) = TOp OpLt
 (.<=) = TOp OpLte
@@ -78,6 +82,8 @@ runExpr exp lu =
     (TOp OpGte a b) -> objap (procCmp (>=)) a b
     (TOp OpStrEq a b) -> objap (procStr (==)) a b
     (TOp OpStrNe a b) -> objap (procStr (/=)) a b
+    (TOp OpAnd a b) -> objap (procBool (&&)) a b
+    (TOp OpOr a b) -> objap (procBool (||)) a b
     (TVal v) -> return $! v
     (TVar n) -> lu (pack n)
     (TFun "sin" v)  -> funapply lu sin v
@@ -94,6 +100,10 @@ procMath f a b =   do ai <- T.asInt a
 procCmp f  a b   = do ai <- T.asInt a
                       bi <- T.asInt b
                       return $! T.fromBool (ai `f` bi)
+procBool f a b = do 
+   let ab = T.asBool a
+   let bb = T.asBool b
+   return $! T.fromBool (ab `f` bb)
 procStr f  a b   = return $! T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
@@ -105,6 +115,7 @@ table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
         ,[op "eq" OpStrEq AssocLeft, op "ne" OpStrNe AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
         ,[op1 '<' OpLt AssocLeft, op1 '>' OpGt AssocLeft]
+	,[op "&&" OpAnd AssocLeft, op "||" OpOr AssocLeft]
      ]
    where
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc
@@ -115,7 +126,7 @@ factor = do schar '('
             x <- pexpr
             schar ')'
             return x
-         <|> numval <|> mystr <|> myvar <|> myfun  <?> "term"
+         <|> numval <|> boolval <|> mystr <|> myvar <|> myfun  <?> "term"
             
 numval = do iorf <- intOrFloat 
             return $ case iorf of
@@ -124,6 +135,12 @@ numval = do iorf <- intOrFloat
 mystr = do s <- stringLit
            return $ tStr s
         <?> "string"
+
+boolval = do
+  b <- ((s "true" <|> try (s "on")) >> return True) 
+       <|> ((s "false" <|> s "off") >> return False)
+  return . TVal $ T.fromBool b
+ where s str = symbol str
 
 myvar = do char '$' 
            s <- identifier
@@ -192,6 +209,8 @@ exprTests = TestList
      ,"fun1" ~: (TFun "sin" (tInt 44)) ?=? (pexpr, "sin(44)")
      ,"fun2" ~: ((tInt 11) + (TFun "sin" (tInt 44))) ?=? (pexpr, "11 + sin(44)")
      ,"fun3" ~: (TFun "rand" (tStr "")) ?=? (pexpr, "rand()")
+     ,"and expr" ~: ((tInt 1) .&& (tInt 2)) ?=? (pexpr, "1 && 2")
+     ,"or expr" ~: (((tInt 1) + (tInt 1)) .|| (tInt 2)) ?=? (pexpr, "(1+1) || 2")
  ]
 
 mint v = T.mkTclInt v
