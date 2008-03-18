@@ -3,7 +3,7 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Expr
-import qualified TclLib.MathProcs as M
+import qualified TclLib.MathProcs as Math
 import Test.HUnit
 
 import qualified TclObj as T
@@ -70,7 +70,7 @@ funapply lu f x = do
 runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
   case exp of
-    (TOp OpPlus a b) -> objap M.plus a b
+    (TOp OpPlus a b) -> objap Math.plus a b
     (TOp OpTimes a b) -> objap (procMath (*)) a b
     (TOp OpMinus a b) -> objap (procMath (-)) a b
     (TOp OpDiv a b) -> objap nop a b
@@ -89,6 +89,7 @@ runExpr exp lu =
     (TFun "sin" v)  -> funapply lu sin v
     (TFun "cos" v)  -> funapply lu cos v
     (TFun "sqrt" v) -> funapply lu sqrt v
+    (TFun "rand" v) -> lu (pack "rand")
     _               -> fail $ "expr can't currently eval: " ++ (show exp)
  where nop _ = fail "sorry, not implemented"
        objap = objapply lu
@@ -239,7 +240,7 @@ varEvalTests = TestList
        table = M.fromList . mapFst pack $ [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
        lu v = M.lookup v table
 
-riExpr s = expr s >>= \e -> runExpr e (\_ -> fail "expr can't handle variables")
+riExpr s f = expr s >>= \e -> runExpr e f
 
 exprParseTests = TestList [ aNumberTests, stringTests, varTests, exprTests, evalTests, varEvalTests ]
 

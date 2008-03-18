@@ -66,4 +66,4 @@ procUpdate args = case args of
 procExpr args = do  
   al <- mapM subst args 
   let s = concat (map T.asStr al) 
-  riExpr s
+  riExpr s (\v -> evalTcl (T.mkTclBStr v)) -- TODO: EEVIL

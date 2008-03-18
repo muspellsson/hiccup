@@ -1,4 +1,4 @@
-module TclLib.MathProcs (mathProcs, plus) where
+module TclLib.MathProcs (mathProcs, plus, mathRand, mathSrand) where
 import Common
 import qualified TclObj as T
 import Control.Monad
@@ -12,14 +12,18 @@ mathProcs = makeProcMap $
        t = procTest
 
 procSrand args = case args of
- [v] -> do i <- T.asInt v
-           io (setStdGen (mkStdGen i))
-	   ret
+ [v] -> mathSrand v
  []  -> tclErr "too few arguments to math function"
  _   -> tclErr "too many arguments to math function"
 
-procRand _ = do
-     io randomIO >>= return . T.mkTclDouble
+mathSrand v = do
+ i <- T.asInt v 
+ io (setStdGen (mkStdGen i))
+ ret
+
+procRand _ = mathRand
+
+mathRand = io randomIO >>= return . T.mkTclDouble
 
 m2 f args = case args of
   [a,b] -> f a b
