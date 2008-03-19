@@ -4,7 +4,7 @@ module TclLib.UtilProcs ( utilProcs ) where
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
-import Core (evalTcl, subst)
+import Core (evalTcl, subst, callProc)
 import Common
 import ExprParse
 import qualified TclObj as T
@@ -66,4 +66,7 @@ procUpdate args = case args of
 procExpr args = do  
   al <- mapM subst args 
   let s = concat (map T.asStr al) 
-  riExpr s (\v -> evalTcl (T.mkTclBStr v)) -- TODO: EEVIL
+  riExpr s lu
+ where lu v = case v of
+		Left n      -> varGet n
+		Right (n,a) -> callProc n a

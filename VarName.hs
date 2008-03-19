@@ -24,7 +24,7 @@ import Test.HUnit
 
 data NSQual a = NSQual !(Maybe NSTag) !a deriving (Eq,Show)
 
-data NSTag = NS !Bool ![BString] deriving (Eq,Show)
+data NSTag = NS !Bool ![BString] deriving (Eq,Show,Ord)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
 

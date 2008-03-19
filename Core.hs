@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, subst, coreTests) where
+module Core (evalTcl, doCond, subst, callProc, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -30,6 +30,9 @@ getSubst s = do
 
 subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
 
+callProc :: BString -> [T.TclObj] -> TclM T.TclObj
+callProc pn args = do
+  getProc pn >>= \pr -> doCall pn pr args
 
 evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
 evalRTokens []     !acc = return $! reverse acc
@@ -54,21 +57,21 @@ runCmd (n,args) = do
   evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs
   return $! res
- where go (Left p@(NSQual _ name)) a = getProcNS p >>= \pr -> callProc name pr a
+ where go (Left p@(NSQual _ name)) a = getProcNS p >>= \pr -> doCall name pr a
        go (Right rt) a = do lst <- evalRTokens [rt] []
                             let (o:rs) = lst ++ a
                             let name = T.asBStr o
-                            getProc name >>= \pr -> callProc name pr rs
+                            getProc name >>= \pr -> doCall name pr rs
 
 
-callProc !pn !mproc args = do
+doCall !pn !mproc args = do
    case mproc of
      Nothing   -> do ukproc <- getProc (pack "unknown")
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
                        Just uk -> uk `applyTo` ((T.mkTclBStr pn):args)
      Just proc -> proc `applyTo` args 
-{-# INLINE callProc #-}
+{-# INLINE doCall #-}
 
 doCond :: T.TclObj -> TclM Bool
 doCond str = do

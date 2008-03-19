@@ -279,10 +279,10 @@ rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
 
 
 regProc name body pr = 
-    let q@(NSQual _ n) = parseProc name
-    in regProcNS q (TclProcT n body Nothing pr)
+    let (NSQual nst n) = parseProc name
+    in regProcNS nst n (TclProcT n body Nothing pr)
 
-regProcNS (NSQual nst k) newProc = getNamespace nst >>= regInNS
+regProcNS nst k newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
@@ -515,7 +515,7 @@ importNS force name = do
                  case oldp of
                     Nothing -> return ()
                     Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            regProcNS (NSQual Nothing n) np
+            regProcNS Nothing n np
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns

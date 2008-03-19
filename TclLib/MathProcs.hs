@@ -9,8 +9,9 @@ import Control.Monad
 import System.Random
 
 mathProcs = makeProcMap $
-   [("+", m2 plus), ("*", m2 times), ("-", m2 minus), ("pow", m2 pow),
-    ("eq", procEq), ("ne", procNe),
+   [("+", m2 plus), ("*", m2 times), ("-", m2 minus), ("pow", m2 pow), 
+    ("sin", onearg sin), ("cos", onearg cos),
+    ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert),
     ("/", m2 divide), ("<", lessThan),(">", greaterThan),("<=",lessThanEq), ("rand", procRand),
     ("srand", procSrand)]
 
@@ -28,10 +29,30 @@ procRand _ = mathRand
 
 mathRand = io randomIO >>= return . T.mkTclDouble
 
+onearg f = m1 inner
+ where inner x = do
+            d <- T.asDouble x
+	    return (T.mkTclDouble (f d))
+{-# INLINE onearg #-}
+
+m1 f args = case args of
+  [a] -> f a
+  _     -> if length args > 1 then tclErr "too many arguments to math function" 
+                              else tclErr "too few arguments to math function"
+{-# INLINE m1 #-}
+
 m2 f args = case args of
   [a,b] -> f a b
   _     -> if length args > 2 then tclErr "too many arguments to math function" 
                               else tclErr "too few arguments to math function"
+{-# INLINE m2 #-}
+
+squarert x = do
+    case T.asInt x of
+      Just i -> return $! T.mkTclDouble (sqrt (fromIntegral i))
+      Nothing -> do
+        d1 <- T.asDouble x
+	return $! T.mkTclDouble (sqrt d1)
 
 plus x y = do
    case (T.asInt x, T.asInt y) of

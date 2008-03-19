@@ -25,9 +25,9 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 	  OpOr
   deriving (Show,Eq)
 
-data TExp = TOp !Op TExp TExp | TVar String | TFun String TExp | TVal T.TclObj deriving (Show,Eq)
+data TExp = TOp !Op TExp TExp | TVar String | TFun String [TExp] | TVal T.TclObj deriving (Show,Eq)
 
-exprCompile :: (Monad m) => String -> m ((BString -> m T.TclObj) -> m T.TclObj)
+exprCompile :: (Monad m) => String -> m (Callback m -> m T.TclObj)
 exprCompile s = do v <- expr s
                    return $ runExpr v
 
@@ -57,17 +57,22 @@ instance Num TExp where
 eq = TOp OpStrEq
 ne = TOp OpStrNe
 
-objapply :: (Monad m) => (BString -> m T.TclObj) -> (T.TclObj -> T.TclObj -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
+objapply :: (Monad m) => Callback m -> (T.TclObj -> T.TclObj -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
 objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
   f i1 i2
 
-funapply lu f x = do
-  d <- runExpr x lu >>= T.asDouble
-  return . T.mkTclDouble $ (f d) 
+funapply lu fn al = do
+  args <- mapM (\v -> runExpr v lu) al
+  lu (mkCmd fn args)
 
-runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
+type CBData = Either BString (BString, [T.TclObj])
+type Callback m = (CBData -> m T.TclObj)
+
+mkCmd a b = Right (pack a,b)
+
+runExpr :: (Monad m) => TExp -> Callback m -> m T.TclObj
 runExpr exp lu = 
   case exp of
     (TOp OpPlus a b) -> objap Math.plus a b
@@ -85,12 +90,8 @@ runExpr exp lu =
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
     (TOp OpOr a b) -> objap (procBool (||)) a b
     (TVal v) -> return $! v
-    (TVar n) -> lu (pack n)
-    (TFun "sin" v)  -> funapply lu sin v
-    (TFun "cos" v)  -> funapply lu cos v
-    (TFun "sqrt" v) -> funapply lu sqrt v
-    (TFun "rand" v) -> lu (pack "rand") -- TODO: Check args
-    _               -> fail $ "expr can't currently eval: " ++ (show exp)
+    (TVar n) -> lu (Left (pack n))
+    (TFun fn al)  -> funapply lu fn al
  where objap = objapply lu
 
 
@@ -146,7 +147,7 @@ myvar = do char '$'
 
 myfun = do s <- identifier
            char '('
-           inner <- pexpr <|> (symbol "" >> return (tStr "")) 
+           inner <- pexpr `sepBy` (char ',')
            char ')'
            return $ TFun s inner
 
@@ -203,9 +204,9 @@ exprTests = TestList
      ,"varstorm2" ~: (((TVar "me") + (TVar "hey")) .< (TVar "something")) ?=? (pexpr, "($me + $hey)< $something")
      ,"varstorm3" ~: (((TVar "me") + (TVar "hey")) .< (TVar "st")) ?=? (pexpr, " ( $me+$hey ) <$st ")
      ,"varstorm4" ~: (((TVar "me") * (TVar "hey")) .== (TVar "st")) ?=? (pexpr, " $me * $hey  == $st ")
-     ,"fun1" ~: (TFun "sin" (tInt 44)) ?=? (pexpr, "sin(44)")
-     ,"fun2" ~: ((tInt 11) + (TFun "sin" (tInt 44))) ?=? (pexpr, "11 + sin(44)")
-     ,"fun3" ~: (TFun "rand" (tStr "")) ?=? (pexpr, "rand()")
+     ,"fun1" ~: (TFun "sin" [tInt 44]) ?=? (pexpr, "sin(44)")
+     ,"fun2" ~: ((tInt 11) + (TFun "sin" [tInt 44])) ?=? (pexpr, "11 + sin(44)")
+     ,"fun3" ~: (TFun "rand" []) ?=? (pexpr, "rand()")
      ,"and expr" ~: ((tInt 1) .&& (tInt 2)) ?=? (pexpr, "1 && 2")
      ,"or expr" ~: (((tInt 1) + (tInt 1)) .|| (tInt 2)) ?=? (pexpr, "(1+1) || 2")
  ]
@@ -223,7 +224,8 @@ evalTests = TestList
       ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
       "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
     ]
- where eql a b = (runExpr a (return . T.mkTclBStr)) ~=? Just b
+ where eql a b = (runExpr a (return . make)) ~=? Just b
+       make (Left a) = T.mkTclBStr a
 
 varEvalTests = TestList
     [ 
@@ -234,7 +236,8 @@ varEvalTests = TestList
     ]
  where eql a b = (runExpr a lu) ~=? Just b
        table = M.fromList . mapFst pack $ [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
-       lu v = M.lookup v table
+       lu :: (Monad m) => Callback m
+       lu (Left v) = M.lookup v table
 
 riExpr s f = expr s >>= \e -> runExpr e f
 
