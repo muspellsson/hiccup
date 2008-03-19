@@ -30,6 +30,7 @@ parseParams name args = T.asList (T.asBStr args) >>= countRet
                               [k,v] -> Right (k,T.mkTclBStr v)
                               _     -> Left s
 
+bindArgs :: ParamList -> [T.TclObj] -> TclM [(BString,T.TclObj)]
 bindArgs params@(_,hasArgs,pl) args = walkBoth pl args [] 
   where walkBoth ((Left v):xs)      (a:as) !acc = walkBoth xs as ((v,a):acc)
         walkBoth ((Left _):_)       []      _   = badArgs

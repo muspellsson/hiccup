@@ -291,6 +291,7 @@ regProcNS (NSQual nst k) newProc = getNamespace nst >>= regInNS
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
+{-# INLINE varSet #-}
 
 varSetNS qvn v = usingNsFrame qvn (\n f -> varSet' n v f)
 {-# INLINE varSetNS #-}
@@ -533,10 +534,12 @@ withLocalScope vl f = do
     ns <- getCurrNS
     fr <- io $! createFrameWithNS ns $! makeVarMap vl
     withScope fr f
+{-# INLINE withLocalScope #-}
 
 withScope :: FrameRef -> TclM a -> TclM a
 withScope !frref fun = do
   stack <- getStack
+  -- when (length stack > 10000) (tclErr $ "Stack too deep: " ++ show 10000)
   putStack $ frref : stack
   fun `ensure` (modStack (drop 1))
 
