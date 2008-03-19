@@ -6,7 +6,6 @@ import Data.IORef
 
 import Util
 import qualified TclObj as T
-import TclObj (strEq,strNe)
 import Core (evalTcl)
 import Common
 import ProcArgs
@@ -17,7 +16,7 @@ import TclLib.ArrayProcs
 import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
-import TclLib.MathProcs
+import TclLib.MathProcs (mathProcs, procEql, procNe, procEq)
 import TclLib.UtilProcs
 
 import Test.HUnit 
@@ -27,7 +26,7 @@ coreProcs = makeProcMap $
   ("rename", procRename),
   ("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
-  ("continue",procRetv EContinue),("eq",procEq),("ne",procNe),("!=",procNotEql),
+  ("continue",procRetv EContinue),("!=",procNotEql),
   ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
@@ -85,24 +84,10 @@ procRename args = case args of
     [old,new] -> renameProc (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
 
-procEq args = case args of
-                  [a,b] -> return $! T.fromBool (a `strEq` b)
-                  _     -> argErr "eq"
-
-procNe args = case args of
-                  [a,b] -> return $! T.fromBool (a `strNe`  b)
-                  _     -> argErr "ne"
-
-
 procNotEql [a,b] = case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
                   _                  -> procNe [a,b]
 procNotEql _ = argErr "!="
-
-procEql [a,b] = case (T.asInt a, T.asInt b) of
-                  (Just ia, Just ib) -> return $! T.fromBool (ia == ib)
-                  _                  -> procEq [a,b]
-procEql _ = argErr "=="
 
 procEval args = case args of
                  []   -> argErr "eval"

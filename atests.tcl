@@ -130,6 +130,16 @@ test "math test" {
   checkthat [expr { sqrt(2 + 2) }] eq 2.0
   checkthat [+ 3.5 3.5] == 7.0
 
+  checkthat [* 2 1.5] == 3.0
+}
+
+test "double compare" {
+  checkthat [< 0.3 0.9] 
+  checkthat [<= 0.3 0.9] 
+  checkthat [<= 0.9 0.9]
+  checkthat [<= 0.9 0.3] == 0 
+  checkthat [> 1.9 1] 
+  checkthat [== 3.8 3.8]
 }
 
 test "bool test" {

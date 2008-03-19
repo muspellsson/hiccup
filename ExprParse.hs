@@ -71,8 +71,8 @@ runExpr :: (Monad m) => TExp -> (BString -> m T.TclObj) -> m T.TclObj
 runExpr exp lu = 
   case exp of
     (TOp OpPlus a b) -> objap Math.plus a b
-    (TOp OpTimes a b) -> objap (procMath (*)) a b
-    (TOp OpMinus a b) -> objap (procMath (-)) a b
+    (TOp OpTimes a b) -> objap Math.times a b
+    (TOp OpMinus a b) -> objap Math.minus a b
     (TOp OpDiv a b) -> objap nop a b
     (TOp OpEql a b) -> objap (procCmp (==)) a b
     (TOp OpNeql a b) -> objap (procCmp (/=)) a b
