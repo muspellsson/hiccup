@@ -131,6 +131,9 @@ test "math test" {
   checkthat [+ 3.5 3.5] == 7.0
 
   checkthat [* 2 1.5] == 3.0
+
+  checkthat [+ 1 1 1 1 1 1] == 6
+  checkthat [* 1 1 1 1 1 1 2] == 2
 }
 
 test "double compare" {

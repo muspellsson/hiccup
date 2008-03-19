@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module TclLib.MathProcs (mathProcs, plus, 
               minus,
 	      times,
@@ -9,8 +10,8 @@ import Control.Monad
 import System.Random
 
 mathProcs = makeProcMap $
-   [("+", m2 plus), ("*", m2 times), ("-", m2 minus), ("pow", m2 pow), 
-    ("sin", onearg sin), ("cos", onearg cos),
+   [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
+    ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert),
     ("/", m2 divide), ("<", lessThan),(">", greaterThan),("<=",lessThanEq), ("rand", procRand),
     ("srand", procSrand)]
@@ -40,6 +41,11 @@ m1 f args = case args of
   _     -> if length args > 1 then tclErr "too many arguments to math function" 
                               else tclErr "too few arguments to math function"
 {-# INLINE m1 #-}
+
+many !f !i args = case args of
+  [a,b] -> f a b
+  _ -> foldM f (T.mkTclInt i) args
+{-# INLINE many #-}
 
 m2 f args = case args of
   [a,b] -> f a b
@@ -78,7 +84,7 @@ minus x y = do
            d2 <- T.asDouble y
 	   return $! T.mkTclDouble (d1-d2)
 
-times x y = do
+times !x !y = do
    case (T.asInt x, T.asInt y) of
        (Just i1, Just i2) -> return $! (T.mkTclInt (i1*i2))
        _ -> do 
