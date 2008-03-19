@@ -1,6 +1,7 @@
 module TclLib.MathProcs (mathProcs, plus, 
               minus,
 	      times,
+	      divide,
               procEql, procEq, procNe) where
 import Common
 import qualified TclObj as T

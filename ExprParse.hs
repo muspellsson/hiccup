@@ -73,7 +73,7 @@ runExpr exp lu =
     (TOp OpPlus a b) -> objap Math.plus a b
     (TOp OpTimes a b) -> objap Math.times a b
     (TOp OpMinus a b) -> objap Math.minus a b
-    (TOp OpDiv a b) -> objap nop a b
+    (TOp OpDiv a b) -> objap Math.divide a b
     (TOp OpEql a b) -> objap (procCmp (==)) a b
     (TOp OpNeql a b) -> objap (procCmp (/=)) a b
     (TOp OpLt a b) -> objap (procCmp (<)) a b
@@ -91,13 +91,9 @@ runExpr exp lu =
     (TFun "sqrt" v) -> funapply lu sqrt v
     (TFun "rand" v) -> lu (pack "rand") -- TODO: Check args
     _               -> fail $ "expr can't currently eval: " ++ (show exp)
- where nop _ = fail "sorry, not implemented"
-       objap = objapply lu
+ where objap = objapply lu
 
 
-procMath f a b =   do ai <- T.asInt a
-                      bi <- T.asInt b
-                      return $! T.mkTclInt (ai `f` bi)
 procCmp f  a b   = do ai <- T.asInt a
                       bi <- T.asInt b
                       return $! T.fromBool (ai `f` bi)
