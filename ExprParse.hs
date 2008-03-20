@@ -82,10 +82,10 @@ runExpr exp lu =
     (TOp OpDiv a b) -> objap Math.divide a b
     (TOp OpEql a b) -> objap (up Math.equals) a b
     (TOp OpLt a b) -> objap (up Math.lessThan) a b
-    (TOp OpNeql a b) -> objap (procCmp (/=)) a b
-    (TOp OpGt a b) -> objap (procCmp (>)) a b
+    (TOp OpNeql a b) -> objap (up Math.notEquals) a b
+    (TOp OpGt a b) -> objap (up Math.greaterThan) a b
     (TOp OpLte a b) -> objap (up Math.lessThanEq) a b
-    (TOp OpGte a b) -> objap (procCmp (>=)) a b
+    (TOp OpGte a b) -> objap (up Math.greaterThanEq) a b
     (TOp OpStrEq a b) -> objap (sup T.strEq) a b
     (TOp OpStrNe a b) -> objap (sup T.strNe) a b
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
@@ -97,10 +97,6 @@ runExpr exp lu =
        up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 
-
-procCmp f  a b   = do ai <- T.asInt a
-                      bi <- T.asInt b
-                      return $! T.fromBool (ai `f` bi)
 procBool f a b = do 
    let ab = T.asBool a
    let bb = T.asBool b

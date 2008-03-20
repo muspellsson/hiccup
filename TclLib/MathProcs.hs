@@ -4,8 +4,11 @@ module TclLib.MathProcs (mathProcs, plus,
 	      times,
 	      divide,
         equals,
+        notEquals,
         lessThan,
         lessThanEq,
+        greaterThan,
+        greaterThanEq,
         procEql,
         procEq, procNe) where
 import Common
@@ -18,8 +21,14 @@ mathProcs = makeProcMap $
     ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
     ("==", procEql), ("!=", procNotEql),
-    ("/", m2 divide), ("<", lessThanProc),(">", greaterThan),("<=",lessThanEqProc), 
+    ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
+    mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
     ("rand", procRand), ("srand", procSrand)]
+
+mkcmd n f = (n,inner)
+ where inner args = case args of
+                     [a,b] -> return $! f a b
+                     _     -> argErr n
 
 procSrand args = case args of
  [v] -> mathSrand v
@@ -121,11 +130,17 @@ lessThanEqProc args = case args of
    [a,b] -> return $! (lessThanEq a b)
    _     -> argErr "<="
 
-greaterThan args = case args of
-   [a,b] -> case tclCompare a b of
-              GT -> return T.tclTrue
-	      _  -> return T.tclFalse
+greaterThan a b = case tclCompare a b of
+                     GT -> T.tclTrue
+                     _  -> T.tclFalse
+
+greaterThanProc args = case args of
+   [a,b] -> return $! greaterThan a b
    _     -> argErr ">"
+
+greaterThanEq a b = case tclCompare a b of
+                     LT -> T.tclFalse
+                     _  -> T.tclTrue
 
 equals a b = case tclCompare a b of
                EQ -> T.tclTrue
@@ -134,6 +149,10 @@ equals a b = case tclCompare a b of
 procEql args = case args of
    [a,b] -> return $! (equals a b)
    _     -> argErr "=="
+
+notEquals a b = case tclCompare a b of
+                 EQ -> T.tclFalse
+                 _  -> T.tclTrue
 
 procNotEql args = case args of
       [a,b] -> case (T.asInt a, T.asInt b) of
