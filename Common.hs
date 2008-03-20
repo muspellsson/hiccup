@@ -139,16 +139,14 @@ applyTo !(TclProcT _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
-    pr <- getTheProc nsr pn 
+    pr <- getProcNorm pn nsr
     case pr of
       Nothing -> fail "trying to import proc that doesn't exist"
       Just p  -> return $ p { procFn = inner } 
- where inner args = do thep <- getTheProc nsr pn
+ where inner args = do thep <- getProcNorm pn nsr
                        case thep of
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
-  
-       getTheProc nsr pn = nsr `refExtract` nsProcs >>= return . pmLookup pn
   
 globalNS fr = do 
   return $ TclNS { nsName = nsSep, 
