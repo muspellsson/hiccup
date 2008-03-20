@@ -23,11 +23,9 @@ import Test.HUnit
 
 coreProcs = makeProcMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
-  ("rename", procRename),
-  ("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
+  ("rename", procRename),("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
-  ("continue",procRetv EContinue),("!=",procNotEql),
-  ("==",procEql), ("error", procError), ("info", procInfo), ("global", procGlobal)]
+  ("continue",procRetv EContinue),("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
 baseProcs = mergeProcMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
@@ -83,11 +81,6 @@ procUnset args = case args of
 procRename args = case args of
     [old,new] -> renameProc (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
-
-procNotEql [a,b] = case (T.asInt a, T.asInt b) of
-                  (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
-                  _                  -> procNe [a,b]
-procNotEql _ = argErr "!="
 
 procEval args = case args of
                  []   -> argErr "eval"

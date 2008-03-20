@@ -1,4 +1,4 @@
-module RToken (Cmd, toCmd, RToken(..), rtokenTests ) where
+module RToken (Cmd, toCmd, RToken(..), noInterp, rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
@@ -14,6 +14,15 @@ data RToken = Lit !BString | LitInt !Int | CatLst [RToken]
 isEmpty (Lit x)    = B.null x
 isEmpty (CatLst l) = null l
 isEmpty _          = False
+
+noInterp tok = case tok of
+   (CmdTok _) -> False
+   (VarRef _) -> False
+   (ArrRef _ _ _) -> False
+   (ExpTok t) -> noInterp t
+   (CatLst l) -> all noInterp l
+   _          -> True
+
 
 -- Bit hacky, but better than no literal handling
 litIfy s 

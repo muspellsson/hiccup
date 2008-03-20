@@ -62,6 +62,7 @@ objapply lu f x y = do
   i1 <- runExpr x lu 
   i2 <- runExpr y lu
   f i1 i2
+{-# INLINE objapply #-}
 
 funapply lu fn al = do
   args <- mapM (\v -> runExpr v lu) al
@@ -79,20 +80,22 @@ runExpr exp lu =
     (TOp OpTimes a b) -> objap Math.times a b
     (TOp OpMinus a b) -> objap Math.minus a b
     (TOp OpDiv a b) -> objap Math.divide a b
-    (TOp OpEql a b) -> objap (procCmp (==)) a b
+    (TOp OpEql a b) -> objap (up Math.equals) a b
+    (TOp OpLt a b) -> objap (up Math.lessThan) a b
     (TOp OpNeql a b) -> objap (procCmp (/=)) a b
-    (TOp OpLt a b) -> objap (procCmp (<)) a b
     (TOp OpGt a b) -> objap (procCmp (>)) a b
-    (TOp OpLte a b) -> objap (procCmp (<=)) a b
+    (TOp OpLte a b) -> objap (up Math.lessThanEq) a b
     (TOp OpGte a b) -> objap (procCmp (>=)) a b
-    (TOp OpStrEq a b) -> objap (procStr (==)) a b
-    (TOp OpStrNe a b) -> objap (procStr (/=)) a b
+    (TOp OpStrEq a b) -> objap (sup T.strEq) a b
+    (TOp OpStrNe a b) -> objap (sup T.strNe) a b
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
     (TOp OpOr a b) -> objap (procBool (||)) a b
     (TVal v) -> return $! v
     (TVar n) -> lu (Left (pack n))
     (TFun fn al)  -> funapply lu fn al
  where objap = objapply lu
+       up f a b = return (f a b)
+       sup f a b = return (T.fromBool (f a b))
 
 
 procCmp f  a b   = do ai <- T.asInt a
@@ -102,7 +105,6 @@ procBool f a b = do
    let ab = T.asBool a
    let bb = T.asBool b
    return $! T.fromBool (ab `f` bb)
-procStr f  a b   = return $! T.fromBool ((T.asBStr a) `f` (T.asBStr b))
 
 pexpr :: Parser TExp
 pexpr   = many space >> buildExpressionParser table factor
@@ -225,7 +227,8 @@ evalTests = TestList
       "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
     ]
  where eql a b = (runExpr a (return . make)) ~=? Just b
-       make (Left a) = T.mkTclBStr a
+       make (Left a)  = T.mkTclBStr a
+       make (Right _) = T.mkTclStr "PROC"
 
 varEvalTests = TestList
     [ 
@@ -237,7 +240,8 @@ varEvalTests = TestList
  where eql a b = (runExpr a lu) ~=? Just b
        table = M.fromList . mapFst pack $ [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
        lu :: (Monad m) => Callback m
-       lu (Left v) = M.lookup v table
+       lu (Left v)  = M.lookup v table
+       lu (Right _) = return $ T.mkTclStr "PROC"
 
 riExpr s f = expr s >>= \e -> runExpr e f
 

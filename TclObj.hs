@@ -145,8 +145,8 @@ asDouble obj = do
     Just i  -> return $! (fromIntegral i)
     Nothing -> let strval = asStr obj 
                in case reads strval of
-                 [] -> fail $ "expected float but got " ++ show strval
-                 ((d,_):_) -> return $! d -- TODO: not quite right.
+                 [(d,"")] -> return $! d -- TODO: not quite right.
+                 _ -> fail $ "expected float but got " ++ show strval
 
 fromList l = (map listEscape l)  `joinWith` ' '
 

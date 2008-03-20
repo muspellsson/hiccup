@@ -7,12 +7,13 @@ import Control.Concurrent (threadDelay)
 import Core (evalTcl, subst, callProc)
 import Common
 import ExprParse
+import Data.List (intersperse)
 import qualified TclObj as T
 
 utilProcs = makeProcMap [
-         ("time", procTime),
-         ("incr", procIncr), ("expr", procExpr), 
-	 ("after", procAfter), ("update", procUpdate)]
+   ("time", procTime),
+   ("incr", procIncr), ("expr", procExpr), 
+   ("after", procAfter), ("update", procUpdate)]
 
 procIncr args = case args of
          [vname]     -> incr vname 1
@@ -65,7 +66,7 @@ procUpdate args = case args of
 
 procExpr args = do  
   al <- mapM subst args 
-  let s = concat (map T.asStr al) 
+  let s = concat $ intersperse " " (map T.asStr al)
   riExpr s lu
  where lu v = case v of
 		Left n      -> varGet n

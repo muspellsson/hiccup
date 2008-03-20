@@ -307,6 +307,14 @@ test "expr" {
   set x 10
   checkthat [expr { $x + $x }] == 20
   checkthat [expr { [+ 1 1] * 2 }] == 4
+
+  checkthat [expr { 3 < 4.5 }] 
+  checkthat [expr { 3 <= 4.5 }] 
+  checkthat [expr { 4.5 <= 4.5 }] 
+  checkthat [expr { 4.5 == "4.5" }] 
+  checkthat [expr { "one" eq "one" }] 
+  checkthat [expr { "two" ne "one" }] 
+  checkthat [expr { "1" eq 1 }] 
 }
 
 test "set returns correctly" {

@@ -1,9 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.MathProcs (mathProcs, plus, 
-              minus,
+        minus,
 	      times,
 	      divide,
-              procEql, procEq, procNe) where
+        equals,
+        lessThan,
+        lessThanEq,
+        procEql,
+        procEq, procNe) where
 import Common
 import qualified TclObj as T
 import Control.Monad
@@ -12,9 +16,10 @@ import System.Random
 mathProcs = makeProcMap $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs),
-    ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert),
-    ("/", m2 divide), ("<", lessThan),(">", greaterThan),("<=",lessThanEq), ("rand", procRand),
-    ("srand", procSrand)]
+    ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
+    ("==", procEql), ("!=", procNotEql),
+    ("/", m2 divide), ("<", lessThanProc),(">", greaterThan),("<=",lessThanEqProc), 
+    ("rand", procRand), ("srand", procSrand)]
 
 procSrand args = case args of
  [v] -> mathSrand v
@@ -100,16 +105,20 @@ divide x y = do
            d2 <- T.asDouble y
 	   return $! T.mkTclDouble (d1 / d2)
 
-lessThan args = case args of
-   [a,b] -> case tclCompare a b of
-              LT -> return T.tclTrue
-	      _  -> return T.tclFalse
+lessThan a b = case tclCompare a b of
+                 LT -> T.tclTrue
+                 _  -> T.tclFalse
+
+lessThanProc args = case args of
+   [a,b] -> return $! lessThan a b
    _     -> argErr "<"
 
-lessThanEq args = case args of
-   [a,b] -> case tclCompare a b of
-	      GT  -> return T.tclFalse
-              _   -> return T.tclTrue
+lessThanEq a b = case tclCompare a b of
+                   GT -> T.tclFalse
+                   _  -> T.tclTrue
+
+lessThanEqProc args = case args of
+   [a,b] -> return $! (lessThanEq a b)
    _     -> argErr "<="
 
 greaterThan args = case args of
@@ -118,11 +127,19 @@ greaterThan args = case args of
 	      _  -> return T.tclFalse
    _     -> argErr ">"
 
+equals a b = case tclCompare a b of
+               EQ -> T.tclTrue
+               _  -> T.tclFalse
+
 procEql args = case args of
-   [a,b] -> case tclCompare a b of
-             EQ -> return T.tclTrue
-	     _  -> return T.tclFalse
+   [a,b] -> return $! (equals a b)
    _     -> argErr "=="
+
+procNotEql args = case args of
+      [a,b] -> case (T.asInt a, T.asInt b) of
+                  (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
+                  _                  -> procNe [a,b]
+      _     -> argErr "!="
 
 procEq args = case args of
    [a,b] -> return . T.fromBool $! (T.strEq a b)
@@ -131,6 +148,7 @@ procEq args = case args of
 procNe args = case args of
    [a,b] -> return . T.fromBool $! (T.strNe a b)
    _     -> argErr "ne"
+
 
 tclCompare a b =
   case (T.asInt a, T.asInt b) of

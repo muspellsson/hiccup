@@ -22,13 +22,17 @@ runCmds []     = ret
 getSubst s = do 
     case T.asParsed s of
       Just cmds -> do
-	let toks = concatMap uncmd cmds
-	return (CatLst toks)
+         let toks = concatMap uncmd cmds
+         if all noInterp toks 
+           then return (Left (T.asBStr s))
+           else return (Right toks)
       Nothing   -> tclErr "subst failed: currently, doesn't work on stuff that we can't tokenize" -- TODO
  where uncmd (Right n,args) = (n:args)
        uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
 
-subst s = getSubst s >>= \t -> evalRTokens [t] [] >>= return . head
+subst s = getSubst s >>= doeval
+  where doeval (Right t) = evalRTokens t [] >>= return . T.asBStr . T.mkTclList
+        doeval (Left s) = return s
 
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = do
