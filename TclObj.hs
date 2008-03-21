@@ -98,17 +98,23 @@ class ITObj o where
   asParsed :: (Monad m) => o -> m Parsed
   asSeq   :: (Monad m) => o -> m (S.Seq o)
 
+bstrAsInt bs = case BS.readInt bs of
+               Nothing    -> fail ("Bad int: " ++ show bs)
+               Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
 
+bstrAsSeq st = liftM S.fromList (asListS st)
+{-
 instance ITObj BS.ByteString where
   asStr = BS.unpack
   asBool bs = (bs `elem` trueValues)
-  asInt bs = case BS.readInt bs of
-               Nothing    -> fail ("Bad int: " ++ show bs)
-               Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
+  asInt = bstrAsInt
   asBStr = id
   asParsed s = either fail return (resultToEither (P.runParse s) s)
   asSeq st = liftM S.fromList (asListS st)
 
+-}
+
+asList :: (Monad m) => TclObj -> m [TclObj]
 asList o = liftM F.toList (asSeq o)
 
 instance ITObj TclObj where
@@ -123,7 +129,7 @@ instance ITObj TclObj where
   asInt (TclInt i _) = return i
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
-  asInt (TclList _ v)         = asInt v
+  asInt (TclList _ v)         = bstrAsInt v
 
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
@@ -131,7 +137,7 @@ instance ITObj TclObj where
   {-# INLINE asBStr #-}
 
   asSeq i@(TclInt _ _) = return (S.singleton i)
-  asSeq (TclBStr s _ _) = asSeq s >>= return . fmap mkTclBStr
+  asSeq (TclBStr s _ _) = bstrAsSeq s >>= return . fmap mkTclBStr
   asSeq (TclList l _)   = return l
 
   asParsed (TclBStr _ _ (Left f))  = fail f

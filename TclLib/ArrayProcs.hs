@@ -17,7 +17,7 @@ procParray args = case args of
                   mapM_ (showFun n) (Map.toList arr)
                   ret
      _      -> argErr "parray"
- where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (T.asStr a) (T.asStr b))
+ where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (unpack a) (T.asStr b))
 
 
 procArray = makeEnsemble "array" [

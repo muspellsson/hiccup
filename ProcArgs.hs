@@ -5,9 +5,11 @@ import qualified TclObj as T
 import Common
 import qualified Data.ByteString.Char8 as B
 
-type ArgList = [Either BString (BString,T.TclObj)]
+type ArgSpec = Either BString (BString,T.TclObj)
+type ArgList = [ArgSpec]
 
-showParams (n,hasArgs,pl) = show ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+showParams (n,hasArgs,pl) = 
+   show ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
 
 arg2name arg = case arg of
                Left s      -> s
@@ -23,12 +25,14 @@ mkParamList name lst = (name, hasArgs, used)
 
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
-parseParams name args = T.asList (T.asBStr args) >>= countRet
- where countRet lst = mapM doArg lst >>= return . mkParamList name
+parseParams name args = T.asList args >>= countRet
+ where countRet :: [T.TclObj] -> TclM ParamList
+       countRet lst = mapM doArg lst >>= return . mkParamList name
+       doArg :: T.TclObj -> TclM ArgSpec
        doArg s = do l <- T.asList s
                     return $ case l of
-                              [k,v] -> Right (k,T.mkTclBStr v)
-                              _     -> Left s
+			    [k,v] -> Right (T.asBStr k,v)
+			    _     -> Left (T.asBStr s)
 
 bindArgs :: ParamList -> [T.TclObj] -> TclM [(BString,T.TclObj)]
 bindArgs params@(_,hasArgs,pl) args = walkBoth pl args [] 
