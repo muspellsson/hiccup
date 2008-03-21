@@ -112,7 +112,7 @@ data TclState = TclState {
     tclGlobalNS :: !NSRef }
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
-data TclProcT = TclProcT { 
+data TclCmdObj = TclCmdObj { 
                    procName :: BString, 
                    procBody :: BString,  
                    procOrigNS :: Maybe BString,
@@ -121,7 +121,7 @@ data TclProcT = TclProcT {
 type ProcKey = BString
 data CmdMap = CmdMap { 
       cmdMapEpoch :: !Int,
-      unCmdMap :: !(Map.Map ProcKey TclProcT) 
+      unCmdMap :: !(Map.Map ProcKey TclCmdObj) 
   } 
 
 type TclArray = Map.Map BString T.TclObj
@@ -135,7 +135,7 @@ getOrigin p = if nso == nsSep
  where nso = maybe nsSep id (procOrigNS p)
        pname = procName p
 
-applyTo !(TclProcT _ _ _ !f) !args = f args
+applyTo !(TclCmdObj _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
@@ -155,9 +155,9 @@ globalNS fr = do
                    nsParent = Nothing, nsChildren = Map.empty }
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
-makeCmdMap = CmdMap 0 . Map.fromList . map toTclProcT . mapFst pack
+makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
 
-toTclProcT (n,v) = (n, TclProcT n errStr Nothing v)
+toTclCmdObj (n,v) = (n, TclCmdObj n errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
 tclErr :: String -> TclM a
@@ -261,13 +261,13 @@ getProcNS (NSQual nst n) = do
   isNothing _       = False
 {-# INLINE getProcNS #-}
 
-getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclProcT)
+getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
 getProcNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
 {-# INLINE getProcNorm #-}
 
-pmLookup :: ProcKey -> CmdMap -> Maybe TclProcT
+pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
 pmLookup !i !m = Map.lookup i (unCmdMap m)
 {-# INLINE pmLookup #-}
 
@@ -278,7 +278,7 @@ rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
 
 regProc name body pr = 
     let (NSQual nst n) = parseProc name
-    in regProcNS nst n (TclProcT n body Nothing pr)
+    in regProcNS nst n (TclCmdObj n body Nothing pr)
 
 regProcNS nst k newProc = getNamespace nst >>= regInNS
  where 
