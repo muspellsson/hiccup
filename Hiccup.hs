@@ -10,14 +10,7 @@ import Core (evalTcl)
 import Common
 import ProcArgs
 
-import TclLib.IOProcs
-import TclLib.ListProcs
-import TclLib.ArrayProcs
-import TclLib.ControlProcs
-import TclLib.StringProcs
-import TclLib.NSProcs
-import TclLib.MathProcs (mathProcs)
-import TclLib.UtilProcs
+import TclLib (libCmds)
 
 import Test.HUnit 
 
@@ -28,8 +21,8 @@ coreProcs = makeCmdMap $
   ("continue", procRetv EContinue),("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
-baseProcs = mergeCmdMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
-                           ioProcs, listProcs, arrayProcs, stringProcs, utilProcs]
+baseProcs = mergeCmdMaps [libCmds, coreProcs]
+                          
 
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
