@@ -16,16 +16,16 @@ import TclLib.ArrayProcs
 import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
-import TclLib.MathProcs (mathProcs, procEql, procNe, procEq)
+import TclLib.MathProcs (mathProcs)
 import TclLib.UtilProcs
 
 import Test.HUnit 
 
 coreProcs = makeCmdMap $
- [("proc",procProc),("set",procSet),("upvar",procUpVar),
+ [("proc", procProc),("set", procSet),("upvar", procUpVar),
   ("rename", procRename),("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
-  ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
-  ("continue",procRetv EContinue),("error", procError), ("info", procInfo), ("global", procGlobal)]
+  ("return", procReturn),("break", procRetv EBreak),("catch", procCatch),
+  ("continue", procRetv EContinue),("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
 baseProcs = mergeCmdMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
@@ -139,8 +139,9 @@ procReturn args = case args of
       []  -> throwError (ERet T.empty)
       _   -> argErr "return"
 
-procRetv c [] = throwError c
-procRetv c _  = argErr $ st c
+procRetv c args = case args of
+    [] -> throwError c
+    _  -> argErr $ st c
  where st EContinue = "continue"
        st EBreak    = "break"
        st _         = "??"
@@ -182,27 +183,4 @@ procRunner pl body args = do
        herr EContinue = tclErr "invoked \"continue\" outside of a loop"
        herr e         = throwError e
 
-
--- # TESTS # --
-
-
-testProcEq = TestList [
-      "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
-      ,"1 == 1 -> t" ~:         (procEql [int 1, int 1]) `is` True
-      ,"' 1 ' == 1 -> t" ~:     procEql [str " 1 ", int 1] `is` True
-      ,"' 1 ' eq 1 -> f" ~:     procEq [str " 1 ", int 1] `is` False
-      ,"' 1 ' eq ' 1 ' -> t" ~: procEq [str " 1 ", str " 1 "] `is` True
-      ,"' 1 ' ne '1' -> t" ~: procNe [str " 1 ", str "1"] `is` True
-      ,"'cats' eq 'cats' -> t" ~: procEq [str "cats", str "cats"] `is` True
-      ,"'cats' eq 'caps' -> f" ~: procEq [str "cats", str "caps"] `is` False
-      ,"'cats' ne 'cats' -> t" ~: procNe [str "cats", str "cats"] `is` False
-      ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
-   ]
- where (?=?) a b = assert (runCheckResult b (Right a))
-       is c b = (T.fromBool b) ?=? c
-       int i = T.mkTclInt i
-       str s = T.mkTclStr s
-
-hiccupTests = TestList [ testProcEq ]
-
--- # ENDTESTS # --
+hiccupTests = TestList []

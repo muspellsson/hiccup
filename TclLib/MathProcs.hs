@@ -9,12 +9,13 @@ module TclLib.MathProcs (mathProcs, plus,
         lessThanEq,
         greaterThan,
         greaterThanEq,
-        procEql,
-        procEq, procNe) where
+	mathTests ) where
+
 import Common
 import qualified TclObj as T
 import Control.Monad
 import System.Random
+import Test.HUnit
 
 mathProcs = makeCmdMap $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
@@ -181,3 +182,27 @@ tclCompare a b =
                   (Just d1, Just d2) -> compare d1 d2
 		  _ -> compare (T.asBStr a) (T.asBStr b)
 {-# INLINE tclCompare #-}
+
+-- # TESTS # --
+
+
+testProcEq = TestList [
+      "1 eq 1 -> t" ~:          (procEq [int 1, int 1]) `is` True
+      ,"1 == 1 -> t" ~:         (procEql [int 1, int 1]) `is` True
+      ,"' 1 ' == 1 -> t" ~:     procEql [str " 1 ", int 1] `is` True
+      ,"' 1 ' eq 1 -> f" ~:     procEq [str " 1 ", int 1] `is` False
+      ,"' 1 ' eq ' 1 ' -> t" ~: procEq [str " 1 ", str " 1 "] `is` True
+      ,"' 1 ' ne '1' -> t" ~: procNe [str " 1 ", str "1"] `is` True
+      ,"'cats' eq 'cats' -> t" ~: procEq [str "cats", str "cats"] `is` True
+      ,"'cats' eq 'caps' -> f" ~: procEq [str "cats", str "caps"] `is` False
+      ,"'cats' ne 'cats' -> t" ~: procNe [str "cats", str "cats"] `is` False
+      ,"'cats' ne 'caps' -> f" ~: procNe [str "cats", str "caps"] `is` True
+   ]
+ where (?=?) a b = assert (runCheckResult b (Right a))
+       is c b = (T.fromBool b) ?=? c
+       int i = T.mkTclInt i
+       str s = T.mkTclStr s
+
+mathTests = TestList [ testProcEq ]
+
+-- # ENDTESTS # --

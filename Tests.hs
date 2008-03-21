@@ -4,6 +4,7 @@ import Hiccup (hiccupTests)
 import TclObj (tclObjTests)
 import Common (commonTests)
 import TclLib.StringProcs (stringTests)
+import TclLib.MathProcs (mathTests)
 import Core (coreTests)
 import RToken (rtokenTests)
 import Util (utilTests)
@@ -12,7 +13,7 @@ import ExprParse (exprParseTests)
 import Test.HUnit 
 
 allTests = TestList [ bsParseTests, utilTests, hiccupTests, tclObjTests, commonTests, 
-                      coreTests, rtokenTests, stringTests, varNameTests, exprParseTests ]
+                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprParseTests ]
 runUnit = runTestTT allTests
 
 main = runUnit
