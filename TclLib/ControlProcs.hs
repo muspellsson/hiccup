@@ -8,7 +8,7 @@ import qualified TclObj as T
 import TclObj ((.==))
 import Util
 
-controlProcs = makeProcMap $
+controlProcs = makeCmdMap $
   [("while", procWhile), ("if", procIf), ("for", procFor),
    ("foreach", procForEach), ("switch", procSwitch)]
 

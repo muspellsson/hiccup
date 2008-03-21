@@ -8,8 +8,8 @@ module Common (RetVal, TclM
        ,runCheckResult
        ,withLocalScope
        ,withNS
-       ,makeProcMap
-       ,mergeProcMaps
+       ,makeCmdMap
+       ,mergeCmdMaps
        ,getProc
        ,getProcNS
        ,regProc
@@ -87,7 +87,7 @@ checkpoint str f = f `catchError` handle
 
 data Namespace = TclNS {
          nsName :: BString,
-         nsProcs :: ProcMap,
+         nsProcs :: CmdMap,
          nsFrame :: FrameRef,
          nsExport :: [BString],
          nsParent :: Maybe NSRef,
@@ -119,9 +119,9 @@ data TclProcT = TclProcT {
                    procFn :: TclCmd }
 
 type ProcKey = BString
-data ProcMap = ProcMap { 
+data CmdMap = CmdMap { 
       cmdMapEpoch :: !Int,
-      unProcMap :: !(Map.Map ProcKey TclProcT) 
+      unCmdMap :: !(Map.Map ProcKey TclProcT) 
   } 
 
 type TclArray = Map.Map BString T.TclObj
@@ -150,12 +150,12 @@ mkProcAlias nsr pn = do
   
 globalNS fr = do 
   return $ TclNS { nsName = nsSep, 
-                   nsProcs = emptyProcMap, nsFrame = fr, 
+                   nsProcs = emptyCmdMap, nsFrame = fr, 
                    nsExport = [],
                    nsParent = Nothing, nsChildren = Map.empty }
 
-makeProcMap :: [(String,TclCmd)] -> ProcMap
-makeProcMap = ProcMap 0 . Map.fromList . map toTclProcT . mapFst pack
+makeCmdMap :: [(String,TclCmd)] -> CmdMap
+makeCmdMap = CmdMap 0 . Map.fromList . map toTclProcT . mapFst pack
 
 toTclProcT (n,v) = (n, TclProcT n errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
@@ -169,15 +169,15 @@ setErrorInfo s = do
   glFr <- getGlobalNS >>= getNSFrame
   varSet' (VarName (pack "errorInfo") Nothing) (T.mkTclStr s) glFr
 
-mergeProcMaps :: [ProcMap] -> ProcMap
-mergeProcMaps = ProcMap 0 . Map.unions . map unProcMap
+mergeCmdMaps :: [CmdMap] -> CmdMap
+mergeCmdMaps = CmdMap 0 . Map.unions . map unCmdMap
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
 
-makeState :: [(BString,T.TclObj)] -> ProcMap -> IO TclState
+makeState :: [(BString,T.TclObj)] -> CmdMap -> IO TclState
 makeState = makeState' baseChans
 
-makeState' :: ChanMap -> [(BString,T.TclObj)] -> ProcMap -> IO TclState
+makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdMap -> IO TclState
 makeState' chans vlist procs = do 
     fr <- createFrame (makeVarMap vlist)
     gns <- globalNS fr
@@ -191,8 +191,8 @@ makeState' chans vlist procs = do
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsProcMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsProcs v)
-{-# INLINE getNsProcMap #-}
+getNsCmdMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsProcs v)
+{-# INLINE getNsCmdMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
 {-# INLINE putStack  #-}
@@ -217,7 +217,7 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getCurrNS >>= getNsProcMap >>= return . Map.keys . unProcMap
+commandNames = getCurrNS >>= getNsCmdMap >>= return . Map.keys . unCmdMap
 
 
 
@@ -263,12 +263,12 @@ getProcNS (NSQual nst n) = do
 
 getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclProcT)
 getProcNorm !i !nsr = do
-  currpm <- getNsProcMap nsr
+  currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
 {-# INLINE getProcNorm #-}
 
-pmLookup :: ProcKey -> ProcMap -> Maybe TclProcT
-pmLookup !i !m = Map.lookup i (unProcMap m)
+pmLookup :: ProcKey -> CmdMap -> Maybe TclProcT
+pmLookup !i !m = Map.lookup i (unCmdMap m)
 {-# INLINE pmLookup #-}
 
 rmProc name = rmProcNS (parseProc name)
@@ -517,7 +517,7 @@ importNS force name = do
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
-               let pnames = Map.keys (unProcMap (nsProcs ns))
+               let pnames = Map.keys (unCmdMap (nsProcs ns))
                let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
                return (globMatches pat filt)
 
@@ -547,7 +547,7 @@ mkEmptyNS name parent = do
     let sep = if pname == nsSep then B.empty else nsSep
     let fullname = B.concat [pname, sep, name]
     new <- newIORef $ TclNS { nsName = fullname, 
-                              nsProcs = emptyProcMap, nsFrame = emptyFr, 
+                              nsProcs = emptyCmdMap, nsFrame = emptyFr, 
                               nsExport = [],
                               nsParent = Just parent, nsChildren = Map.empty }
     addChildNS parent name new
@@ -631,32 +631,32 @@ insertVar fr k v = changeVars fr (Map.insert k v)
 {-# INLINE insertVar #-}
 
 changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = update (nsProcs f) }))
- where update (ProcMap e m) = ProcMap (e+1) (fun m)
+ where update (CmdMap e m) = CmdMap (e+1) (fun m)
 
 makeEnsemble name subs = top
   where top args = case args of
-                   (x:xs) -> case Map.lookup (T.asBStr x) (unProcMap subMap) of
+                   (x:xs) -> case Map.lookup (T.asBStr x) (unCmdMap subMap) of
                               Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " 
 			                             ++ commaList "or" (map unpack (procMapNames subMap))
                               Just f  -> (procFn f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
-        subMap = makeProcMap subs
-        procMapNames = map procName . Map.elems . unProcMap
+        subMap = makeCmdMap subs
+        procMapNames = map procName . Map.elems . unCmdMap
 
-emptyProcMap = ProcMap 0 Map.empty
+emptyCmdMap = CmdMap 0 Map.empty
 emptyVarMap = Map.empty
 
 -- # TESTS # --
 
 runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
 runCheckResult t v =
-  do st <- makeState' Map.empty [] emptyProcMap
+  do st <- makeState' Map.empty [] emptyCmdMap
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
 errWithEnv :: TclM a -> IO (Either Err a)
 errWithEnv t =
-    do st <- makeState' Map.empty [] emptyProcMap
+    do st <- makeState' Map.empty [] emptyCmdMap
        retv <- liftM fst (runTclM t st)
        return retv
 
@@ -666,7 +666,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
   evalWithEnv t =
-    do st <- makeState' Map.empty [] emptyProcMap
+    do st <- makeState' Map.empty [] emptyCmdMap
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 

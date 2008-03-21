@@ -9,7 +9,7 @@ import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
 
-listProcs = makeProcMap $
+listProcs = makeCmdMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), 
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),

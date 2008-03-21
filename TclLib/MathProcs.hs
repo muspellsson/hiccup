@@ -16,7 +16,7 @@ import qualified TclObj as T
 import Control.Monad
 import System.Random
 
-mathProcs = makeProcMap $
+mathProcs = makeCmdMap $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 

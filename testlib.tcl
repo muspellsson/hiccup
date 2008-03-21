@@ -122,5 +122,5 @@ proc finalize { items { code {} } } {
 }
 
 proc not v {
-  if { == 1 $v } { return 0 } else { return 1 }
+  ! $v
 }

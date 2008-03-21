@@ -6,7 +6,7 @@ import Core (evalTcl)
 import VarName
 import qualified TclObj as T
 
-nsProcs = makeProcMap [("namespace", procNamespace), ("variable", procVariable)]
+nsProcs = makeCmdMap [("namespace", procNamespace), ("variable", procVariable)]
 
 procNamespace :: [T.TclObj] -> TclM RetVal
 procNamespace = makeEnsemble "namespace" [

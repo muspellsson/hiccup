@@ -11,7 +11,7 @@ import ExprParse
 import Data.List (intersperse)
 import qualified TclObj as T
 
-utilProcs = makeProcMap [
+utilProcs = makeCmdMap [
    ("time", procTime),
    ("incr", procIncr), ("expr", procExpr), 
    ("after", procAfter), ("update", procUpdate)]

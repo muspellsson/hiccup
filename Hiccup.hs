@@ -21,14 +21,14 @@ import TclLib.UtilProcs
 
 import Test.HUnit 
 
-coreProcs = makeProcMap $
+coreProcs = makeCmdMap $
  [("proc",procProc),("set",procSet),("upvar",procUpVar),
   ("rename", procRename),("uplevel", procUpLevel), ("unset", procUnset),("eval", procEval),
   ("return",procReturn),("break",procRetv EBreak),("catch",procCatch),
   ("continue",procRetv EContinue),("error", procError), ("info", procInfo), ("global", procGlobal)]
 
 
-baseProcs = mergeProcMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
+baseProcs = mergeCmdMaps [coreProcs, controlProcs, nsProcs, mathProcs, 
                            ioProcs, listProcs, arrayProcs, stringProcs, utilProcs]
 
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
