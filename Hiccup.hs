@@ -122,7 +122,7 @@ info_body args = case args of
        [n] -> do p <- getProc (T.asBStr n)
                  case p of
                    Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
-                   Just p  -> treturn (procBody p)
+                   Just p  -> treturn (cmdBody p)
        _   -> argErr "info body"
 
 asTclList = return . T.mkTclList . map T.mkTclBStr

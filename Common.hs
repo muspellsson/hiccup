@@ -2,7 +2,7 @@
 module Common (RetVal, TclM
        ,TclState
        ,Err(..)
-       ,TclCmd,applyTo,procBody,getOrigin
+       ,TclCmd,applyTo,cmdBody,getOrigin
        ,runTclM
        ,makeState
        ,runCheckResult
@@ -108,15 +108,15 @@ type TclStack = [FrameRef]
 data TclState = TclState { 
     tclChans :: ChanMap, 
     tclEvents :: Evt.EventMgr T.TclObj,
-    tclStack :: TclStack, 
+    tclStack :: !TclStack, 
     tclGlobalNS :: !NSRef }
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 data TclCmdObj = TclCmdObj { 
-                   procName :: BString, 
-                   procBody :: BString,  
-                   procOrigNS :: Maybe BString,
-                   procFn :: TclCmd }
+                   cmdName :: BString, 
+                   cmdBody :: BString,  
+                   cmdOrigNS :: Maybe BString,
+                   cmdAction :: TclCmd }
 
 type ProcKey = BString
 data CmdMap = CmdMap { 
@@ -132,8 +132,8 @@ type VarMap = Map.Map BString TclVar
 getOrigin p = if nso == nsSep 
                   then return $ B.append nso pname 
                   else return $ B.concat [nso, nsSep, pname]
- where nso = maybe nsSep id (procOrigNS p)
-       pname = procName p
+ where nso = maybe nsSep id (cmdOrigNS p)
+       pname = cmdName p
 
 applyTo !(TclCmdObj _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
@@ -142,7 +142,7 @@ mkProcAlias nsr pn = do
     pr <- getProcNorm pn nsr
     case pr of
       Nothing -> fail "trying to import proc that doesn't exist"
-      Just p  -> return $ p { procFn = inner } 
+      Just p  -> return $ p { cmdAction = inner } 
  where inner args = do thep <- getProcNorm pn nsr
                        case thep of
                         Nothing -> tclErr "bad imported command. Yikes"
@@ -285,7 +285,7 @@ regProcNS nst k newProc = getNamespace nst >>= regInNS
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
                    changeProcs nsr (pmInsert (setOrigin fn newProc))
-  setOrigin fn x              = if procOrigNS x == Nothing then x { procOrigNS = Just fn } else x
+  setOrigin fn x              = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v
@@ -331,7 +331,7 @@ renameProc old new = do
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProc old
-                 unless (bsNull new) (regProc new (procBody pr) (procFn pr))
+                 unless (bsNull new) (regProc new (cmdBody pr) (cmdAction pr))
 
 varUnset :: BString -> TclM RetVal
 varUnset name = varUnsetNS (parseVarName name)
@@ -574,7 +574,7 @@ getNSFrame :: NSRef -> TclM FrameRef
 getNSFrame !nsref = nsref `refExtract` nsFrame 
 
 
-getCurrNS = getFrame >>= io . readIORef >>= \f -> return $! (frNS f)
+getCurrNS = getFrame >>= liftIO . readIORef >>= \f -> return $! (frNS f)
 {-# INLINE getCurrNS #-}
 
 getGlobalNS = gets tclGlobalNS
@@ -637,11 +637,11 @@ makeEnsemble name subs = top
   where top args = case args of
                    (x:xs) -> case Map.lookup (T.asBStr x) (unCmdMap subMap) of
                               Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " 
-			                             ++ commaList "or" (map unpack (procMapNames subMap))
-                              Just f  -> (procFn f) xs
+			                             ++ commaList "or" (map unpack (cmdMapNames subMap))
+                              Just f  -> (cmdAction f) xs
                    []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
         subMap = makeCmdMap subs
-        procMapNames = map procName . Map.elems . unCmdMap
+        cmdMapNames = map cmdName . Map.elems . unCmdMap
 
 emptyCmdMap = CmdMap 0 Map.empty
 emptyVarMap = Map.empty
