@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.MathProcs (mathProcs, plus, 
         minus,
-	      times,
-	      divide,
+        times,
+        divide,
         equals,
         notEquals,
         lessThan,
@@ -23,7 +23,8 @@ mathProcs = makeProcMap $
     ("==", procEql), ("!=", procNotEql),
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
     mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
-    ("rand", procRand), ("srand", procSrand)]
+    ("rand", procRand), ("srand", procSrand),
+    ("!", procNot)]
 
 mkcmd n f = (n,inner)
  where inner args = case args of
@@ -66,6 +67,10 @@ m2 f args = case args of
   _     -> if length args > 2 then tclErr "too many arguments to math function" 
                               else tclErr "too few arguments to math function"
 {-# INLINE m2 #-}
+
+procNot args = case args of
+  [x] -> return $! T.fromBool . not . T.asBool $ x
+  _   -> argErr "!"
 
 squarert x = do
     case T.asInt x of

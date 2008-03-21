@@ -162,6 +162,10 @@ test "bool test" {
   checkthat [expr { false && false }] == 0
   checkthat [expr { true && true }] == 1
   checkthat [expr { on || off }] == 1
+
+  checkthat [! true] == 0
+  checkthat [! false] == 1
+  checkthat [! [! [! true]]] == 0
 }
 
 test "test if, elseif, else" {
