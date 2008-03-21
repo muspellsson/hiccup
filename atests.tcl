@@ -138,6 +138,10 @@ test "math test" {
 
 test "expr fun parse" {
   checkthat [expr { sin(0.0) + 10 }] == 10.0
+
+  checkthat[expr { !(3 == 4) }]
+  checkthat[expr { !0 }]
+  checkthat[expr { !true }] == 0
 }
 
 test "double compare" {

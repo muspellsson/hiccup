@@ -25,7 +25,7 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 	  OpOr
   deriving (Show,Eq)
 
-data TExp = TOp !Op TExp TExp | TVar String | TFun String [TExp] | TVal T.TclObj deriving (Show,Eq)
+data TExp = TOp !Op TExp TExp | TNot TExp | TVar String | TFun String [TExp] | TVal T.TclObj deriving (Show,Eq)
 
 exprCompile :: (Monad m) => String -> m (Callback m -> m T.TclObj)
 exprCompile s = do v <- expr s
@@ -90,6 +90,7 @@ runExpr exp lu =
     (TOp OpStrNe a b) -> objap (sup T.strNe) a b
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
     (TOp OpOr a b) -> objap (procBool (||)) a b
+    (TNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
     (TVal v) -> return $! v
     (TVar n) -> lu (Left (pack n))
     (TFun fn al)  -> funapply lu fn al
@@ -119,11 +120,13 @@ table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
         ,[op1 '<' OpLt AssocLeft, op1 '>' OpGt AssocLeft]
 	,[op "&&" OpAnd AssocLeft, op "||" OpOr AssocLeft]
+	,[prefix '!' TNot]
      ]
    where
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc
      op1 s f assoc = Infix (do{ schar s; return (TOp f)}) assoc
      tryop s f assoc = Infix (do{ try(symbol s); return (TOp f)}) assoc
+     prefix c f = Prefix (do { schar c; return f})
 
 factor = nested <|> numval
          <|>  boolval <|> mystr <|> myvar <|> myfun <?> "term"
