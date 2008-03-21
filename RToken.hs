@@ -1,4 +1,4 @@
-module RToken (Cmd, toCmd, RToken(..), noInterp, rtokenTests ) where
+module RToken (Cmd, toCmd, RToken(..), noInterp, singleTok, rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
@@ -65,6 +65,7 @@ toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
   where handleProc (Lit v) = Left (parseProc v)
         handleProc xx      = Right xx
 
+singleTok b = [toCmd (Word b,[])]
 
 rtokenTests = TestList [compTests, compTokenTests] where
   compTests = TestList [ 

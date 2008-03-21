@@ -41,6 +41,7 @@ import Test.HUnit
 
 type Parsed = [Cmd]
 data TclObj = TclInt !Int BString |
+              TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
@@ -76,10 +77,12 @@ mkTclInt !i = TclInt i bsval
 {-# INLINE mkTclInt #-}
 
 mkTclDouble :: Double -> TclObj
-mkTclDouble !d = mkTclStr (show d)
+mkTclDouble !d = TclDouble d bsval
+ where bsval = pack (show d)
 
 empty = TclBStr BS.empty Nothing (Left "bad parse")
 isEmpty (TclInt _ _) = False
+isEmpty (TclDouble _ _) = False
 isEmpty v = BS.null (asBStr v)
 
 
@@ -91,7 +94,6 @@ fromBool !b = if b then tclTrue else tclFalse
 trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
 
 class ITObj o where
-  asStr :: o -> String
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
@@ -117,35 +119,38 @@ instance ITObj BS.ByteString where
 asList :: (Monad m) => TclObj -> m [TclObj]
 asList o = liftM F.toList (asSeq o)
 
-instance ITObj TclObj where
-  asStr (TclInt _ b)     = unpack b
-  asStr (TclBStr bs _ _) = unpack bs
-  asStr (TclList _ bs)   = unpack bs
+asStr o = unpack (asBStr o)
 
+instance ITObj TclObj where
   asBool (TclList _ bs) = bs `elem` trueValues
   asBool (TclInt i _)     = i /= 0
+  asBool (TclDouble d _)     = d /= 0.0
   asBool (TclBStr bs _ _) = bs `elem` trueValues
 
   asInt (TclInt i _) = return i
+  asInt (TclDouble _ b) = fail $ "expected integer, got " ++ show b
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
   asInt (TclList _ v)         = bstrAsInt v
 
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
+  asBStr (TclDouble _ b) = b
   asBStr (TclList _ b) = b
   {-# INLINE asBStr #-}
 
-  asSeq i@(TclInt _ _) = return (S.singleton i)
   asSeq (TclBStr s _ _) = bstrAsSeq s >>= return . fmap mkTclBStr
   asSeq (TclList l _)   = return l
+  asSeq v               = return (S.singleton v)
 
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
-  asParsed (TclInt _ _)  = fail "Can't parse an int value"
+  asParsed (TclInt _ b) = return (singleTok b)
+  asParsed (TclDouble _ b)  = return (singleTok b)
   asParsed (TclList _ s) = asParsed (mkTclBStr s)
 
 asDouble :: (Monad m) => TclObj -> m Double
+asDouble (TclDouble d _) = return $! d
 asDouble obj = do
   case asInt obj of 
     Just i  -> return $! (fromIntegral i)

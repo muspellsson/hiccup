@@ -103,7 +103,14 @@ procBool f a b = do
    return $! T.fromBool (ab `f` bb)
 
 pexpr :: Parser TExp
-pexpr   = many space >> buildExpressionParser table factor
+pexpr   = do 
+    many space 
+    res <- myexpr
+    many space
+    eof
+    return res
+
+myexpr = buildExpressionParser table factor
 
 table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
         ,[op1 '+' (OpPlus) AssocLeft, op1 '-' (OpMinus) AssocLeft] 
@@ -118,11 +125,13 @@ table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
      op1 s f assoc = Infix (do{ schar s; return (TOp f)}) assoc
      tryop s f assoc = Infix (do{ try(symbol s); return (TOp f)}) assoc
 
-factor = do schar '('
-            x <- pexpr
-            schar ')'
-            return x
-         <|> numval <|> boolval <|> mystr <|> myvar <|> myfun  <?> "term"
+factor = nested <|> numval
+         <|>  boolval <|> mystr <|> myvar <|> myfun <?> "term"
+ where nested = do 
+       schar '('
+       x <- myexpr
+       schar ')'
+       return x
             
 numval = do iorf <- intOrFloat 
             return $ case iorf of
@@ -144,9 +153,9 @@ myvar = do char '$'
         <?> "variable"
 
 myfun = do s <- identifier
-           char '('
-           inner <- pexpr `sepBy` (char ',')
-           char ')'
+           schar '('
+           inner <- myexpr `sepBy` (char ',')
+           schar ')'
            return $ TFun s inner
 
 
@@ -182,7 +191,7 @@ varTests = TestList [
  
 tInt i = TVal (T.mkTclInt i)
 tStr s = TVal (T.mkTclStr s)
-tFloat f = TVal (T.mkTclStr (show f))
+tFloat f = TVal (T.mkTclDouble f)
 
 exprTests = TestList 
     [ "expr1" ~: (tInt 3) ?=? (pexpr, "3")
@@ -207,6 +216,7 @@ exprTests = TestList
      ,"fun3" ~: (TFun "rand" []) ?=? (pexpr, "rand()")
      ,"and expr" ~: ((tInt 1) .&& (tInt 2)) ?=? (pexpr, "1 && 2")
      ,"or expr" ~: (((tInt 1) + (tInt 1)) .|| (tInt 2)) ?=? (pexpr, "(1+1) || 2")
+     ,"sin +" ~: ((TFun "sin" [tInt 0]) + (tInt 10)) ?=? (pexpr, "sin(0) + 10")
  ]
 
 mint v = T.mkTclInt v

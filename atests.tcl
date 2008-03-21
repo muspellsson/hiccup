@@ -136,6 +136,10 @@ test "math test" {
   checkthat [* 1 1 1 1 1 1 2] == 2
 }
 
+test "expr fun parse" {
+  checkthat [expr { sin(0.0) + 10 }] == 10.0
+}
+
 test "double compare" {
   checkthat [< 0.3 0.9] 
   checkthat [<= 0.3 0.9] 
@@ -945,6 +949,17 @@ test "globally qualified proc in ns" {
 
 test "list eval" {
   checkthat [eval [list * 3 5]] == 15
+}
+
+test "odd procs" {
+  set one [+ 1 0]
+  proc $one {} { return ONE }
+  checkthat [eval $one] eq ONE
+
+  set ffff [+ 55 0.55]
+  proc $ffff {} { return FFFF }
+  checkthat [eval $ffff] eq FFFF
+  finalize { proc 1 proc 55.55 }
 }
 
 run_tests
