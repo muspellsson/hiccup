@@ -13,7 +13,6 @@ module TclObj (
  ,isEmpty
  ,tclTrue
  ,tclFalse
- ,ITObj
  ,asStr
  ,asBool
  ,asInt
@@ -56,11 +55,6 @@ fromBlock s p = TclBStr s (maybeInt s) p
 maybeInt s = case BS.readInt (dropWhite s) of
                 Nothing    -> Nothing
                 Just (i,r) -> if BS.null r || BS.null (dropWhite r) then Just i else Nothing
-
-tryParsed :: BString -> Either String Parsed
-tryParsed s = case P.runParse s of
-                Nothing -> Left $ "parse failed: " ++ show s
-                Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
 strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
 strEq o1            o2            = asBStr o1 == asBStr o2 

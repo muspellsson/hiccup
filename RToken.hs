@@ -1,4 +1,4 @@
-module RToken (Cmd, toCmd, RToken(..), noInterp, singleTok, Parsed, rtokenTests ) where
+module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parsed, rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
@@ -60,6 +60,16 @@ compCmd c = CmdTok (toCmd c)
 
 class Parseable a where
   asParsed :: (Monad m) => a -> m Parsed
+
+instance Parseable BString where
+  asParsed s = case tryParsed s of
+                  Left s -> fail s
+                  Right p -> return p
+
+tryParsed :: BString -> Either String Parsed
+tryParsed s = case runParse s of
+                Nothing -> Left $ "parse failed: " ++ show s
+                Just (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
 fromParsed Nothing       = Left "parse failed"
 fromParsed (Just (tl,v)) = if B.null v then Right (map toCmd tl) else Left ("incomplete parse: " ++ show v)
