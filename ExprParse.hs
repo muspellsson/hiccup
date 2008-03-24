@@ -106,7 +106,7 @@ procBool f a b = do
 pexpr :: Parser TExp
 pexpr   = do 
     many space 
-    res <- myexpr
+    res <- option (TVal T.empty) myexpr
     many space
     eof
     return res

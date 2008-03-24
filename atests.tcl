@@ -142,6 +142,8 @@ test "expr fun parse" {
   checkthat[expr { !(3 == 4) }]
   checkthat[expr { !0 }]
   checkthat[expr { !true }] == 0
+
+  assert_noerr { expr {} }
 }
 
 test "double compare" {
