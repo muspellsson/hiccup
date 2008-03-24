@@ -1,4 +1,4 @@
-module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parsed, rtokenTests ) where
+module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, asParsed, rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
@@ -61,7 +61,7 @@ compCmd c = CmdTok (toCmd c)
 class Parseable a where
   asParsed :: (Monad m) => a -> m Parsed
 
-instance Parseable BString where
+instance Parseable B.ByteString where
   asParsed s = case tryParsed s of
                   Left s -> fail s
                   Right p -> return p

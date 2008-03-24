@@ -11,7 +11,7 @@ import VarName (arrName, NSQual(..))
 import Test.HUnit
 
 evalTcl :: T.TclObj -> TclM RetVal
-evalTcl s = runCmds =<< T.asParsed s
+evalTcl s = runCmds =<< asParsed s
 {-# INLINE evalTcl #-}
 
 runCmds [x]    = runCmd x
@@ -20,7 +20,7 @@ runCmds []     = ret
 
 
 getSubst s = do 
-    case T.asParsed s of
+    case asParsed s of
       Just cmds -> do
          let toks = concatMap uncmd cmds
          if all noInterp toks 
@@ -79,7 +79,7 @@ doCall !pn !mproc args = do
 
 doCond :: T.TclObj -> TclM Bool
 doCond str = do
-      p <- T.asParsed str
+      p <- asParsed str
       case p of
         [x]      -> do r <- runCmd x
                        return $! T.asBool r

@@ -88,7 +88,7 @@ class ITObj o where
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
-  asParsed :: (Monad m) => o -> m Parsed
+ -- asParsed :: (Monad m) => o -> m Parsed
   asSeq   :: (Monad m) => o -> m (S.Seq o)
 
 bstrAsInt bs = case BS.readInt bs of
@@ -134,11 +134,13 @@ instance ITObj TclObj where
   asSeq (TclList l _)   = return l
   asSeq v               = return (S.singleton v)
 
+instance Parseable TclObj where
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
   asParsed (TclInt _ b) = return (singleTok b)
   asParsed (TclDouble _ b)  = return (singleTok b)
-  asParsed (TclList _ s) = asParsed (mkTclBStr s)
+  asParsed (TclList _ s) = asParsed s
+  {-# INLINE asParsed #-}
 
 asDouble :: (Monad m) => TclObj -> m Double
 asDouble (TclDouble d _) = return $! d
