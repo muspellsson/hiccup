@@ -1,10 +1,11 @@
-module RToken (Cmd, toCmd, RToken(..), noInterp, singleTok, rtokenTests ) where
+module RToken (Cmd, toCmd, RToken(..), noInterp, singleTok, Parsed, rtokenTests ) where
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
 import VarName
 import Test.HUnit
 
+type Parsed = [Cmd]
 type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok Cmd | ExpTok RToken
@@ -56,6 +57,9 @@ compToken (Expand t)             = ExpTok (compToken t)
 compToken (Subcommand c)         = compCmd c
 
 compCmd c = CmdTok (toCmd c)
+
+class Parseable a where
+  asParsed :: (Monad m) => a -> m Parsed
 
 fromParsed Nothing       = Left "parse failed"
 fromParsed (Just (tl,v)) = if B.null v then Right (map toCmd tl) else Left ("incomplete parse: " ++ show v)

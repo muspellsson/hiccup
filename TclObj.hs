@@ -39,14 +39,13 @@ import qualified Data.Foldable as F
 
 import Test.HUnit
 
-type Parsed = [Cmd]
 data TclObj = TclInt !Int BString |
               TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
-mkTclBStr s = mkTclBStrP s (P.runParse s)
+mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s)
 {-# INLINE mkTclBStr #-}
 
 mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
@@ -54,16 +53,14 @@ mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
 
 fromBlock s p = TclBStr s (maybeInt s) p
 
-maybeInt s = case BS.readInt (P.dropWhite s) of
+maybeInt s = case BS.readInt (dropWhite s) of
                 Nothing    -> Nothing
-                Just (i,r) -> if BS.null r || BS.null (P.dropWhite r) then Just i else Nothing
+                Just (i,r) -> if BS.null r || BS.null (dropWhite r) then Just i else Nothing
 
-mkTclBStrP s res = TclBStr s (maybeInt s) (resultToEither res s)
-
-resultToEither :: P.Result -> BString -> Either String Parsed
-resultToEither res s = case res of
-                        Nothing -> Left $ "parse failed: " ++ show s
-                        Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
+tryParsed :: BString -> Either String Parsed
+tryParsed s = case P.runParse s of
+                Nothing -> Left $ "parse failed: " ++ show s
+                Just (r,rs) -> if BS.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 
 strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
 strEq o1            o2            = asBStr o1 == asBStr o2 
@@ -91,7 +88,7 @@ tclFalse = mkTclInt 0
 
 fromBool !b = if b then tclTrue else tclFalse
 
-trim = BS.reverse . P.dropWhite . BS.reverse . P.dropWhite
+trim = BS.reverse . dropWhite . BS.reverse . dropWhite
 
 class ITObj o where
   asBool :: o -> Bool

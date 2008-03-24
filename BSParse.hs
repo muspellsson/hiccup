@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module BSParse ( runParse, doInterp, TclWord(..), dropWhite, parseList
+module BSParse ( runParse, doInterp, TclWord(..), parseList
             ,Result
             ,TokCmd
             ,bsParseTests
@@ -174,8 +174,6 @@ parseSub s = do
         (ph:pt) -> return ((ph,pt), aft)
 
 eatComment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
-
-dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
 
 {-
 wordChar ' ' = False
