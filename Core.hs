@@ -31,7 +31,7 @@ getSubst s = do
        uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
 
 subst s = getSubst s >>= doeval
-  where doeval (Right t) = evalRTokens t [] >>= return . T.asBStr . T.mkTclList
+  where doeval (Right t) = evalRTokens t [] >>= return . B.concat . map T.asBStr
         doeval (Left s) = return s
 
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj

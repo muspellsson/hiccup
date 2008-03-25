@@ -88,7 +88,6 @@ class ITObj o where
   asBool :: o -> Bool
   asInt :: (Monad m) => o -> m Int
   asBStr :: o -> BString
- -- asParsed :: (Monad m) => o -> m Parsed
   asSeq   :: (Monad m) => o -> m (S.Seq o)
 
 bstrAsInt bs = case BS.readInt bs of

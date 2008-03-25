@@ -143,7 +143,8 @@ test "expr fun parse" {
   checkthat[expr { !0 }]
   checkthat[expr { !true }] == 0
 
-  assert_noerr { expr {} }
+  assert_err { expr {} }
+  assert_noerr { expr {[set x ""]} }
 }
 
 test "double compare" {
