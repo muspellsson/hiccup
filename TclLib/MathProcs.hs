@@ -19,7 +19,7 @@ import Test.HUnit
 
 mathProcs = makeCmdMap $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
-    ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs), ("double", onearg id),
+    ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
     ("==", procEql), ("!=", procNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
@@ -51,6 +51,11 @@ onearg f = m1 inner
             d <- T.asDouble x
 	    return (T.mkTclDouble (f d))
 {-# INLINE onearg #-}
+
+absfun x = case T.asInt x of
+            Nothing -> do d <- T.asDouble x
+                          return (T.mkTclDouble (abs d))
+            Just i  -> return (T.mkTclInt (abs i))
 
 m1 f args = case args of
   [a] -> f a

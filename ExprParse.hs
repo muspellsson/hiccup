@@ -135,11 +135,19 @@ factor = nested <|> numval
        x <- myexpr
        schar ')'
        return x
+
+neg = (char '-' >> return True)
+     <|> (char '+' >> return False)
+     <|> return False
             
-numval = do iorf <- intOrFloat 
+numval = do n <- neg
+            let adj v = if n then negate v else v
+            iorf <- intOrFloat 
             return $ case iorf of
-                      Left  i -> tInt (fromIntegral i)
-                      Right f -> tFloat f
+                      Left  i -> tInt (adj (fromIntegral i))
+                      Right f -> tFloat (adj f)
+
+
 mystr = do s <- stringLit
            return $ tStr s
         <?> "string"
@@ -175,7 +183,7 @@ isBad x = ptest Nothing x
 aNumberTests = TestList
      ["ANumber1" ~: (tInt 3) ?=? (numval, "3"),
       "double" ~: (tFloat 1.25) ?=? (numval, "1.25"),
-      --"ANumber2" ~: (tInt (-1)) ?=? (myint, "-1"),
+      "ANumber2" ~: (tInt (-1)) ?=? (numval, "-1"),
       "ANumber3" ~: isBad (numval, "Button")]
 
 stringTests = TestList [

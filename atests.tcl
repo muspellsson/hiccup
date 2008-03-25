@@ -157,6 +157,11 @@ test "double compare" {
   checkthat [expr { double(3) }] == 3.0
 }
 
+test "abs mathfunc" {
+  checkthat [expr { abs(-3) }] eq 3
+  checkthat [expr { abs(3) }] eq 3
+}
+
 test "bool test" {
   checkthat [expr { true || false }] == 1
   checkthat [expr { false || true }] == 1
