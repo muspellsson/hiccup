@@ -50,7 +50,14 @@ string_index args = case args of
                                   else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
  where toInd s i = (T.asInt i) `orElse` tryEnd s i
-       tryEnd s i = if i .== "end" then return ((B.length s) - 1) else tclErr "bad index"
+       tryEnd s i = if i .== "end" 
+                       then return ((B.length s) - 1) 
+                       else do let (ip,is) = B.splitAt (length "end-") (T.asBStr i)
+                               if ip == pack "end-"
+                                  then case B.readInt is of
+                                            Just (iv,_) -> return ((B.length s) - (1+iv))
+                                            _           -> tclErr "bad index"
+                                  else tclErr "bad index"
 
 procAppend args = case args of
             (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty

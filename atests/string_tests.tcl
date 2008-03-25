@@ -26,6 +26,9 @@ test "string index" {
 
   checkthat [string index "" end] eq ""
   checkthat [string index "hi" 10] eq ""
+
+  checkthat [string index "ABCDE" end-2] eq "C"
+  checkthat [string index "ABCDE" end-0] eq "E"
 }
 
 test "string match" {
