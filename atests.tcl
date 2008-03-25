@@ -153,6 +153,8 @@ test "double compare" {
   checkthat [<= 0.9 0.3] == 0 
   checkthat [> 1.9 1] 
   checkthat [== 3.8 3.8]
+
+  checkthat [expr { double(3) }] == 3.0
 }
 
 test "bool test" {

@@ -19,9 +19,9 @@ import Test.HUnit
 
 mathProcs = makeCmdMap $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
-    ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs),
+    ("sin", onearg sin), ("cos", onearg cos), ("abs", onearg abs), ("double", onearg id),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
-    ("==", procEql), ("!=", procNotEql),
+    ("==", procEql), ("!=", procNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
     mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
     ("rand", procRand), ("srand", procSrand),
