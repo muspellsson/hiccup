@@ -138,12 +138,9 @@ chain lst !rs = inner lst [] rs
                                  inner fs (s:acc) r2
  
 parseLit :: BString -> Parser BString
-parseLit !w s = do 
-      let wlen = B.length w
-      let slen = B.length s
-      if wlen <= slen && w == B.take wlen s
-         then return (w, B.drop wlen s)
-         else fail "didn't match"
+parseLit !w s = if w `B.isPrefixOf` s 
+                    then return (w, B.drop (B.length w) s) 
+                    else fail "didn't match"
 
 eatChar :: Char -> BString -> Maybe BString
 eatChar c s = parseChar c s >>= return . snd

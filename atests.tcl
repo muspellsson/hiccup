@@ -563,6 +563,8 @@ test "default proc args" {
   checkthat [withargs 1 3] == 4
   checkthat [withargs 1 3 1] == 5
   checkthat [withargs 1 3 1 1 1 8 1] == 9
+
+  finalize { proc plus proc plus2 proc plus3 proc weirdorder proc withargs }
 }
 
 test "lone subcommand" {

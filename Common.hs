@@ -285,7 +285,7 @@ regProcNS nst k newProc = getNamespace nst >>= regInNS
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
                    changeProcs nsr (pmInsert (setOrigin fn newProc))
-  setOrigin fn x              = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
+  setOrigin fn x = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
 
 varSet :: BString -> T.TclObj -> TclM RetVal
 varSet !n v = varSetNS (parseVarName n) v

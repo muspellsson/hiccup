@@ -16,6 +16,7 @@ lexer = P.makeTokenParser emptyDef
 
 intOrFloat = P.naturalOrFloat lexer
 symbol  = P.symbol lexer
+parens = P.parens lexer
 schar c = char c >> P.whiteSpace lexer
 identifier  = P.identifier lexer
 stringLit = P.stringLiteral lexer
@@ -130,11 +131,7 @@ table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
 
 factor = nested <|> numval
          <|>  boolval <|> mystr <|> myvar <|> myfun <?> "term"
- where nested = do 
-       schar '('
-       x <- myexpr
-       schar ')'
-       return x
+ where nested = parens myexpr
 
 neg = (char '-' >> return True)
      <|> (char '+' >> return False)
@@ -164,9 +161,7 @@ myvar = do char '$'
         <?> "variable"
 
 myfun = do s <- identifier
-           schar '('
-           inner <- myexpr `sepBy` (char ',')
-           schar ')'
+           inner <- parens (myexpr `sepBy` (char ','))
            return $ TFun s inner
 
 
