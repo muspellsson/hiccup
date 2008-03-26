@@ -31,6 +31,11 @@ test "upvar" {
   set y 99 
   uptest2 y 3
   checkthat $y == 4
+
+  finalize { 
+    proc uptest 
+    proc uptest2 
+    proc inner }
 }
 
 test "info vars" {
@@ -65,6 +70,16 @@ test "info level" {
   checkthat [getlevel] == 2
 }
 
+test "info commands vs info procs" {
+  proc this_is_a_proc {} {}
+  checkthat [lsearch [info commands] this_is_a_proc] == -1
+  checkthat [lsearch [info commands] set] >= 0
+  checkthat [lsearch [info procs] this_is_a_proc] >= 0
+  checkthat [lsearch [info procs] set] == -1
+
+  finalize { proc this_is_a_proc }
+}
+
 test "upvar create" {
   proc xxx {} { upvar up local; set local 5 }
   checkthat [info exists up] == 0
@@ -75,6 +90,8 @@ test "upvar create" {
   checkthat [info exists up2] == 0
   xxx2
   checkthat [info exists up2] == 0
+
+  finalize { proc xxx proc xxx2 }
 }
 
 test "error on bad upvar level" {
@@ -97,6 +114,8 @@ test "unused args" {
   }
 
   checkthat [addem 5 "balloon"] == 10
+
+  finalize { proc addem }
 }
 
 test "incr test" {
@@ -293,6 +312,7 @@ test "foreach misc" {
   }
 
   checkthat [join2 $misc +] eq "1+2+3+4+5+6"
+  finalize { proc join2 }
 }
 
 test "for loop" {
@@ -411,9 +431,11 @@ test "global test" {
     checkthat $::otherthing  == 11
     checkthat [testglobal 2] == 12
     checkthat $::otherthing  == 122
+    finalize { proc modother proc testglobal }
 }
 unset whagganog
 unset otherthing
+
 
 
 
@@ -494,6 +516,8 @@ test "arg count check" {
  checkthat [blah2 1 2 3] == 4
  checkthat [blah2 1 2]   == 3
  checkthat [blah2 1 2 1 1 1] == 6
+
+ finalize { proc blah proc blah2 }
 }
 
 test "bad continue/break test" {
@@ -515,6 +539,7 @@ test "bad continue/break test" {
 
   assertNoErr { whee3 }
 
+  finalize { proc whee proc whee2 proc whee3 }
 }
 
 test "incomplete parse" {
@@ -888,6 +913,7 @@ test "upvar in uplevel 2" {
 test "procs declared in namespace global" {
   proc ::woot {} { return 4545 }
   checkthat [::woot] == 4545
+  finalize { proc woot }
 }
 
 test "procs declared in foo namespace" {
@@ -984,3 +1010,4 @@ test "odd procs" {
 }
 
 run_tests
+# puts "([llength [info procs]] lingering procs)"

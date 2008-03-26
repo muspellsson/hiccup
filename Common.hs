@@ -23,6 +23,7 @@ module Common (RetVal, TclM
        ,varUnsetNS
        ,renameProc
        ,getArray
+       ,getNsEpoch
        ,addChan
        ,removeChan
        ,getChan
@@ -51,6 +52,7 @@ module Common (RetVal, TclM
        ,importNS
        ,checkpoint
        ,commandNames
+       ,procNames
        ,commonTests
     ) where
 
@@ -114,6 +116,7 @@ data TclState = TclState {
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 data TclCmdObj = TclCmdObj { 
                    cmdName :: BString, 
+                   cmdIsProc :: Bool,
                    cmdBody :: BString,  
                    cmdOrigNS :: Maybe BString,
                    cmdAction :: TclCmd }
@@ -135,7 +138,7 @@ getOrigin p = if nso == nsSep
  where nso = maybe nsSep id (cmdOrigNS p)
        pname = cmdName p
 
-applyTo !(TclCmdObj _ _ _ !f) !args = f args
+applyTo !(TclCmdObj _ _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
@@ -157,7 +160,7 @@ globalNS fr = do
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
 makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
 
-toTclCmdObj (n,v) = (n, TclCmdObj n errStr Nothing v)
+toTclCmdObj (n,v) = (n, TclCmdObj n False errStr Nothing v)
  where errStr = pack $ show n ++ " isn't a procedure"
 
 tclErr :: String -> TclM a
@@ -199,7 +202,7 @@ putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = modify (\v -> v { tclStack = f (tclStack v) })
 {-# INLINE modStack #-}
-getFrame = do st <- getStack
+getFrame = do st <- gets tclStack
               case st of
                  (fr:_) -> return $! fr
                  _      -> tclErr "stack badness"
@@ -217,7 +220,9 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames = getCurrNS >>= getNsCmdMap >>= return . Map.keys . unCmdMap
+-- TODO: Refactor these.
+commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter (not . cmdIsProc) . Map.elems . unCmdMap
+procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . Map.elems . unCmdMap
 
 
 
@@ -249,6 +254,14 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 
 getProc !pname = getProcNS (parseProc pname)
 
+data NsEpoch = NsEpoch (Maybe NSRef) !Int deriving (Eq) 
+
+getNsEpoch nst = do
+  nsr <- getNamespace nst
+  cmEpoch <- liftM cmdMapEpoch (getNsCmdMap nsr)
+  return $! (NsEpoch (Just nsr) cmEpoch)
+ 
+  
 -- TODO: Special case for globals and locals when we're in the global NS?
 getProcNS (NSQual nst n) = do
   res <- (getNamespace nst >>= getProcNorm n) `ifFails` Nothing
@@ -273,18 +286,19 @@ pmLookup !i !m = Map.lookup i (unCmdMap m)
 
 rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
- where rmFromNS nsref = changeProcs nsref (Map.delete n) 
+ where rmFromNS nsref = io $ changeProcs nsref (Map.delete n) 
 
 
 regProc name body pr = 
     let (NSQual nst n) = parseProc name
-    in regProcNS nst n (TclCmdObj n body Nothing pr)
+    in regProcNS nst n (TclCmdObj n True body Nothing pr)
 
 regProcNS nst k newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
-                   changeProcs nsr (pmInsert (setOrigin fn newProc))
+                   io $ changeProcs nsr (pmInsert (setOrigin fn newProc))
+                   return ()
   setOrigin fn x = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
 
 varSet :: BString -> T.TclObj -> TclM RetVal
@@ -630,8 +644,17 @@ changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq`
 insertVar fr k v = changeVars fr (Map.insert k v)
 {-# INLINE insertVar #-}
 
-changeProcs nsr fun = io (modifyIORef nsr (\f -> f { nsProcs = update (nsProcs f) }))
+changeProcs nsr fun = do 
+           ns <- readIORef nsr 
+           modKids (\x -> changeProcs x id) ns
+           writeIORef nsr (updateNS ns)
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
+       updateNS ns = ns { nsProcs = update (nsProcs ns) }
+
+modKids f ns = let kidfun kr = do 
+                        kid <- readIORef kr
+                        when (nsParent kid /= Nothing) (f kr)
+              in mapM_ kidfun (Map.elems (nsChildren ns))
 
 makeEnsemble name subs = top
   where top args = case args of

@@ -82,6 +82,7 @@ procInfo = makeEnsemble "info" [
   matchp "globals" globalVars,
   matchp "vars" currentVars,
   matchp "commands" commandNames,
+  matchp "procs" procNames,
   noarg "level"    (liftM T.mkTclInt stackLevel),
   ("exists", info_exists),
   ("body", info_body)]
