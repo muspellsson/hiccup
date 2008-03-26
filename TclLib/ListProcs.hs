@@ -11,7 +11,7 @@ import Data.Sequence ((><))
 
 listProcs = makeCmdMap $
   [("list", procList),("lindex",procLindex),
-   ("llength",procLlength), ("lappend", procLappend), 
+   ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
    ("join", procJoin), ("concat", procConcat)]
 
@@ -70,6 +70,15 @@ procLappend args = case args of
                 \old -> do items <- T.asSeq old
                            return $ T.mkTclList' (items >< (S.fromList news))
         _        -> argErr "lappend"
+
+cmdLsearch args = case args of
+       [lsto,pat] -> do 
+              let p = T.asBStr pat
+              ilst <- liftM (zip [0..]) (T.asList lsto)
+              return $ T.mkTclInt $ findIt p ilst
+       _         -> argErr "lsearch"
+ where findIt _ [] = -1
+       findIt p ((i,e):xs) = if globMatch p (T.asBStr e) then i else findIt p xs
 
 data SortType = AsciiSort | IntSort deriving (Eq,Show)
 data SortFlags = SF { sortType :: SortType, sortReverse :: Bool, noCase :: Bool } deriving (Eq, Show)

@@ -127,3 +127,11 @@ test "concat" {
   checkthat [concat "a   b   c" { d e f }] eq "a   b   c d e f"
   checkthat [concat "a b {c " d " e} f"] eq "a b {c d e} f"
 }
+
+test "lsearch" {
+  set items [list A B C D E]
+  checkthat [lsearch $items X] == -1
+  checkthat [lsearch $items C] == 2
+
+  checkthat [lsearch [list AAA BBB CCC] A??] == 0
+}
