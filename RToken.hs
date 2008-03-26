@@ -10,7 +10,7 @@ type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok Cmd | ExpTok RToken
               | VarRef (NSQual VarName) | ArrRef (Maybe NSTag) !BString RToken 
-              | Block !BString (Either String [Cmd]) deriving (Eq,Show)
+              | Block !BString (Either String Parsed) deriving (Eq,Show)
 
 isEmpty (Lit x)    = B.null x
 isEmpty (CatLst l) = null l

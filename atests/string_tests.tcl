@@ -48,3 +48,13 @@ test "string compare" {
   checkthat [string compare "h" "hi"] == -1 
   checkthat [string compare "hi" "h"] == 1 
 }
+
+test "string range" {
+  checkthat [string range "ABCD" 1 2] eq "BC"
+  checkthat [string range "ABCD" 1 11] eq "BCD"
+  checkthat [string range "ABCD" -1 11] eq "ABCD"
+  checkthat [string range "ABCD" 0 0] eq "A"
+  checkthat [string range "ABCD" 1 0] eq ""
+  checkthat [string range "ABCD" end end] eq "D"
+  checkthat [string range "ABCD" end-1 end] eq "CD"
+}

@@ -16,7 +16,7 @@ procString = makeEnsemble "string" [
    ("tolower", string_Op "tolower" (B.map toLower)),
    ("toupper", string_Op "toupper" (B.map toUpper)),
    ("reverse", string_Op "reverse" B.reverse),
-   ("length", string_length),
+   ("length", string_length), ("range", string_range),
    ("match", string_match), ("compare", string_compare),
    ("index", string_index)
  ]
@@ -49,8 +49,10 @@ string_index args = case args of
                                   then ret 
                                   else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
- where toInd s i = (T.asInt i) `orElse` tryEnd s i
-       tryEnd s i = if i .== "end" 
+
+toInd :: BString -> T.TclObj -> TclM Int
+toInd s i = (T.asInt i) `orElse` tryEnd s i
+ where tryEnd s i = if i .== "end" 
                        then return ((B.length s) - 1) 
                        else do let (ip,is) = B.splitAt (length "end-") (T.asBStr i)
                                if ip == pack "end-"
@@ -58,6 +60,14 @@ string_index args = case args of
                                             Just (iv,_) -> return ((B.length s) - (1+iv))
                                             _           -> tclErr "bad index"
                                   else tclErr "bad index"
+
+string_range args = case args of
+   [s,i1,i2] -> do 
+       let str = T.asBStr s
+       ind1 <- toInd str i1
+       ind2 <- toInd str i2
+       treturn $ B.drop ind1 (B.take (ind2+1) str)
+   _ -> argErr "string range"
 
 procAppend args = case args of
             (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
