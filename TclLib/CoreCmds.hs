@@ -4,6 +4,7 @@ import Control.Monad.Error
 import Control.Monad (liftM)
 import Util
 import Core
+import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
 coreCmds = makeCmdMap $ [
@@ -42,8 +43,19 @@ procEval args = case args of
 
 procUpLevel args = case args of
               [p]    -> uplevel 1 (evalTcl p)
-              (si:p) -> T.asInt si >>= \i -> uplevel i (procEval p)
+              (si:p) -> getLevel si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
+ where getLevel l = do
+         let badlevel = tclErr $ "bad level " ++ show (T.asBStr l)
+         case T.asInt l of
+            Just i  -> return i
+            Nothing -> case B.uncons (T.asBStr l) of 
+                         Just ('#', r) -> case B.readInt r of
+                                            Just (i,r2) -> do
+                                                   lev <- stackLevel
+                                                   return (lev - i)
+                                            _ -> badlevel
+                         _ -> badlevel
 
 procCatch args = case args of
            [s]        -> (evalTcl s >> return T.tclFalse) `catchError` (retInt . retCodeToInt)

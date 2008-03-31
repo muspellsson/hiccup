@@ -22,32 +22,36 @@ type Result = PResult [TokCmd]
 type TokCmd = (TclWord, [TclWord])
 
 runParse :: Parser [TokCmd]
-runParse s = multi (mainparse . dropWhite) s >>= \(wds, rem) -> return (asCmds wds, rem)
+runParse = parseStatements `wrapWith` asCmds
+ where asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
-asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
+parseStatements :: Parser [[TclWord]]
+parseStatements = multi (parseStatement . dropWhite)
 
-mainparse :: Parser [TclWord]
-mainparse str = if B.null str
-                   then return ([], B.empty)
-                   else do
-                       h <- safeHead str
-                       case h of
-                        ';'  -> return ([], B.tail str)
-                        '\n' -> return ([], B.tail str)
-                        '#'  -> eatComment str
-                        _    -> parseArgs str
 
-parseArgs :: Parser [TclWord]
-parseArgs = multi (dispatch . dropWhite)
+parseStatement :: Parser [TclWord]
+parseStatement str = if B.null str
+                       then return ([], B.empty)
+                       else do
+                         h <- safeHead str
+                         case h of
+                          ';'  -> return ([], B.tail str)
+                          '\n' -> return ([], B.tail str)
+                          '#'  -> eatComment str
+                          _    -> parseTokens str
 
-dispatch :: Parser TclWord
-dispatch str = do h <- safeHead str
-                  case h of
-                   '{' -> (parseExpand `orElse` parseNoSub) str
-                   '[' -> (parseSub `wrapWith` Subcommand) str
-                   '"' -> parseStr str
-                   '\\' -> handleEsc str
-                   _   -> wordToken str
+parseTokens :: Parser [TclWord]
+parseTokens = multi (parseToken . dropWhite)
+
+parseToken :: Parser TclWord
+parseToken str = do 
+   h <- safeHead str
+   case h of
+     '{'  -> (parseExpand `orElse` parseNoSub) str
+     '['  -> (parseSub `wrapWith` Subcommand) str
+     '"'  -> parseStr str
+     '\\' -> handleEsc str
+     _    -> wordToken str
 
 handleEsc :: Parser TclWord
 handleEsc str = do 
@@ -55,7 +59,7 @@ handleEsc str = do
   h <- safeHead s
   let rest = B.drop 1 s
   case h of
-     '\n' -> (dispatch . dropWhite) rest
+     '\n' -> (parseToken . dropWhite) rest
      v    -> case wordTokenRaw rest of
                 Just (w, r) -> return (Word (B.concat ["\\", B.singleton v, w]), r)
                 Nothing     -> return (Word (B.cons '\\' (B.singleton v)), rest)
@@ -122,6 +126,7 @@ getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
 
 parseVarTerm :: Parser BString
 parseVarTerm = getvar `orElse` brackVar
+ where getvar = getPred wordChar
 
 parseInd str
   | B.null str || B.head str /= '(' = fail "no indexer"
@@ -146,6 +151,16 @@ eatChar :: Char -> BString -> Maybe BString
 eatChar c s = parseChar c s >>= return . snd
 {-# INLINE eatChar #-}
 
+parseInt :: Parser Int 
+parseInt s = B.readInt s 
+
+parseDouble :: Parser Double
+parseDouble s = do
+    (ds, r) <- chain [parseNums, parseChar '.', parseNums] s
+    return (read (B.unpack ds), r)
+ where parseNums = getPred (inRange ('0','9'))
+         
+
 parseChar :: Char -> Parser BString
 parseChar !c s = case B.uncons s of
                    Nothing    -> failStr "empty string"
@@ -154,6 +169,7 @@ parseChar !c s = case B.uncons s of
  where failStr what = fail $ "didn't match, expected " ++ show c ++ ", got " ++ what
 {-# INLINE parseChar #-}
 
+multi :: Parser t -> Parser [t]
 multi p s = do (w,r) <- p s
                if B.null r
                  then return ([w],r)
@@ -164,7 +180,7 @@ multi p s = do (w,r) <- p s
 
 parseSub :: Parser TokCmd
 parseSub s = do 
-      (p,r) <- eatChar '[' s >>= parseArgs
+      (p,r) <- eatChar '[' s >>= parseTokens
       aft <- eatChar ']' (dropWhite r)
       case p of
         [] -> fail "empty subcommand"
@@ -188,9 +204,8 @@ getPred p s = if B.null w then fail "no match" else return $! (w,n)
  where (w,n) = B.span p s
 
 getWord = getPred p
- where p c = wordChar c || (c `B.elem` "+.-=<>*()$/,:^%!&|?")
+ where p c = wordChar c || (c `B.elem` "+.-=<>*()$/,:^%!&#|?")
 
-getvar = getPred wordChar
 
 tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
 
@@ -243,7 +258,7 @@ parseExpand s = do
   (_,r) <- parseLit "{*}" s 
   rh <- safeHead r
   guard (not (rh `elem` " \n\t"))
-  (dispatch `wrapWith` Expand) r
+  (parseToken `wrapWith` Expand) r
 
 parseNoSub = nested `wrapWith` mkNoSub
 
@@ -365,14 +380,14 @@ nestedTests = TestList [
  where should_be act exp = Just (bp exp, B.empty) ~=? nested (bp act)
        should_fail act () = Nothing ~=? nested (bp act)
 
-parseArgsTests = TestList [
+parseTokensTests = TestList [
      " x " ~: "x" ?=> ([mkwd "x"], "")
      ," x y " ~: " x y " ?=> ([mkwd "x", mkwd "y"], " ")
      ,"x y" ~: "x y" ?=> ([mkwd "x", mkwd "y"], "")
      ,"x { y 0 }" ~: "x { y 0 }" ?=> ([mkwd "x", nosub " y 0 "], "")
      ,"x {y 0}" ~: "x {y 0}" ?=> ([mkwd "x", nosub "y 0"], "")
    ]
- where (?=>) str (res,r) = Just (res, bp r) ~=? parseArgs (bp str)
+ where (?=>) str (res,r) = Just (res, bp r) ~=? parseTokens (bp str)
        nosub s = mkNoSub (bp s)
 
 parseListTests = TestList [
@@ -421,6 +436,7 @@ runParseTests = TestList [
      "arr 3" ~: (pr ["set","buggy($bean)", "$koo"]) ?=? "set buggy($bean) $koo"
      ,"arr 4" ~: (pr ["set","buggy($bean)", "${wow}"]) ?=? "set buggy($bean) ${wow}"
      ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
+     ,"hashed num" ~: (pr ["uplevel", "#1", "exit"]) ?=? "uplevel #1 exit"
      -- not yet TODO
      -- ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
     ,"expand" ~: ([(mkwd "incr", [Expand (mkwd "$boo")])], "") ?=? "incr {*}$boo"
@@ -432,6 +448,6 @@ runParseTests = TestList [
 
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, doInterpTests,
-                   parseArgsTests, parseListTests, runParseTests, parseVarRefTests]
+                   parseTokensTests, parseListTests, runParseTests, parseVarRefTests]
 
 -- # ENDTESTS # --

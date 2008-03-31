@@ -55,12 +55,12 @@ proc assert_noerr code {
   uplevel [list assertNoErr $code]
 }
 
-proc assertErr code {
+proc assertErr { code { msg "" } } {
   set ret [catch "uplevel {$code}"]
   if { == $ret 1 } {
     assertPass
   } else {
-    assertFail "code should've failed: $code ($ret)"
+    assertFail "code should've failed: $code ($ret) $msg"
   }
 }
 

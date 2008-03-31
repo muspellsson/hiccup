@@ -70,6 +70,12 @@ test "info level" {
   checkthat [getlevel] == 2
 }
 
+test "absolute uplevel" {
+  set err [get_err { uplevel banana { puts FAIL } }]
+  checkthat $err eq {bad level "banana"}
+  uplevel #0 { checkthat [info level] == 0 }
+}
+
 test "info commands vs info procs" {
   proc this_is_a_proc {} {}
   checkthat [lsearch [info commands] this_is_a_proc] == -1
@@ -338,9 +344,9 @@ test "eval tests" {
   assertNoErr { eval "" }
   assertNoErr { eval " " }
 
-  assertErr { eval } # Eval needs 1 or more args
+  assertErr { eval } "Eval needs 1 or more args"
 
-  checkthat [eval * 4 4] == 16 # Eval concats multiple args
+  checkthat [eval * 4 4] == 16 {Eval concats multiple args}
 }
 
 test "expr" {
@@ -440,7 +446,7 @@ unset otherthing
 
 
 test "parsing corners" {
-  checkthat [+ 15 -5] == 10  # Check that negatives parse.
+  checkthat [+ 15 -5] == 10  {Check that negatives parse}
 
   set { shh.. ?} 425
   checkthat " 425 " eq " ${ shh.. ?} "
