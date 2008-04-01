@@ -51,7 +51,7 @@ procUpLevel args = case args of
             Just i  -> return i
             Nothing -> case B.uncons (T.asBStr l) of 
                          Just ('#', r) -> case B.readInt r of
-                                            Just (i,r2) -> do
+                                            Just (i,_) -> do
                                                    lev <- stackLevel
                                                    return (lev - i)
                                             _ -> badlevel

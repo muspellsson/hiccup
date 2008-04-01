@@ -35,10 +35,16 @@ parseStatement str = if B.null str
                        else do
                          h <- safeHead str
                          case h of
-                          ';'  -> return ([], B.tail str)
-                          '\n' -> return ([], B.tail str)
+                          ';'  -> parseStatement (dropWhite (B.tail str))
+                          '\n' -> parseStatement (dropWhite (B.tail str))
                           '#'  -> eatComment str
                           _    -> parseTokens str
+
+(.>>) f1 f2 = \s -> do
+        (_, r) <- f1 s
+        f2 r
+eatWhite f s = f s >>= \(i,r) -> return (i, dropWhite r)
+eatComment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
 
 parseTokens :: Parser [TclWord]
 parseTokens = multi (parseToken . dropWhite)
@@ -137,6 +143,8 @@ parseInd str
 orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
+        
+     
 chain lst !rs = inner lst [] rs
  where inner []     !acc !r = return (B.concat (reverse acc), r)
        inner (f:fs) !acc !r = do (s,r2) <- f r 
@@ -186,7 +194,6 @@ parseSub s = do
         [] -> fail "empty subcommand"
         (ph:pt) -> return ((ph,pt), aft)
 
-eatComment = return . (,) [] . B.drop 1 . B.dropWhile (/= '\n')
 
 {-
 wordChar ' ' = False
