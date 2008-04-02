@@ -21,8 +21,8 @@ unpack = B.unpack
 bsNull = B.null
 {-# INLINE bsNull #-}
 
-dropWhite = B.dropWhile (\x -> x == ' ' || x == '\t')
-{-# INLINE dropWhite #-}
+dropSpaces = B.dropWhile (\x -> x == ' ' || x == '\t')
+{-# INLINE dropSpaces #-}
 
 mapSnd f = map (\(a,b) -> (a, f b))
 {-# INLINE mapSnd #-}

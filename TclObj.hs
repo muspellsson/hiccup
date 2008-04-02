@@ -52,9 +52,9 @@ mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
 
 fromBlock s p = TclBStr s (maybeInt s) p
 
-maybeInt s = case BS.readInt (dropWhite s) of
+maybeInt s = case BS.readInt (dropSpaces s) of
                 Nothing    -> Nothing
-                Just (i,r) -> if BS.null r || BS.null (dropWhite r) then Just i else Nothing
+                Just (i,r) -> if BS.null r || BS.null (dropSpaces r) then Just i else Nothing
 
 strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
 strEq o1            o2            = asBStr o1 == asBStr o2 
@@ -82,7 +82,7 @@ tclFalse = mkTclInt 0
 
 fromBool !b = if b then tclTrue else tclFalse
 
-trim = BS.reverse . dropWhite . BS.reverse . dropWhite
+trim = BS.reverse . dropSpaces . BS.reverse . dropSpaces
 
 class ITObj o where
   asBool :: o -> Bool
