@@ -1,7 +1,7 @@
 module Expr (runAsExpr, exprTests) where
 
 
-import Expr.Parse (expr, exprParseTests)
+import ExprParse (expr, exprParseTests)
 import Expr.Eval (runExpr, exprEvalTests)
 import Test.HUnit
 
