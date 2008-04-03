@@ -2,6 +2,7 @@ module TclLib.StringProcs (stringProcs, stringTests) where
 
 import Common
 import Util
+import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import TclObj ((.==))
@@ -86,29 +87,3 @@ procSplit args = case args of
  where dosplit str chars = return $ T.mkTclList (map T.mkTclBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
 stringTests = TestList [ matchTests ]
-matchTests = TestList [
-    "boo" `matches` "boo" 
-    ,"" `matches` "" 
-    ,"1" `matches` "1" 
-    ,"a?c" `matches` "abc" 
-    ,"a?c" `doesnt_match` "ab" 
-    ,"a??d" `matches` "abcd" 
-    ,"f??d" `matches` "feed" 
-    ,"b??n" `matches` "been"
-    ,"a" `doesnt_match` "ab" 
-    ,"ab" `doesnt_match` "a" 
-    ,"a*" `matches` "abcde" 
-    ,"[abcd]" `matches` "b"
-    ,"a[bcd" `matches` "ac"
-    ,"[a-z]" `matches` "b"
-    ,"[z-a]" `matches` "b"
-    ,"[abcd]*" `matches` "abdc"
-    ,"a*b" `matches` "ab" 
-    ,"a*b" `matches` "a OMG b" 
-    ,"*b" `matches` "in the land of bob" 
-    ,"*" `matches` "in the land of bob" 
-    ,"*" `matches` ""
-    ,"s\\*r" `matches` "s*r"
-  ]
- where matches a b = (show a) ++ " matches " ++ (show b) ~: True ~=? match False (B.pack a) (B.pack b) 
-       doesnt_match a b = (show a) ++ " doesn't match " ++ (show b) ~: False ~=? match False (B.pack a) (B.pack b)

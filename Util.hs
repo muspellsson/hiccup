@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Util where
+
 import qualified Data.ByteString.Char8 as B
+import qualified Match as Match
 import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
@@ -74,38 +76,7 @@ commaList conj lst = (intercalate ", " (init lst)) ++ " " ++ conj ++ " " ++ last
 intercalate :: String -> [String] -> String
 intercalate xs xss = concat (intersperse xs xss)
 
-match :: Bool -> BString -> BString -> Bool
-match nocase pat str = inner 0 0
- where slen = B.length str 
-       plen = B.length pat
-       ceq a b = if nocase then toLower a == toLower b else a == b
-       inner pi si  
-        | pi == plen = si == slen
-        | otherwise = case B.index pat pi of
-                       '*'  -> pi == (plen - 1) || or (map (inner (succ pi)) [si..(slen - 1)])
-                       '?'  -> not (si == slen) && inner (succ pi) (succ si)
-                       '['  -> let (npi, pred) = getSetPred pat pi plen 
-                               in (pred (B.index str si)) && inner npi (succ si)
-                       '\\' -> inner (succ pi) si
-                       v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
-
-getSetPred pat pi plen = inner pi [] False
- where inner i lst rang = 
-        if i == plen 
-           then (i, (`elem` lst))
-           else case (B.index pat i,rang) of
-                 (']',False) -> (succ i, (`elem` lst)) 
-                 (']',True) -> (succ i, (`elem` ('-':lst))) 
-                 ('-',_) -> case lst of
-                            [] -> inner (succ i) ['-'] False
-                            _  -> inner (succ i) lst True
-                 (c,False) -> inner (succ i) (c:lst) False
-                 (c,True) -> let (h:tl) = lst 
-                                 (a,z)  = minmax h c
-                             in inner (succ i) ([a..z] ++ tl) False
-
-minmax a b = if b < a then (b,a) else (a,b)
-globMatch pat = match False pat
+globMatch pat = Match.match False pat
 exactMatch pat = (== pat)
 globMatches pat = filter (globMatch pat)
 exactMatches pat = filter (exactMatch pat) 
