@@ -20,6 +20,7 @@ coreCmds = makeCmdMap $ [
   ("info", procInfo),
   ("error", procError)]
 
+
 procSet args = case args of
      [s1,s2] -> varSet (T.asBStr s1) s2
      [s1]    -> varGet (T.asBStr s1)

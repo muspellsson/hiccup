@@ -84,9 +84,27 @@ match nocase pat str = inner 0 0
         | otherwise = case B.index pat pi of
                        '*'  -> pi == (plen - 1) || or (map (inner (succ pi)) [si..(slen - 1)])
                        '?'  -> not (si == slen) && inner (succ pi) (succ si)
+                       '['  -> let (npi, pred) = getSetPred pat pi plen 
+                               in (pred (B.index str si)) && inner npi (succ si)
                        '\\' -> inner (succ pi) si
                        v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
 
+getSetPred pat pi plen = inner pi [] False
+ where inner i lst rang = 
+        if i == plen 
+           then (i, (`elem` lst))
+           else case (B.index pat i,rang) of
+                 (']',False) -> (succ i, (`elem` lst)) 
+                 (']',True) -> (succ i, (`elem` ('-':lst))) 
+                 ('-',_) -> case lst of
+                            [] -> inner (succ i) ['-'] False
+                            _  -> inner (succ i) lst True
+                 (c,False) -> inner (succ i) (c:lst) False
+                 (c,True) -> let (h:tl) = lst 
+                                 (a,z)  = minmax h c
+                             in inner (succ i) ([a..z] ++ tl) False
+
+minmax a b = if b < a then (b,a) else (a,b)
 globMatch pat = match False pat
 exactMatch pat = (== pat)
 globMatches pat = filter (globMatch pat)
