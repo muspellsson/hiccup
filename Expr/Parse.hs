@@ -1,4 +1,4 @@
-module ExprParse (exprParseTests, expr) where
+module Expr.Parse (exprParseTests, expr) where
 
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
@@ -6,7 +6,6 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Expr
 
 import qualified TclObj as T
-import qualified Data.Map as M
 
 import Util
 import Expr.TExp
