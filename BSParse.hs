@@ -170,6 +170,7 @@ eatChar c s = parseChar c s >>= return . snd
 
 
 {-
+ -- Toys for later
 parseInt :: Parser Int 
 parseInt s = B.readInt s 
 
@@ -208,6 +209,7 @@ pjoin op a b = \s -> do
                  (w,r)   <- a s
                  (w2,r2) <- b r
                  return ((op w w2), r2)
+{-# INLINE pjoin #-}
 
 multi :: Parser t -> Parser [t]
 multi p = pjoin (:) p (parseEof `orElse` (multi p))
@@ -254,7 +256,6 @@ parseVarBody = (brackVar `wrapWith` brackIt) `orElse` (chain [getWord, tryGet wo
  where brackIt w = B.concat ["{", w , "}"]
 
 brackVar x = parseChar '{' x >> nested x
-
 
 parseStr = parseStrRaw `wrapWith` Word
 
