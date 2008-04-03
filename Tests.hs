@@ -9,11 +9,11 @@ import Core (coreTests)
 import RToken (rtokenTests)
 import Util (utilTests)
 import VarName (varNameTests)
-import ExprParse (exprParseTests)
+import Expr (exprTests)
 import Test.HUnit 
 
 allTests = TestList [ bsParseTests, utilTests, hiccupTests, tclObjTests, commonTests, 
-                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprParseTests ]
+                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprTests ]
 runUnit = runTestTT allTests
 
 main = runUnit
