@@ -7,7 +7,6 @@ import Text.ParserCombinators.Parsec.Expr
 
 import qualified TclObj as T
 
-import Util
 import Expr.TExp
 import Expr.Util
 
