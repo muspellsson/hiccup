@@ -221,7 +221,6 @@ commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter (not 
 procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . Map.elems . unCmdMap
 
 
-
 argErr s = tclErr ("wrong # of args: " ++ s)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module TclLib.StringProcs (stringProcs, stringTests) where
 
 import Common
@@ -30,12 +31,14 @@ string_length args = case args of
     [s] -> return $ T.mkTclInt (B.length (T.asBStr s))
     _   -> argErr "string length"
 
-string_compare args = case args of
-    [s1,s2] -> case compare (T.asBStr s1) (T.asBStr s2) of
-                  LT -> return (T.mkTclInt (-1))
-                  GT -> return (T.mkTclInt 1)
-                  EQ -> return (T.mkTclInt 0)
+string_compare args = case map T.asBStr args of
+    [s1,s2] -> return (ord2int (compare s1 s2))
+    ["-nocase",s1,s2] -> return (ord2int (compare (downCase s1) (downCase s2)))
     _       -> argErr "string compare"
+ where ord2int o = case o of
+            LT -> T.mkTclInt (-1)
+            GT -> T.mkTclInt 1
+            EQ -> T.mkTclInt 0
 
 string_match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
@@ -55,8 +58,8 @@ toInd :: BString -> T.TclObj -> TclM Int
 toInd s i = (T.asInt i) `orElse` tryEnd s i
  where tryEnd s i = if i .== "end" 
                        then return ((B.length s) - 1) 
-                       else do let (ip,is) = B.splitAt (length "end-") (T.asBStr i)
-                               if ip == pack "end-"
+                       else do let (ip,is) = B.splitAt (B.length "end-") (T.asBStr i)
+                               if ip == "end-"
                                   then case B.readInt is of
                                             Just (iv,_) -> return ((B.length s) - (1+iv))
                                             _           -> tclErr "bad index"

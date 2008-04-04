@@ -49,6 +49,12 @@ test "string compare" {
   checkthat [string compare "hi" "h"] == 1 
 }
 
+test "string compare -nocase" {
+  checkthat [string compare "hi" "HI"] != 0 {hi /= HI without -nocase}
+  checkthat [string compare -nocase "hi" "HI"] == 0
+  checkthat [string compare -nocase "hi9" "HI"] != 0
+}
+
 test "string range" {
   checkthat [string range "ABCD" 1 2] eq "BC"
   checkthat [string range "ABCD" 1 11] eq "BCD"
