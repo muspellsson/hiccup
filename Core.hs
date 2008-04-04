@@ -10,7 +10,7 @@ import VarName (arrName, NSQual(..))
 
 import Test.HUnit
 
-evalTcl :: T.TclObj -> TclM RetVal
+evalTcl :: T.TclObj -> TclM T.TclObj
 evalTcl s = runCmds =<< asParsed s
 {-# INLINE evalTcl #-}
 
@@ -56,7 +56,7 @@ evalRTokens (x:xs) !acc = case x of
                  evalRTokens xs ((reverse l) ++ acc)
  where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
 
-runCmd :: Cmd -> TclM RetVal
+runCmd :: Cmd -> TclM T.TclObj
 runCmd (n,args) = do
   evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs

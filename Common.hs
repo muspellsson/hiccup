@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Common (RetVal, TclM
+module Common (TclM
        ,TclState
        ,Err(..)
        ,TclCmd,applyTo,cmdBody,getOrigin
@@ -12,7 +12,7 @@ module Common (RetVal, TclM
        ,mergeCmdMaps
        ,getProc
        ,getProcNS
-       ,regProc
+       ,registerProc
        ,varGetNS
        ,varGet
        ,varModify
@@ -50,7 +50,6 @@ module Common (RetVal, TclM
        ,exportNS
        ,getExportsNS
        ,importNS
-       ,checkpoint
        ,commandNames
        ,procNames
        ,commonTests
@@ -83,10 +82,6 @@ instance Error Err where
  strMsg s = EDie s
 
 type TclM = ErrorT Err (StateT TclState IO)
-
-checkpoint str f = f `catchError` handle
- where handle (EDie es) = throwError (EDie (str ++ es))
-       handle e         = throwError e
 
 data Namespace = TclNS {
          nsName :: BString,
@@ -241,7 +236,7 @@ evtAdd e t = do
   em <- gets tclEvents
   (tag,m) <- io $ Evt.addEvent e t em
   modify (\s -> s { tclEvents = m })
-  treturn tag
+  return (T.mkTclBStr tag)
 
 evtGetDue = do
   em <- gets tclEvents
@@ -278,18 +273,18 @@ getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
 getProcNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
+ where pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
+       pmLookup !i !m = Map.lookup i (unCmdMap m)
+       {-# INLINE pmLookup #-}
 {-# INLINE getProcNorm #-}
 
-pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
-pmLookup !i !m = Map.lookup i (unCmdMap m)
-{-# INLINE pmLookup #-}
 
 rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
  where rmFromNS nsref = io $ changeProcs nsref (Map.delete n) 
 
 
-regProc name body pr = 
+registerProc name body pr = 
     let (NSQual nst n) = parseProc name
     in regProcNS nst n (TclCmdObj n True body Nothing pr)
 
@@ -346,7 +341,7 @@ renameProc old new = do
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProc old
-                 unless (bsNull new) (regProc new (cmdBody pr) (cmdAction pr))
+                 unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr))
 
 varUnset :: BString -> TclM RetVal
 varUnset name = varUnsetNS (parseVarName name)

@@ -8,7 +8,7 @@ import qualified TclObj as T
 
 nsProcs = makeCmdMap [("namespace", procNamespace), ("variable", procVariable)]
 
-procNamespace :: [T.TclObj] -> TclM RetVal
+procNamespace :: TclCmd
 procNamespace = makeEnsemble "namespace" [
      ("current", ns_current),
      ("eval", ns_eval),

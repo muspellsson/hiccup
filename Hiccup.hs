@@ -70,7 +70,7 @@ procProc args = case args of
   [name,alst,body] -> do
     let pname = T.asBStr name
     params <- parseParams pname alst
-    regProc pname (T.asBStr body) (procRunner params body)
+    registerProc pname (T.asBStr body) (procRunner params body)
     ret
   _               -> argErr "proc"
 

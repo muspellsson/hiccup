@@ -21,7 +21,7 @@ procIncr args = case args of
          [vname,val] -> T.asInt val >>= incr vname
          _           -> argErr "incr"
 
-incr :: T.TclObj -> Int -> TclM RetVal
+incr :: T.TclObj -> Int -> TclM T.TclObj
 incr n !i =  varModify (T.asBStr n) $
                  \v -> do ival <- T.asInt v
                           return $! (T.mkTclInt (ival + i))
