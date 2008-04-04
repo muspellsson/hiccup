@@ -2,6 +2,7 @@ module TclLib.ArrayProcs (arrayProcs) where
 import Common
 
 import Util
+import Match (globMatches, globMatch, exactMatches)
 import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad

@@ -3,6 +3,7 @@ module TclLib.ControlProcs (controlProcs) where
 
 import Common
 import Core
+import Match (globMatch, exactMatch)
 import Control.Monad.Error
 import qualified TclObj as T
 import TclObj ((.==))

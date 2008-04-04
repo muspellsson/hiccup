@@ -1,6 +1,7 @@
 module TclLib.ListProcs (listProcs,procList) where
 import Common
 import Util
+import Match (globMatch)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import qualified TclObj as T

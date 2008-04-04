@@ -1,8 +1,11 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Util where
+module Util (BString, joinWith, joinWithBS, pack, unpack, bsNull,
+             dropSpaces, mapFst, mapSnd, escapeStr, listEscape,
+             orElse, ifFails, commaList,
+             downCase, slurpFile,
+             utilTests )  where
 
 import qualified Data.ByteString.Char8 as B
-import qualified Match as Match
 import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
@@ -75,11 +78,6 @@ commaList conj lst = (intercalate ", " (init lst)) ++ " " ++ conj ++ " " ++ last
 
 intercalate :: String -> [String] -> String
 intercalate xs xss = concat (intersperse xs xss)
-
-globMatch pat = Match.match False pat
-exactMatch pat = (== pat)
-globMatches pat = filter (globMatch pat)
-exactMatches pat = filter (exactMatch pat) 
 
 utilTests = TestList [joinWithTests, listEscapeTests] where
  

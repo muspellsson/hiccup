@@ -1,8 +1,18 @@
-module Match (match, matchTests)  where
+module Match (match 
+              ,globMatch
+              ,globMatches
+              ,exactMatch
+              ,exactMatches
+              ,matchTests)  where
 
 import Test.HUnit
 import qualified Data.ByteString.Char8 as B
 import Data.Char (toLower)
+
+globMatch pat = match False pat
+exactMatch pat = (== pat)
+globMatches pat = filter (globMatch pat)
+exactMatches pat = filter (exactMatch pat) 
 
 match :: Bool -> B.ByteString -> B.ByteString -> Bool
 match nocase pat str = inner 0 0

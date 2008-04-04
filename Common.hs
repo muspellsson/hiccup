@@ -63,6 +63,7 @@ import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
 
+import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
 
 import qualified TclObj as T
@@ -151,11 +152,6 @@ mkProcAlias nsr pn = do
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
   
-globalNS fr = do 
-  return $ TclNS { nsName = nsSep, 
-                   nsProcs = emptyCmdMap, nsFrame = fr, 
-                   nsExport = [],
-                   nsParent = Nothing, nsChildren = Map.empty }
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
 makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
@@ -191,6 +187,11 @@ makeState' chans vlist procs = do
                          tclEvents = Evt.emptyMgr,
                          tclStack = [fr], 
                          tclGlobalNS = ns } 
+ where globalNS fr = do 
+        return $ TclNS { nsName = nsSep, 
+                         nsProcs = emptyCmdMap, nsFrame = fr, 
+                         nsExport = [],
+                         nsParent = Nothing, nsChildren = Map.empty }
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
@@ -231,9 +232,8 @@ argErr s = tclErr ("wrong # of args: " ++ s)
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT code) env
 
-onChan f = gets tclChans >>= f
 modChan f = modify (\s -> s { tclChans = f (tclChans s) })
-getChan n = onChan (\m -> return (lookupChan n m))
+getChan n = gets tclChans >>= \m -> return (lookupChan n m)
 addChan c    = modChan (insertChan c)
 removeChan c = modChan (deleteChan c)
 
@@ -319,14 +319,15 @@ varSet' vn v frref = do
        modVar str = do
          vm <- getFrameVars frref
          let changeVar = insertVar frref str
-         case vnInd vn of
-           Nothing -> case Map.lookup str vm of
-                        Just (ArrayVar _) -> cantSetErr "variable is array"
-                        _                 -> changeVar (ScalarVar v)
-           Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str vm of
-                        ArrayVar prev ->  changeVar (ArrayVar (Map.insert i v prev))
-                        Undefined     ->  changeVar (ArrayVar (Map.singleton i v))
-                        _     -> cantSetErr "variable isn't array"
+         newVal <- case vnInd vn of
+             Nothing -> case Map.lookup str vm of
+                          Just (ArrayVar _) -> cantSetErr "variable is array"
+                          _                 -> return (ScalarVar v)
+             Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str vm of
+                          ArrayVar prev -> return (ArrayVar (Map.insert i v prev))
+                          Undefined     -> return (ArrayVar (Map.singleton i v))
+                          _     -> cantSetErr "variable isn't array"
+         changeVar newVal
 
 
 varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
@@ -338,7 +339,7 @@ varModify !n f = do
 {-# INLINE varModify #-}
 
 varExists :: BString -> TclM Bool
-varExists name = (varGet name >> return True) `catchError` (\_ -> return False)
+varExists name = (varGet name >> return True) `ifFails` False
 
 renameProc old new = do
   mpr <- getProc old
@@ -377,6 +378,7 @@ varUnset' vn frref = do
              varUnset' (vn {vnName = s}) f
  where noExist = cantUnset "no such variable" 
        cantUnset why = fail $ "can't unset " ++ showVN vn ++ ": " ++ why
+       modArr v f = ArrayVar (f v)
        modVar = do
          vm <- getFrameVars frref
          let str = vnName vn
@@ -391,7 +393,6 @@ varUnset' vn frref = do
                         ScalarVar _   -> cantUnset "variable isn't array"
                         _             -> noExist
 
-modArr v f = ArrayVar (f v)
 
 getArray :: BString -> TclM TclArray
 getArray name = usingNsFrame2 (parseProc name) getArray'
@@ -401,8 +402,8 @@ getArray' name frref = do
    var <- varLookup name frref
    case var of
       Just (ArrayVar a) -> return a
-      Just _            -> tclErr $ "can't read " ++ show name ++ ": variable isn't array"
-      Nothing           -> tclErr $ "can't read " ++ show name ++ ": no such variable"
+      Just _            -> fail $ "can't read " ++ show name ++ ": variable isn't array"
+      Nothing           -> fail $ "can't read " ++ show name ++ ": no such variable"
 
 varLookup !name !frref = do
    isUpped <- upped name frref
@@ -434,7 +435,7 @@ varGet' vn !frref = do
 uplevel :: Int -> TclM a -> TclM a
 uplevel i p = do
   (curr,new) <- liftM (splitAt i) getStack
-  when (null new) (tclErr ("bad level: " ++ show i))
+  when (null new) (fail ("bad level: " ++ show i))
   putStack new
   res <- p `ensure` (modStack (curr ++))
   return res
@@ -477,6 +478,7 @@ getNamespace' (NS gq nsl) = do
           case Map.lookup k kids of
              Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
              Just v  -> return $! v
+{-# INLINE getNamespace' #-}
 
 getOrCreateNamespace (NS gq nsl) = do
     base <- if gq then getGlobalNS else getCurrNS 
@@ -487,7 +489,7 @@ getOrCreateNamespace (NS gq nsl) = do
              Nothing -> io (mkEmptyNS k nsref)
              Just v  -> return $! v
 
-existsNS ns = (parseNSTag ns >>= getNamespace' >> return True) `catchError` (\_ -> return False)
+existsNS ns = (parseNSTag ns >>= getNamespace' >> return True) `ifFails` False
 
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
@@ -511,7 +513,7 @@ exportNS clear name = do
   io $ modifyIORef nsr (\n -> n { nsExport = (name:(getPrev n)) })
  where getPrev n = if clear then [] else nsExport n
 
-getExportsNS = do
+getExportsNS = 
   getCurrNS >>= readRef >>= return . reverse . nsExport
 
 importNS force name = do

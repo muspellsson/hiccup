@@ -2,7 +2,7 @@ module TclLib.CoreCmds (coreCmds) where
 import Common
 import Control.Monad.Error
 import Control.Monad (liftM)
-import Util
+import Match (globMatches)
 import Core
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T

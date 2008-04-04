@@ -28,7 +28,7 @@ processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
 interpVars = [("tcl_version" * (show hiccupVersion))]
   where (*) name val = (pack name, T.mkTclStr val)
 
-hiccupVersion = 0.45
+hiccupVersion = 0.43
 
 data Interpreter = Interpreter (IORef TclState)
 
