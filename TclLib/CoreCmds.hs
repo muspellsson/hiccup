@@ -116,7 +116,7 @@ info_exists args = case args of
         _   -> argErr "info exists"
 
 info_body args = case args of
-       [n] -> do p <- getProc (T.asBStr n)
+       [n] -> do p <- getCmd (T.asBStr n)
                  case p of
                    Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
                    Just p  -> treturn (cmdBody p)

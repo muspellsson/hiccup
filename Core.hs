@@ -36,7 +36,7 @@ subst s = getSubst s >>= doeval
 
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = do
-  getProc pn >>= \pr -> doCall pn pr args
+  getCmd pn >>= \pr -> doCall pn pr args
 
 evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
 evalRTokens []     !acc = return $! reverse acc
@@ -61,16 +61,16 @@ runCmd (n,args) = do
   evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs
   return $! res
- where go (Left p@(NSQual _ name)) a = getProcNS p >>= \pr -> doCall name pr a
+ where go (Left p@(NSQual _ name)) a = getCmdNS p >>= \pr -> doCall name pr a
        go (Right rt) a = do lst <- evalRTokens [rt] []
                             let (o:rs) = lst ++ a
                             let name = T.asBStr o
-                            getProc name >>= \pr -> doCall name pr rs
+                            getCmd name >>= \pr -> doCall name pr rs
 
 
 doCall !pn !mproc args = do
    case mproc of
-     Nothing   -> do ukproc <- getProc (pack "unknown")
+     Nothing   -> do ukproc <- getCmd (pack "unknown")
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
                        Just uk -> uk `applyTo` ((T.mkTclBStr pn):args)

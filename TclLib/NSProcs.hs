@@ -51,7 +51,7 @@ ns_import args = case map T.asBStr args of
 
 ns_origin :: TclCmd
 ns_origin args = case args of
-     [pn] -> do pr <- getProc (T.asBStr pn)
+     [pn] -> do pr <- getCmd (T.asBStr pn)
                 case pr of
                   Nothing -> tclErr $ "invalid command name: " ++ show pn
                   Just p  -> getOrigin p >>= treturn

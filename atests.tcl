@@ -368,6 +368,8 @@ test "expr" {
   checkthat [expr { "one" eq "one" }] 
   checkthat [expr { "two" ne "one" }] 
   checkthat [expr { "1" eq 1 }] 
+
+  checkthat [expr {1 + 1 * 2}] == 3
 }
 
 test "set returns correctly" {

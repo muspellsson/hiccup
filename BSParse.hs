@@ -169,10 +169,26 @@ eatChar c s = parseChar c s >>= return . snd
 {-# INLINE eatChar #-}
 
 
-{-
  -- Toys for later
 parseInt :: Parser Int 
 parseInt s = B.readInt s 
+
+data OTok = TokNum Int | TokOp Oper | TokPar [OTok] deriving (Eq,Show)
+data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
+parseOp = ((op '*' OpTimes) `orElse` parseOpPlus `orElse` parseOpMinus) `wrapWith` TokOp
+ where op c v = eatSpaces .>> parseChar c .>> \s -> return (v,s) 
+       parseOpPlus = op '+' OpPlus
+       parseOpMinus = op '-' OpMinus
+intTok = (eatSpaces .>> parseInt) `wrapWith` TokNum
+parenTok = (parseParen psomeExpr) `wrapWith` TokPar
+parseParen :: Parser t -> Parser t
+parseParen p = (eatSpaces .>> parseChar '(' .>> p) `pass` (eatSpaces .>> parseChar ')')
+toks = intTok `orElse` parenTok `orElse` parseOp
+
+psomeExpr :: Parser [OTok]
+psomeExpr = parseMany1 toks
+   
+{-
 
 parseDouble :: Parser Double
 parseDouble s = do
@@ -180,9 +196,6 @@ parseDouble s = do
     return (read (B.unpack ds), r)
  where parseNums = getPred1 (inRange ('0','9'))
 
-parseParen :: Parser t -> Parser t
-parseParen p s = do
-  (parseChar '(' .>> eatSpaces .>> p) s >>= pass (eatSpaces .>> parseChar ')')
 -}
          
 parseOneOf !cl = parseCharPred (`elem` cl) ("one of " ++ show cl)
@@ -479,8 +492,19 @@ runParseTests = TestList [
        pr (x:xs) = ([(mkwd x, map mkwd xs)], "")
        pr []     = error "bad test!"
 
+futureTests = TestList [intTests] where
+  intTests = TestList [
+       "44" `should_be` 44
+       ,"9" `should_be` 9
+       ,"catfish" `should_fail` ()
+    ] where should_be dat res = Just (res,"") ~=? parseInt dat
+            should_fail dat () = Nothing ~=? parseInt dat
+ 
+      
+
 bsParseTests = TestList [ nestedTests, testEscaped, brackVarTests,
                    parseStrTests, getInterpTests, getWordTests, doInterpTests,
-                   parseTokensTests, parseListTests, runParseTests, parseVarRefTests]
+                   parseTokensTests, parseListTests, runParseTests, 
+                   parseVarRefTests, futureTests]
 
 -- # ENDTESTS # --

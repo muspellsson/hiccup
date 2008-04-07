@@ -10,8 +10,8 @@ module Common (TclM
        ,withNS
        ,makeCmdMap
        ,mergeCmdMaps
-       ,getProc
-       ,getProcNS
+       ,getCmd
+       ,getCmdNS
        ,registerProc
        ,varGetNS
        ,varGet
@@ -138,11 +138,11 @@ applyTo !(TclCmdObj _ _ _ _ !f) !args = f args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
-    pr <- getProcNorm pn nsr
+    pr <- getCmdNorm pn nsr
     case pr of
       Nothing -> fail "trying to import proc that doesn't exist"
       Just p  -> return $ p { cmdAction = inner } 
- where inner args = do thep <- getProcNorm pn nsr
+ where inner args = do thep <- getCmdNorm pn nsr
                        case thep of
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
@@ -246,7 +246,7 @@ evtGetDue = do
 upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 {-# INLINE upped #-}
 
-getProc !pname = getProcNS (parseProc pname)
+getCmd !pname = getCmdNS (parseProc pname)
 
 data NsEpoch = NsEpoch (Maybe NSRef) !Int deriving (Eq) 
 
@@ -257,25 +257,25 @@ getNsEpoch nst = do
  
   
 -- TODO: Special case for globals and locals when we're in the global NS?
-getProcNS (NSQual nst n) = do
-  res <- (getNamespace nst >>= getProcNorm n) `ifFails` Nothing
+getCmdNS (NSQual nst n) = do
+  res <- (getNamespace nst >>= getCmdNorm n) `ifFails` Nothing
   if isNothing res && not (isGlobalQual nst)
     then do ns2 <- if noNsQual nst then getGlobalNS else getNamespace (asGlobal nst)
-            getProcNorm n ns2
+            getCmdNorm n ns2
     else return $! res
  where
   isNothing Nothing = True
   isNothing _       = False
-{-# INLINE getProcNS #-}
+{-# INLINE getCmdNS #-}
 
-getProcNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
-getProcNorm !i !nsr = do
+getCmdNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
+getCmdNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
  where pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
        pmLookup !i !m = Map.lookup i (unCmdMap m)
        {-# INLINE pmLookup #-}
-{-# INLINE getProcNorm #-}
+{-# INLINE getCmdNorm #-}
 
 
 rmProc name = rmProcNS (parseProc name)
@@ -285,9 +285,9 @@ rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
 
 registerProc name body pr = 
     let (NSQual nst n) = parseProc name
-    in regProcNS nst n (TclCmdObj n True body Nothing pr)
+    in registerCmd nst n (TclCmdObj n True body Nothing pr)
 
-regProcNS nst k newProc = getNamespace nst >>= regInNS
+registerCmd nst k newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
@@ -336,7 +336,7 @@ varExists :: BString -> TclM Bool
 varExists name = (varGet name >> return True) `ifFails` False
 
 renameProc old new = do
-  mpr <- getProc old
+  mpr <- getCmd old
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProc old
@@ -519,11 +519,11 @@ importNS force name = do
  where importProc nsr n = do
             np <- mkProcAlias nsr n 
             when (not force) $ do
-                 oldp <- getProcNS (NSQual Nothing n)
+                 oldp <- getCmdNS (NSQual Nothing n)
                  case oldp of
                     Nothing -> return ()
                     Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            regProcNS Nothing n np
+            registerCmd Nothing n np
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
