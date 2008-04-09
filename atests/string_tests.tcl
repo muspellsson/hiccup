@@ -64,3 +64,8 @@ test "string range" {
   checkthat [string range "ABCD" end end] eq "D"
   checkthat [string range "ABCD" end-1 end] eq "CD"
 }
+
+test "completion" {
+  assert_err { string l "one" }
+  checkthat [string le "one"] == 3
+}

@@ -150,9 +150,12 @@ mkProcAlias nsr pn = do
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
 makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
+ where toTclCmdObj (n,v) = (n, TclCmdObj n False (errStr n) Nothing v)
+       errStr n = pack $ show n ++ " isn't a procedure"
 
-toTclCmdObj (n,v) = (n, TclCmdObj n False errStr Nothing v)
- where errStr = pack $ show n ++ " isn't a procedure"
+mergeCmdMaps :: [CmdMap] -> CmdMap
+mergeCmdMaps = CmdMap 0 . Map.unions . map unCmdMap
+
 
 tclErr :: String -> TclM a
 tclErr s = do
@@ -163,8 +166,6 @@ setErrorInfo s = do
   glFr <- getGlobalNS >>= getNSFrame
   varSet' (VarName (pack "errorInfo") Nothing) (T.mkTclStr s) glFr
 
-mergeCmdMaps :: [CmdMap] -> CmdMap
-mergeCmdMaps = CmdMap 0 . Map.unions . map unCmdMap
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
 
@@ -217,9 +218,11 @@ currentVars = do f <- getFrame
                  return $ Map.keys vs ++ Map.keys mv
 
 -- TODO: Refactor these.
-commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter (not . cmdIsProc) . Map.elems . unCmdMap
-procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . Map.elems . unCmdMap
+commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter (not . cmdIsProc) . cmdMapElems
+procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . cmdMapElems
 
+
+cmdMapElems = Map.elems . unCmdMap
 
 argErr s = tclErr ("wrong # of args: " ++ s)
 
@@ -653,14 +656,27 @@ modKids f ns = let kidfun kr = do
               in mapM_ kidfun (Map.elems (nsChildren ns))
 
 makeEnsemble name subs = top
-  where top args = case args of
-                   (x:xs) -> case Map.lookup (T.asBStr x) (unCmdMap subMap) of
-                              Nothing -> tclErr $ "unknown subcommand " ++ show (T.asBStr x) ++ ": must be " 
-			                             ++ commaList "or" (map unpack (cmdMapNames subMap))
-                              Just f  -> (cmdAction f) xs
-                   []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
+  where top args = 
+           case args of
+             (x:xs) -> case plookup (T.asBStr x) of
+                         Just f  -> f `applyTo` xs
+                         Nothing -> eunknown (T.asBStr x) xs
+             []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
+        eunknown n al = 
+            let names = cmdMapNames subMap
+            in case completes n names of
+                 [x] -> case (B.length n > 1, plookup x) of
+                          (True, Just p) -> p `applyTo` al
+                          _              -> no_match n names
+                 _   -> no_match n names
+        no_match n lst = tclErr $ "unknown or ambiguous subcommand " ++ show n ++ ": must be " 
+			                        ++ commaList "or" (map unpack lst)
         subMap = makeCmdMap subs
-        cmdMapNames = map cmdName . Map.elems . unCmdMap
+        plookup s = Map.lookup s (unCmdMap subMap)
+        cmdMapNames = map cmdName . cmdMapElems
+        completes s lst = case filter (s `B.isPrefixOf`) lst of 
+                            [] -> lst
+                            x  -> x
 
 emptyCmdMap = CmdMap 0 Map.empty
 emptyVarMap = Map.empty
