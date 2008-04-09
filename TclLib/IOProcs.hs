@@ -12,7 +12,7 @@ import TclObj ((.==))
 import Util
 
 ioProcs = makeCmdMap $ 
- [("puts",procPuts),("gets",procGets),
+ [("puts",procPuts),("gets",procGets),("read",cmdRead),
   ("open", procOpen), ("close", procClose),("flush", procFlush),
   ("exit", procExit), ("source", procSource), ("eof", procEof)]
 
@@ -20,6 +20,13 @@ procEof args = case args of
   [ch] -> do h <- getReadable ch
              io (hIsEOF h) >>= return . T.fromBool 
   _    -> argErr "eof"
+
+cmdRead args = case args of
+     [ch] -> do
+        h <- getReadable ch
+        c <- io $ B.hGetContents h
+        return $ c `seq` T.mkTclBStr c
+     _ -> argErr "read"
 
 procPuts args = case args of
                  [s] -> tPutLn stdout s
