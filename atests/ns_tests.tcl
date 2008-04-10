@@ -1,6 +1,39 @@
 test "namespace current" {
   checkthat [namespace current] == "::"
-  checkthat [namespace parent] == {}
+  namespace eval boo {
+    checkthat [namespace current] eq "::boo"
+  }
+  finalize { ns boo }
+}
+
+test "namespace parent" {
+  checkthat [namespace parent] eq {}
+  namespace eval boo {
+    checkthat [namespace parent] eq "::"
+  }
+
+  checkthat [namespace parent boo] eq "::"
+  finalize { ns boo }
+}
+
+test "namespace children" {
+  namespace eval boo55 {
+    proc nothing {} {}
+  }
+
+  checkthat [lsearch [namespace children] boo55] != -1
+  finalize { ns boo55 }
+  checkthat [lsearch [namespace children] boo55] == -1
+}
+
+test "namespace children ?ns?" {
+  namespace eval foo::boo55 {
+    proc nothing {} {}
+  }
+
+  checkthat [lsearch [namespace children foo] boo55] != -1
+  finalize { ns foo::boo55 }
+  checkthat [lsearch [namespace children foo] boo55] == -1
 }
 
 test "namespace proc 1" {
@@ -300,5 +333,12 @@ test "default to global" {
   namespace eval other {
     foo::ret5
     assert_noerr { foo::ret5 }
+  }
+}
+
+test "default ns path" {
+  checkthat [namespace path] eq {}
+  namespace eval foo {
+    checkthat [namespace path] eq {}
   }
 }

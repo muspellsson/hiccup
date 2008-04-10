@@ -16,6 +16,7 @@ procNamespace = makeEnsemble "namespace" [
      ("children", ns_children),
      ("delete", ns_delete),
      ("tail", ns_tail),
+     ("path", ns_path),
      ("export", ns_export),
      ("import", ns_import),
      ("origin", ns_origin),
@@ -36,7 +37,8 @@ ns_eval args = case args of
           _              -> argErr "namespace eval"
 
 ns_parent args = case args of
-          [] -> parentNS >>= treturn
+          [] -> parentNS Nothing >>= treturn
+          [ns] -> parentNS (parseNSTag (T.asBStr ns)) >>= treturn
           _  -> argErr "namespace parent"
 
 ns_export :: TclCmd
@@ -58,7 +60,8 @@ ns_origin args = case args of
      _    -> argErr "namespace origin"
 
 ns_children args = case args of
-          [] -> childrenNS >>= return . T.mkTclList . map T.mkTclBStr
+          [] -> childrenNS Nothing >>= return . T.mkTclList . map T.mkTclBStr
+          [nsn] -> childrenNS (parseNSTag (T.asBStr nsn)) >>= return . T.mkTclList . map T.mkTclBStr
           _  -> argErr "namespace children"
 
 ns_exists args = case args of
@@ -74,6 +77,10 @@ ns_tail args = case args of
            Nothing -> ret
            Just v -> return . T.mkTclBStr $ (nsTail v)
    _   -> argErr "namespace tail"
+
+ns_path args = case args of
+   [] -> return T.empty
+   _  -> argErr "namespace path"
 
 ns_qualifiers args = case args of
    [s] -> return . T.mkTclBStr $ (nsQualifiers (T.asBStr s))

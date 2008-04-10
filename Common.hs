@@ -1,8 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -XGeneralizedNewtypeDeriving #-}
 module Common (TclM
        ,TclState
        ,Err(..)
-       ,TclCmd,applyTo,cmdBody,getOrigin
+       ,TclCmd,applyTo,cmdBody
+       ,getOrigin
        ,runTclM
        ,makeState
        ,runCheckResult
@@ -23,7 +25,6 @@ module Common (TclM
        ,varUnsetNS
        ,renameProc
        ,getArray
-       ,getNsEpoch
        ,addChan
        ,removeChan
        ,getChan
@@ -81,7 +82,8 @@ instance Error Err where
  noMsg    = EDie "An error occurred."
  strMsg s = EDie s
 
-type TclM = ErrorT Err (StateT TclState IO)
+newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
+ deriving (MonadState TclState, MonadError Err, MonadIO, Monad)
 
 data Namespace = TclNS {
          nsName :: BString,
@@ -224,10 +226,10 @@ procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsPro
 
 cmdMapElems = Map.elems . unCmdMap
 
-argErr s = tclErr ("wrong # of args: " ++ s)
+argErr s = tclErr ("wrong # args: " ++ s)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
-runTclM code env = runStateT (runErrorT code) env
+runTclM code env = runStateT (runErrorT (unTclM code)) env
 
 modChan f = modify (\s -> s { tclChans = f (tclChans s) })
 getChan n = gets tclChans >>= \m -> return (lookupChan n m)
@@ -249,16 +251,17 @@ evtGetDue = do
 upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
 {-# INLINE upped #-}
 
-getCmd !pname = getCmdNS (parseProc pname)
 
+{-
+ -- Intended for future caching of method lookups in AST
 data NsEpoch = NsEpoch (Maybe NSRef) !Int deriving (Eq) 
-
 getNsEpoch nst = do
   nsr <- getNamespace nst
   cmEpoch <- liftM cmdMapEpoch (getNsCmdMap nsr)
   return $! (NsEpoch (Just nsr) cmEpoch)
- 
+-}
   
+getCmd !pname = getCmdNS (parseProc pname)
 -- TODO: Special case for globals and locals when we're in the global NS?
 getCmdNS (NSQual nst n) = do
   res <- (getNamespace nst >>= getCmdNorm n) `ifFails` Nothing
@@ -462,8 +465,9 @@ deleteNS name = do
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
 addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
 
-getNamespace Nothing    = getCurrNS
-getNamespace (Just nst) = getNamespace' nst
+getNamespace nst = case nst of 
+        Nothing  -> getCurrNS
+        Just nst -> getNamespace' nst
 {-# INLINE getNamespace #-}
 
 -- TODO: Unify namespace getters
@@ -601,15 +605,14 @@ refExtract !ref !f = readRef ref >>= \d -> let r = f d in r `seq` (return $! r)
 
 currentNS = getCurrNS >>= readRef >>= return . nsName
 
-parentNS = do
- ns <- getCurrNS >>= readRef
+parentNS nst = do
+ ns <- getNamespace nst >>= readRef
  case nsParent ns of
    Nothing -> return B.empty
    Just v  -> readRef v >>= return . nsName
 
-childrenNS :: TclM [BString]
-childrenNS = do
-  ns <- getCurrNS >>= readRef
+childrenNS nst = do
+  ns <- getNamespace nst >>= readRef
   (return . Map.keys . nsChildren) ns
 
 ensure action p = do
