@@ -73,6 +73,7 @@ parseVarName name =
    case parseArrRef name of
      (str,ind) -> case parseNSQual str of
                     NSQual nst n -> NSQual nst (VarName n ind)
+{-# INLINE parseVarName #-}
 
 parseProc :: BString -> NSQual BString
 parseProc = parseNSQual
@@ -88,6 +89,7 @@ parseArrRef str = case B.elemIndex '(' str of
                              then let (pre,post) = B.splitAt start str
                                   in (pre, Just (B.tail (B.init post)))
                              else (str, Nothing)
+
 nsTail (NS _ []) = error "Malformed NSTag"
 nsTail (NS _ nsl) = last nsl
 
