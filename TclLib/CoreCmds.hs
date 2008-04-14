@@ -2,6 +2,7 @@ module TclLib.CoreCmds (coreCmds) where
 import Common
 import Control.Monad.Error
 import Control.Monad (liftM)
+import TclErr (errCode)
 import Match (globMatches)
 import Core
 import qualified Data.ByteString.Char8 as B
@@ -59,17 +60,12 @@ procUpLevel args = case args of
                          _ -> badlevel
 
 procCatch args = case args of
-           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` (retInt . retCodeToInt)
+           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` (retInt . errCode)
            [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
- where retCodeToInt c = case c of 
-                           (EDie _)  -> 1
-                           (ERet _)  -> 2
-                           EBreak    -> 3
-                           EContinue -> 4
-       retReason v e = case e of
+ where retReason v e = case e of
                          EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return T.tclTrue
-                         _      -> retInt . retCodeToInt $ e
+                         _      -> retInt . errCode $ e
        retInt = return . T.mkTclInt
 
 procReturn args = case args of

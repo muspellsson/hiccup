@@ -56,6 +56,7 @@ module Common (TclM
        ,commonTests
     ) where
 
+
 import qualified Data.ByteString.Char8 as B
 import Control.Monad.Error
 import Control.Monad.State.Strict
@@ -63,24 +64,18 @@ import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
 
+
 import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
 
 import qualified TclObj as T
 import TclChan
 import VarName
+import TclErr
 import Util
 
 import Test.HUnit
 
-type RetVal = T.TclObj 
-
-data Err = ERet !RetVal | EBreak 
-          | EContinue | EDie String deriving (Eq,Show)
-
-instance Error Err where
- noMsg    = EDie "An error occurred."
- strMsg s = EDie s
 
 newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
  deriving (MonadState TclState, MonadError Err, MonadIO, Monad)
