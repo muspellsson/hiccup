@@ -14,7 +14,7 @@ import qualified TclObj as T
 utilProcs = makeCmdMap [
    ("time", procTime),
    ("incr", procIncr), ("expr", procExpr), 
-   ("after", procAfter), ("update", procUpdate)]
+   ("after", cmdAfter), ("update", cmdUpdate)]
 
 procIncr args = case args of
          [vname]     -> incr vname 1
@@ -43,7 +43,7 @@ procTime args =
          let tspan = diffUTCTime endt startt
          return tspan
 
-procAfter args = 
+cmdAfter args = 
     case args of 
       [mss]    -> do
             ms <- T.asInt mss
@@ -51,13 +51,13 @@ procAfter args =
             ret
       (mss:acts) -> do
             ms <- T.asInt mss 
-	    let secs = (fromIntegral ms) / 1000.0
-	    currT <- io getCurrentTime
-	    let dline = addUTCTime secs currT
-	    evtAdd (T.objconcat acts) dline
+            let secs = (fromIntegral ms) / 1000.0
+            currT <- io getCurrentTime
+            let dline = addUTCTime secs currT
+            evtAdd (T.objconcat acts) dline
       _     -> argErr "after"
 
-procUpdate args = case args of
+cmdUpdate args = case args of
      [] -> do evts <- evtGetDue
               upglobal (mapM_ evalTcl evts)
               ret
