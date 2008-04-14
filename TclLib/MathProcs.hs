@@ -88,10 +88,9 @@ squarert x = do
 plus x y = do
    case (T.asInt x, T.asInt y) of
        (Just i1, Just i2) -> return $! (T.mkTclInt (i1+i2))
-       _ -> do 
-           d1 <- T.asDouble x
-           d2 <- T.asDouble y
-	   return $! T.mkTclDouble (d1+d2)
+       _ -> case (T.asDouble x, T.asDouble y) of
+               (Just d1, Just d2) -> return $! T.mkTclDouble (d1+d2)
+               _ -> fail "can't use non-numeric string as operand of \"+\""
 
 pow x y = do
    case (T.asInt x, T.asInt y) of

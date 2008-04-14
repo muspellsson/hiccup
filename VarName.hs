@@ -61,6 +61,7 @@ parseNSQual ns = case parseNSTag ns of
                   Just (NS False [s]) -> NSQual Nothing s
                   Just (NS gq []) -> NSQual (Just (NS gq [])) ""
                   Just (NS gq nsl) -> NSQual (Just (NS gq (init nsl))) (last nsl)
+{-# INLINE parseNSQual #-}
 
 	       
 parseNSTag ns = toNSTag (ns `splitWith` nsSep) where
@@ -75,6 +76,7 @@ parseVarName name =
 
 parseProc :: BString -> NSQual BString
 parseProc = parseNSQual
+{-# INLINE parseProc #-}
 
 showVN :: VarName -> String
 showVN (VarName name Nothing) = show name
