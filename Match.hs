@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Match (match 
               ,globMatch
               ,globMatches
@@ -19,15 +20,15 @@ match nocase pat str = inner 0 0
  where slen = B.length str 
        plen = B.length pat
        ceq a b = if nocase then toLower a == toLower b else a == b
-       inner pi si  
+       inner !pi !si  
         | pi == plen = si == slen
         | otherwise = case B.index pat pi of
                        '*'  -> pi == (plen - 1) || or (map (inner (succ pi)) [si..(slen - 1)])
-                       '?'  -> not (si == slen) && inner (succ pi) (succ si)
+                       '?'  -> si /= slen && inner (succ pi) (succ si)
                        '['  -> let (npi, pred) = getSetPred pat pi plen 
-                               in (pred (B.index str si)) && inner npi (succ si)
+                               in si /= slen && pred (B.index str si) && inner npi (succ si)
                        '\\' -> inner (succ pi) si
-                       v    -> not (si == slen) && v `ceq` (B.index str si) && inner (succ pi) (succ si)
+                       v    -> si /= slen && v `ceq` (B.index str si) && inner (succ pi) (succ si)
 
 getSetPred pat pi plen = inner pi [] False
  where inner i lst rang = 
@@ -43,8 +44,7 @@ getSetPred pat pi plen = inner pi [] False
                  (c,True) -> let (h:tl) = lst 
                                  (a,z)  = minmax h c
                              in inner (succ i) ([a..z] ++ tl) False
-
-minmax a b = if b < a then (b,a) else (a,b)
+       minmax a b = if b < a then (b,a) else (a,b)
 
 matchTests = TestList [
     "boo" `matches` "boo" 
@@ -59,6 +59,7 @@ matchTests = TestList [
     ,"ab" `doesnt_match` "a" 
     ,"a*" `matches` "abcde" 
     ,"[abcd]" `matches` "b"
+    ,"[abcd]" `doesnt_match` ""
     ,"a[bcd" `matches` "ac"
     ,"[a-z]" `matches` "b"
     ,"[z-a]" `matches` "b"
