@@ -11,41 +11,28 @@ import VarName (arrName, NSQual(..))
 import Test.HUnit
 
 evalTcl :: T.TclObj -> TclM T.TclObj
-evalTcl s = runCmds =<< asParsed s
+evalTcl s = asParsed s >>= runCmds
 {-# INLINE evalTcl #-}
 
-runCmds [x]    = runCmd x
-runCmds (x:xs) = runCmd x >> runCmds xs
-runCmds []     = ret
+runCmds cl = case cl of
+   [x]    -> runCmd x
+   (x:xs) -> runCmd x >> runCmds xs
+   []     -> ret
+{-# INLINE runCmds #-}
 
 
-getSubst s = do 
-    case asParsed s of
-      Just cmds -> do
-         let toks = concatMap uncmd cmds
-         if all noInterp toks 
-           then return (Left (T.asBStr s))
-           else return (Right toks)
-      Nothing   -> tclErr "subst failed: currently, doesn't work on stuff that we can't tokenize" -- TODO
- where uncmd (Right n,args) = (n:args)
-       uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
-
-subst s = getSubst s >>= doeval
-  where doeval (Right t) = evalRTokens t [] >>= return . B.concat . map T.asBStr
-        doeval (Left s) = return s
 
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj
-callProc pn args = do
-  getCmd pn >>= \pr -> doCall pn pr args
+callProc pn args = getCmd pn >>= \pr -> doCall pn pr args
 
 evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
 evalRTokens []     !acc = return $! reverse acc
 evalRTokens (x:xs) !acc = case x of
             Lit s     -> evalRTokens xs ((T.mkTclBStr s):acc)
             LitInt i  -> evalRTokens xs ((T.mkTclInt i):acc)
+            Block s p -> evalRTokens xs ((T.fromBlock s p):acc)
             CmdTok t  -> nextWith (runCmd t)
             VarRef vn -> nextWith (varGetNS vn)
-            Block s p -> evalRTokens xs ((T.fromBlock s p):acc)
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
@@ -85,6 +72,21 @@ doCond str = do
                        return $! T.asBool r
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
+
+getSubst s = do 
+    case asParsed s of
+      Just cmds -> do
+         let toks = concatMap uncmd cmds
+         if all noInterp toks 
+           then return (Left (T.asBStr s))
+           else return (Right toks)
+      Nothing   -> tclErr "subst failed: currently, doesn't work on stuff that we can't tokenize" -- TODO
+ where uncmd (Right n,args) = (n:args)
+       uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
+
+subst s = getSubst s >>= doeval
+  where doeval (Right t) = evalRTokens t [] >>= return . B.concat . map T.asBStr
+        doeval (Left s) = return s
 
 coreTests = TestList []
 

@@ -31,7 +31,7 @@ module TclObj (
 import qualified BSParse as P
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
-import RToken
+import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -51,6 +51,7 @@ mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
 mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
 
 fromBlock s p = TclBStr s (maybeInt s) p
+{-# INLINE fromBlock #-}
 
 maybeInt s = case BS.readInt (dropSpaces s) of
                 Nothing    -> Nothing
@@ -112,16 +113,19 @@ asList o = liftM F.toList (asSeq o)
 asStr o = unpack (asBStr o)
 
 instance ITObj TclObj where
-  asBool (TclList _ bs) = bs `elem` trueValues
+  asBool (TclList _ bs)   = bs `elem` trueValues
   asBool (TclInt i _)     = i /= 0
-  asBool (TclDouble d _)     = d /= 0.0
+  asBool (TclDouble d _)  = d /= 0.0
   asBool (TclBStr bs _ _) = bs `elem` trueValues
+  {-# INLINE asBool #-}
 
   asInt (TclInt i _) = return i
   asInt (TclDouble _ b) = fail $ "expected integer, got " ++ show b
   asInt (TclBStr _ (Just i) _) = return i
   asInt (TclBStr v Nothing _) = fail $ "Bad int: " ++ show v
   asInt (TclList _ v)         = bstrAsInt v
+  {-# INLINE asInt #-}
+
 
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b

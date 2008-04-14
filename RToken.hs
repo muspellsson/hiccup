@@ -6,15 +6,13 @@ import VarName
 import Test.HUnit
 
 type Parsed = [Cmd]
+type TokResult = Either String Parsed
 type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
-              | CmdTok Cmd | ExpTok RToken
-              | VarRef (NSQual VarName) | ArrRef (Maybe NSTag) !BString RToken 
-              | Block !BString (Either String Parsed) deriving (Eq,Show)
+              | CmdTok !Cmd | ExpTok RToken
+              | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString RToken 
+              | Block !BString TokResult deriving (Eq,Show)
 
-isEmpty (Lit x)    = B.null x
-isEmpty (CatLst l) = null l
-isEmpty _          = False
 
 noInterp tok = case tok of
    (CmdTok _) -> False
@@ -50,11 +48,16 @@ compile str = case doInterp str of
                                 [a] -> a
                                 _   -> CatLst lst
 
+isEmpty (Lit x)    = B.null x
+isEmpty (CatLst l) = null l
+isEmpty _          = False
+
 compToken :: TclWord -> RToken
-compToken (Word s)               = compile s
-compToken (NoSub s res)          = Block s (fromParsed res)
-compToken (Expand t)             = ExpTok (compToken t)
-compToken (Subcommand c)         = compCmd c
+compToken tw = case tw of
+          (Word s)        -> compile s
+          (NoSub s res)   -> Block s (fromParsed res)
+          (Expand t)      -> ExpTok (compToken t)
+          (Subcommand c)  -> compCmd c
 
 compCmd c = CmdTok (toCmd c)
 
@@ -65,15 +68,17 @@ instance Parseable B.ByteString where
   asParsed s = case tryParsed s of
                   Left s -> fail s
                   Right p -> return p
+  {-# INLINE asParsed #-}
 
-tryParsed :: BString -> Either String Parsed
+tryParsed :: BString -> TokResult
 tryParsed s = case runParse s of
                 Nothing -> Left $ "parse failed: " ++ show s
                 Just (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
+{-# INLINE tryParsed #-}
 
-fromParsed Nothing       = Left "parse failed"
-fromParsed (Just (tl,v)) = if B.null v then Right (map toCmd tl) else Left ("incomplete parse: " ++ show v)
-
+fromParsed m = case m of 
+   Nothing     -> Left "parse failed"
+   Just (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("incomplete parse: " ++ show rs)
 
 toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
   where handleProc (Lit v) = Left (parseProc v)
