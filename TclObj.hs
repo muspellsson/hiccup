@@ -158,8 +158,8 @@ asDouble obj = do
 fromList l = (map listEscape l)  `joinWith` ' '
 
 asListS s = case P.parseList s of
-               Nothing  -> fail $ "list parse failure: " ++ show s
-               Just lst -> return lst
+               Left r  -> fail $ "list parse failure: " ++ r
+               Right lst -> return lst
 
 
 trueValues = map pack ["1", "true", "yes", "on"]

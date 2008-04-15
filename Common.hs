@@ -131,7 +131,7 @@ getOrigin p = if nso == nsSep
  where nso = maybe nsSep id (cmdOrigNS p)
        pname = cmdName p
 
-applyTo !(TclCmdObj _ _ _ _ !f) !args = f args
+applyTo !f !args = (cmdAction f) args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
@@ -590,6 +590,7 @@ getCurrNS = getFrame >>= liftIO . readIORef >>= \f -> return $! (frNS f)
 {-# INLINE getCurrNS #-}
 
 getGlobalNS = gets tclGlobalNS
+{-# INLINE getGlobalNS #-}
 
 readRef :: IORef a -> TclM a
 readRef !r = (liftIO . readIORef) r
@@ -683,13 +684,13 @@ emptyVarMap = Map.empty
 
 runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
 runCheckResult t v =
-  do st <- makeState' Map.empty [] emptyCmdMap
+  do st <- makeState [] emptyCmdMap
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
 errWithEnv :: TclM a -> IO (Either Err a)
 errWithEnv t =
-    do st <- makeState' Map.empty [] emptyCmdMap
+    do st <- makeState [] emptyCmdMap
        retv <- liftM fst (runTclM t st)
        return retv
 
@@ -699,7 +700,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
   evalWithEnv t =
-    do st <- makeState' Map.empty [] emptyCmdMap
+    do st <- makeState [] emptyCmdMap
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 

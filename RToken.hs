@@ -72,13 +72,13 @@ instance Parseable B.ByteString where
 
 tryParsed :: BString -> TokResult
 tryParsed s = case runParse s of
-                Nothing -> Left $ "parse failed: " ++ show s
-                Just (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
+                Left w -> Left $ "parse failed: " ++ w
+                Right (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("Incomplete parse: " ++ show rs)
 {-# INLINE tryParsed #-}
 
 fromParsed m = case m of 
-   Nothing     -> Left "parse failed"
-   Just (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("incomplete parse: " ++ show rs)
+   Left w     -> Left $ "parse failed: " ++ w
+   Right (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("incomplete parse: " ++ show rs)
 
 toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
   where handleProc (Lit v) = Left (parseProc v)
