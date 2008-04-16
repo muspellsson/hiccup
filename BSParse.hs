@@ -154,10 +154,10 @@ parseInd str = do
 
 
 orElse :: Parser t -> Parser t -> Parser t
-orElse a b v = v `seq` ((a v) `mplus` (b v))
+orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
-tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
+tryGet fn = fn `orElse` (\s -> return ("", s))
      
 chain :: [Parser BString] -> Parser BString
 chain lst !rs = inner lst [] rs
