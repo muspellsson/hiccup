@@ -112,15 +112,15 @@ getInterp str = do
    let locval = B.index str loc
    if escaped loc str
      then dorestfrom loc locval
-     else let (pre,aft) = B.splitAt loc str in
-          let pfun = (doVarParse .>-  Left) `orElse` (parseSub .>- Right) in
-          let res = pfun aft >>= \(v,rest) -> return (pre, v, rest) 
+     else let (pre,aft) = B.splitAt loc str 
+              pfun = (doVarParse .>-  Left) `orElse` (parseSub .>- Right) 
+              res = pfun aft >>= \(v,rest) -> return (pre, v, rest) 
           in res `mplus` dorestfrom loc locval
  where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
                                 return (B.append (B.take loc str) (B.cons lval p), v, r)
 
 doVarParse :: Parser BString
-doVarParse = parseChar '$' .>> parseVarRef
+doVarParse = pchar '$' .>> parseVarRef
 
 parseVarRef :: Parser BString
 parseVarRef = chain [ parseVarTerm `orElse` getNS
@@ -135,7 +135,7 @@ parseVarTerm = getVar `orElse` braceVar
 
 parseInd :: Parser BString
 parseInd str = do 
-    parseChar '(' str
+    pchar '(' str
     ind <- case B.elemIndex ')' str of
              Just v -> return v
              Nothing -> fail "Couldn't find matching \")\""
@@ -250,9 +250,6 @@ getPred p s = return $! (w,n)
 getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
  where (w,n) = B.span p s
 
-getWord = getPred1 p "work token"
- where p c = wordChar c || (c `B.elem` "+.-=<>*()$/,:^%!&#|?")
-
 
 tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
 
@@ -260,10 +257,13 @@ wrapWith fn wr s = fn s >>= \(!w,r) -> return (wr w, r)
 {-# INLINE wrapWith #-}
 
 wordToken = wordTokenRaw `wrapWith` Word
-wordTokenRaw  = (chain [parseChar '$', parseVarBody]) `orElse` getWord
+wordTokenRaw = parseMany1 ((chain [pchar '$', parseVarBody, tryGet parseInd]) `orElse` pthing) `wrapWith` B.concat
+ where pthing = getPred1 (`notElem` " ${}[]\n\t\\;") "inner word"
+ -- TODO: Rename pthing
 
-parseVarBody = (braceVar `wrapWith` braceIt) `orElse` (chain [getWord, tryGet wordTokenRaw])
+parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
  where braceIt w = B.concat ["{", w , "}"]
+       pthing = getPred1 (`notElem` "( ${}[]\n\t\\;") "inner word"
 
 braceVar = pnested
 
@@ -306,7 +306,6 @@ escaped_char = chain [pchar '\\', parseAny]
 pnested = pchar '{' .>> nest_filling `pass` pchar '}'
  where inner = escaped_char `orElse` braces `orElse` nobraces
        nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
-       pchar = parseChar
        braces = chain [pchar '{', nest_filling, pchar '}']
        nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"
 
@@ -398,9 +397,12 @@ doInterpTests = TestList [
        (?!=) res str = Left res ~=? doInterp str
 
 getWordTests = "wordToken" ~: TestList [
-     "empty" ~: "" `should_fail` (),
-     "Simple2" ~: (mkwd "$whoa", "") ?=? "$whoa",
-     "Simple with bang" ~: (mkwd "whoa!", " ") ?=? "whoa! "
+     "empty" ~: "" `should_fail` ()
+     ,"Simple2" ~: (mkwd "$whoa", "") ?=? "$whoa"
+     ,"Simple with bang" ~: (mkwd "whoa!", " ") ?=? "whoa! "
+     ,"braced, then normal" ~: (mkwd "${x}$x", "") ?=? "${x}$x"
+     ,"non-var, then var" ~: (mkwd "**$x", "") ?=? "**$x"
+     ,"non-var, then var w/ space" ~: (mkwd "**${a b}", "") ?=? "**${a b}"
   ]
  where should_fail str _ = (wordToken str) `should_fail_` ()
        (?=?) res str = Right res ~=? wordToken str
@@ -477,8 +479,7 @@ runParseTests = "runParse" ~: TestList [
      ,"arr 4" ~: (pr ["set","buggy($bean)", "${wow}"]) ?=? "set buggy($bean) ${wow}"
      ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
      ,"hashed num" ~: (pr ["uplevel", "#1", "exit"]) ?=? "uplevel #1 exit"
-     -- not yet TODO
-     -- ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
+     ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
     ,"expand" ~: ([(mkwd "incr", [Expand (mkwd "$boo")])], "") ?=? "incr {*}$boo"
     ,"no expand" ~: ([(mkwd "incr", [mkNoSub "*", mkwd "$boo"])], "") ?=? "incr {*} $boo"
   ]
