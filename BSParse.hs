@@ -22,25 +22,14 @@ type PResult a = ParseMonad (a, BString)
 type Result = PResult [TokCmd]
 type TokCmd = (TclWord, [TclWord])
 
-runParse :: Parser [TokCmd]
-runParse = parseStatements `wrapWith` asCmds
- where asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
-
-parseStatements :: Parser [[TclWord]]
-parseStatements = (multi (eatSpaces .>> parseStatement)) `pass` parseEof
-  
 -- TODO: Eep. Dirty
 -- Pass parsers the second argument, but ignores the result.
 pass :: Parser t -> Parser t1 -> Parser t
 pass f1 f = \s -> f1 s >>= \(v,r) -> f r >>= \(_,r2) -> return $! (v,r2)
 {-# INLINE pass #-}
 
-parseStatement :: Parser [TclWord]
-parseStatement = eatAndNext `orElse` parseEof `orElse` parseTokens
- where stmtSep = parseOneOf "\n;" .>> eatSpaces 
-       eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
-
+-- (.>>) == pjoin snd, I believe
 (.>>) f1 f2 = \s -> do
         (_, r) <- f1 s
         f2 r
@@ -49,9 +38,22 @@ parseStatement = eatAndNext `orElse` parseEof `orElse` parseTokens
 eatSpaces s = return ((), dropSpaces s)
 {-# INLINE eatSpaces #-}
 
+runParse :: Parser [TokCmd]
+runParse = parseStatements `wrapWith` asCmds
+ where asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
+
+
+parseStatements :: Parser [[TclWord]]
+parseStatements = (multi (eatSpaces .>> parseStatement)) `pass` parseEof
+  
+
+parseStatement :: Parser [TclWord]
+parseStatement = choose [eatAndNext, parseEof, parseTokens]
+ where stmtSep = parseOneOf "\n;" .>> eatSpaces 
+       eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
 
 parseComment :: Parser ()
-parseComment = parseChar '#' .>> getPred (/= '\n') .>> eatSpaces
+parseComment = pchar '#' .>> getPred (/= '\n') .>> eatSpaces
 
 parseTokens :: Parser [TclWord]
 parseTokens = parseMany1 (eatSpaces .>> parseToken)
@@ -71,6 +73,7 @@ handleEsc = line_continue `orElse` esc_word
  where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
        esc_word = (chain [escaped_char, tryGet wordTokenRaw]) `wrapWith` Word
 
+-- List parsing
 parseList s = parseList_ s >>= return . fst
 parseList_ :: Parser [BString]
 parseList_ = eatWhite .>> (parseEof `orElse` multi plistItem)
@@ -95,29 +98,38 @@ listItemEnd s = inner 0 False where
                                   v  -> if v `B.elem` "{}\" \t\n" then i else inner (i+1) False
 
 
-safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)
-{-# INLINE safeHead #-}
-
 doInterp str = case getInterp str of
                    Left _ -> Left (escapeStr str)
-                   Right (pr,s,r) -> Right (escapeStr pr, s, r)
+                   Right ((pr,s), r) -> Right (escapeStr pr, s, r)
 
-(.>-) f w s = wrapWith f w s
+escapeStr = optim
+ where escape' !esc !lx =
+          case B.uncons lx of
+            Nothing -> lx
+            Just (x,xs) -> case (x, esc) of
+                             ('\\', False) -> escape' True xs
+                             ('\\', True)  -> B.cons x (optim xs)
+                             (_, False)    -> B.cons x (optim xs)
+                             (_, True)     -> B.cons (escapeChar x) (optim xs)
+       optim s = case B.elemIndex '\\' s of
+                    Nothing -> s
+                    Just i  -> let (c,r) = B.splitAt i s in B.append c (escape' True (B.drop 1 r))
+       escapeChar 'n' = '\n'
+       escapeChar 't' = '\t'
+       escapeChar  c  = c
 
 -- TODO: UGLY
+getInterp :: Parser (BString, Either BString TokCmd)
 getInterp str = do
    loc <- case B.findIndex (\x -> x == '$' || x == '[') str of
             Just v -> return v
             Nothing -> fail "no matching $ or ["
-   let locval = B.index str loc
    if escaped loc str
-     then dorestfrom loc locval
-     else let (pre,aft) = B.splitAt loc str 
-              pfun = (doVarParse .>-  Left) `orElse` (parseSub .>- Right) 
-              res = pfun aft >>= \(v,rest) -> return (pre, v, rest) 
-          in res `mplus` dorestfrom loc locval
- where dorestfrom loc lval = do (p,v,r) <- getInterp (B.drop (loc+1) str)
-                                return (B.append (B.take loc str) (B.cons lval p), v, r)
+     then dorestfrom loc str
+     else let res = pjoin (,) (parseLen loc) interpItem
+          in (res `orElse` dorestfrom loc) str
+ where dorestfrom loc = (pjoin (\s (p,v) -> (B.append s p, v)) (parseLen (loc+1)) getInterp) 
+       interpItem = (doVarParse `wrapWith` Left) `orElse` (parseSub `wrapWith` Right) 
 
 doVarParse :: Parser BString
 doVarParse = pchar '$' .>> parseVarRef
@@ -126,8 +138,7 @@ parseVarRef :: Parser BString
 parseVarRef = chain [ parseVarTerm `orElse` getNS
                       ,tryGet parseVarRef
                       ,tryGet parseInd ]
-
-getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
+ where getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
 
 parseVarTerm :: Parser BString
 parseVarTerm = getVar `orElse` braceVar
@@ -139,20 +150,41 @@ parseInd str = do
     ind <- case B.elemIndex ')' str of
              Just v -> return v
              Nothing -> fail "Couldn't find matching \")\""
-    let (pre,post) = B.splitAt (ind+1) str
-    return (pre, post)
+    parseLen (ind+1) str
 
 
 orElse :: Parser t -> Parser t -> Parser t
-orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
+orElse a b v = v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
+tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
      
 chain :: [Parser BString] -> Parser BString
 chain lst !rs = inner lst [] rs
  where inner []     !acc !r = return (B.concat (reverse acc), r)
        inner (f:fs) !acc !r = do (s,r2) <- f r 
                                  inner fs (s:acc) r2
+
+choose = foldr1 orElse
+{-# INLINE choose #-}
+
+pjoin :: (t1 -> t2 -> t3) -> Parser t1 -> Parser t2 -> Parser t3
+pjoin op a b s = do
+       (w,r)   <- a s
+       (w2,r2) <- b r
+       return ((op w w2), r2)
+{-# INLINE pjoin #-}
+
+parseMany :: Parser t -> Parser [t]
+parseMany p = inner `orElse` (\s -> return ([],s))
+ where inner = parseMany1 p
+   
+parseMany1 p = pjoin (:) p (parseMany p)
+
+-- TODO: Document and possibly rename 'multi'
+multi :: Parser t -> Parser [t]
+multi p = pjoin (:) p (parseEof `orElse` (multi p))
+{-# INLINE multi #-}
  
 parseLit :: BString -> Parser BString
 parseLit !w s = if w `B.isPrefixOf` s 
@@ -160,40 +192,16 @@ parseLit !w s = if w `B.isPrefixOf` s
                     else fail $ "didn't match " ++ show w
 
 
- -- Toys for later
-parseInt :: Parser Int 
-parseInt s = case B.readInt s of
-                Just x -> return x
-                Nothing -> fail "expected int"
-
-data OTok = TokNum Int | TokOp Oper | TokPar [OTok] deriving (Eq,Show)
-data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
-parseOp = ((op '*' OpTimes) `orElse` parseOpPlus `orElse` parseOpMinus) `wrapWith` TokOp
- where op c v = eatSpaces .>> parseChar c .>> \s -> return (v,s) 
-       parseOpPlus = op '+' OpPlus
-       parseOpMinus = op '-' OpMinus
-
-tokExpr :: Parser [OTok]
-tokExpr = parseMany1 toks
- where toks = parseOp `orElse` intTok `orElse` parenTok 
-       intTok = (eatSpaces .>> parseInt) `wrapWith` TokNum
-       parenTok = (parseParen tokExpr) `wrapWith` TokPar
-       parseParen :: Parser t -> Parser t
-       parseParen p = (eatSpaces .>> pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
-   
-{-
-
-parseDouble :: Parser Double
-parseDouble s = do
-    (ds, r) <- chain [parseNums, parseChar '.', parseNums] s
-    return (read (B.unpack ds), r)
- where parseNums = getPred1 (inRange ('0','9'))
-
--}
+parseLen :: Int -> Parser BString
+parseLen !i = \s -> if B.length s < i 
+                     then fail ("can't parse " ++ show i ++ ", not enough")
+                     else return $ B.splitAt i s
+{-# INLINE parseLen #-}
          
 parseOneOf !cl = parseCharPred (`elem` cl) ("one of " ++ show cl)
 parseChar :: Char -> Parser BString
 parseChar !c = parseCharPred (== c) (show c)
+pchar = parseChar -- shorthand
 
 parseAny = parseCharPred (const True) "any char"
 parseCharPred pred exp s = case B.uncons s of
@@ -203,27 +211,24 @@ parseCharPred pred exp s = case B.uncons s of
  where failStr what = fail $ "expected " ++ exp ++ ", got " ++ what
 {-# INLINE parseCharPred #-}
 
+
+wrapWith fn wr s = fn s >>= \(!w,r) -> return (wr w, r) 
+{-# INLINE wrapWith #-}
+
+getPred p s = return $! (w,n)
+ where (w,n) = B.span p s
+
+-- TODO: slightly inaccuate error messages
+getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
+ where (w,n) = B.span p s
+
 parseEof s = if B.null s 
                then return ([], s) 
                else fail $ "expected eof, got " ++ show (B.head s)
 
-parseMany :: Parser t -> Parser [t]
-parseMany p = inner `orElse` (\s -> return ([],s))
- where inner = parseMany1 p
-   
-parseMany1 p = pjoin (:) p (parseMany p)
 
-pjoin :: (t1 -> t2 -> t3) -> Parser t1 -> Parser t2 -> Parser t3
-pjoin op a b = \s -> do
-                 (w,r)   <- a s
-                 (w2,r2) <- b r
-                 return ((op w w2), r2)
-{-# INLINE pjoin #-}
-
--- TODO: Document and possibly rename 'multi'
-multi :: Parser t -> Parser [t]
-multi p = pjoin (:) p (parseEof `orElse` (multi p))
-{-# INLINE multi #-}
+safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)
+{-# INLINE safeHead #-}
 
 brackets p = (pchar '[' .>> p) `pass` (eatSpaces .>> pchar ']')
 
@@ -244,17 +249,7 @@ wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  ||
 -}
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
-getPred p s = return $! (w,n)
- where (w,n) = B.span p s
 
-getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
- where (w,n) = B.span p s
-
-
-tryGet fn s = (fn `orElse` (\_ -> return (B.empty, s))) s
-
-wrapWith fn wr s = fn s >>= \(!w,r) -> return (wr w, r) 
-{-# INLINE wrapWith #-}
 
 wordToken = wordTokenRaw `wrapWith` Word
 wordTokenRaw = parseMany1 ((chain [pchar '$', parseVarBody, tryGet parseInd]) `orElse` pthing) `wrapWith` B.concat
@@ -269,31 +264,16 @@ braceVar = pnested
 
 parseStr = parseStrRaw `wrapWith` Word
 
-pchar = parseChar
 
 parseStrRaw = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
        inside = parseMany (noquotes `orElse` escaped_char)
 
-escapeStr = optim
- where escape' !esc !lx =
-          case B.uncons lx of
-            Nothing -> lx
-            Just (x,xs) -> case (x, esc) of
-                             ('\\', False) -> escape' True xs
-                             ('\\', True)  -> B.cons x (optim xs)
-                             (_, False)    -> B.cons x (optim xs)
-                             (_, True)     -> B.cons (escapeChar x) (optim xs)
-       optim s = case B.elemIndex '\\' s of
-                    Nothing -> s
-                    Just i  -> let (c,r) = B.splitAt i s in B.append c (escape' True (B.drop 1 r))
-       escapeChar 'n' = '\n'
-       escapeChar 't' = '\t'
-       escapeChar  c  = c
 
 escaped v s = escaped' v
- where escaped' !i = if i <= 0 then False 
-                               else (B.index s (i-1) == '\\') && not (escaped' (i-1))
+ where escaped' !i = if i <= 0 
+                         then False 
+                         else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
 mkNoSub s = NoSub s (runParse s)
 
@@ -304,10 +284,45 @@ parseNoSub = pnested `wrapWith` mkNoSub
 escaped_char = chain [pchar '\\', parseAny]
 
 pnested = pchar '{' .>> nest_filling `pass` pchar '}'
- where inner = escaped_char `orElse` braces `orElse` nobraces
+ where inner = choose [escaped_char, braces, nobraces]
        nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
        braces = chain [pchar '{', nest_filling, pchar '}']
        nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"
+
+
+-- Toys for later
+parseInt :: Parser Int 
+parseInt s = case B.readInt s of
+                Just x -> return x
+                Nothing -> fail "expected int"
+
+
+data OTok = TokNum !Int | TokOp Oper | TokPar [OTok] | TokCom TokCmd | TokVar BString deriving (Eq,Show)
+data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
+parseOp = (choose [op '*' OpTimes, parseOpPlus, parseOpMinus]) `wrapWith` TokOp
+ where op c v = eatSpaces .>> pchar c .>> \s -> return (v,s) 
+       parseOpPlus = op '+' OpPlus
+       parseOpMinus = op '-' OpMinus
+
+tokExpr :: Parser [OTok]
+tokExpr = parseMany1 toks
+ where toks = choose [parseOp, intTok, parseCmd, pVar, parenTok]
+       intTok = (eatSpaces .>> parseInt) `wrapWith` TokNum
+       parenTok = (parseParen tokExpr) `wrapWith` TokPar
+       parseCmd = (eatSpaces .>> parseSub) `wrapWith` TokCom
+       pVar = (eatSpaces .>> doVarParse) `wrapWith` TokVar
+       parseParen :: Parser t -> Parser t
+       parseParen p = (eatSpaces .>> pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
+   
+{-
+
+parseDouble :: Parser Double
+parseDouble s = do
+    (ds, r) <- chain [parseNums, parseChar '.', parseNums] s
+    return (read (B.unpack ds), r)
+ where parseNums = getPred1 (inRange ('0','9'))
+
+-}
 
 -- # TESTS # --
 
@@ -382,7 +397,7 @@ getInterpTests = "getInterp" ~: TestList [
        ("a ",Right (mkwd "sub",[mklit "quail [puts 1]"]), " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
   ]
  where noInterp str = (getInterp str) `should_fail_` ()
-       (?=?) res str = Right res ~=? getInterp str
+       (?=?) (a,b,c) str = Right ((a,b),c) ~=? getInterp str
        mkvar w = Left w
 
 doInterpTests = TestList [
@@ -495,6 +510,8 @@ futureTests = "future" ~: TestList [intTests, tokTests] where
       ,"3+4" `should_be` [TokNum 3, TokOp OpPlus, TokNum 4]
       ,"3-4" `should_be` [TokNum 3, TokOp OpMinus, TokNum 4]
       ,"(3+4)" `should_be` [TokPar [TokNum 3, TokOp OpPlus, TokNum 4]]
+      ,"3 + $cat" `should_be` [TokNum 3, TokOp OpPlus, TokVar "cat"]
+      ,"3 + [gets $cat]" `should_be` [TokNum 3, TokOp OpPlus, TokCom (mkwd "gets", [mkwd "$cat"])]
     ] where should_be dat res = (B.unpack dat) ~: Right (res,"") ~=? tokExpr dat
 
   intTests = TestList [
@@ -508,6 +525,6 @@ futureTests = "future" ~: TestList [intTests, tokTests] where
 bsParseTests = TestList [ nestedTests, testEscaped, braceVarTests,
                    parseStrTests, getInterpTests, getWordTests, doInterpTests,
                    parseTokensTests, parseListTests, runParseTests, 
-                   parseVarRefTests, futureTests]
+                   parseVarRefTests, futureTests ]
 
 -- # ENDTESTS # --
