@@ -135,3 +135,15 @@ test "lsearch" {
 
   checkthat [lsearch [list AAA BBB CCC] A??] == 0
 }
+
+test "lrepeat" {
+  checkthat [lrepeat 1 x] eq [list x]
+  checkthat [lrepeat 3 x] eq [list x x x]
+  checkthat [lrepeat 3 a b c] eq [list a b c a b c a b c]
+
+  assert_err { lrepeat 0 x }
+  assert_err { lrepeat -4 x }
+  assert_err { lrepeat 1 }
+
+  checkthat [llength [lrepeat 10 [lrepeat 10 a b]]] == 10
+}

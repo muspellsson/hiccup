@@ -14,7 +14,7 @@ listProcs = makeCmdMap $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
-   ("join", procJoin), ("concat", procConcat)]
+   ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
 
 procList = return . T.mkTclList
 
@@ -106,7 +106,7 @@ procLsort args =  case args of
 
 ifTrue fun b = if b then fun else id
 
--- NOTE: This is so ugly.
+-- TODO: This is so ugly.
 sortEm :: SortFlags -> [T.TclObj] -> TclM [T.TclObj]
 sortEm (SF stype rev nocase) lst = do 
      pairs <- modder
@@ -120,3 +120,10 @@ sortEm (SF stype rev nocase) lst = do
                   AsciiSort -> paired (return . caser . T.asBStr) >>= retSortFst
                   IntSort   -> paired (T.asInt) >>= retSortFst
 
+cmdLrepeat args = case args of 
+    (ti:x:xs) -> do 
+          i <- T.asInt ti 
+          if i <= 0 
+              then fail "must have a count of at least 1"
+              else return $ T.mkTclList (concat (replicate i (x:xs)))
+    _ -> argErr "lrepeat"
