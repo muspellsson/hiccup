@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module BSParse ( runParse, doInterp, TclWord(..), parseList
-            ,Result
             ,TokCmd
             ,bsParseTests
   ) where
@@ -13,27 +12,32 @@ import Test.HUnit
 
 data TclWord = Word !B.ByteString 
              | Subcommand TokCmd 
-             | NoSub !B.ByteString Result  
+             | NoSub !B.ByteString (Result [TokCmd])
              | Expand TclWord deriving (Show,Eq)
 
-type Parser a = BString -> PResult a
+type Parser a = BString -> Result a
 type ParseMonad = Either String
-type PResult a = ParseMonad (a, BString)
-type Result = PResult [TokCmd]
+type Result a = ParseMonad (a, BString)
 type TokCmd = (TclWord, [TclWord])
 
 
--- TODO: Eep. Dirty
--- Pass parsers the second argument, but ignores the result.
-pass :: Parser t -> Parser t1 -> Parser t
-pass f1 f = \s -> f1 s >>= \(v,r) -> f r >>= \(_,r2) -> return $! (v,r2)
+-- pass = pjoin fst
+pass = pjoin (\a _ -> a)
+--pass :: Parser t -> Parser t1 -> Parser t
+--pass f1 f s = f1 s >>= \(v,r) -> f r >>= \(_,r2) -> return $! (v,r2)
 {-# INLINE pass #-}
 
--- (.>>) == pjoin snd, I believe
-(.>>) f1 f2 = \s -> do
+-- (.>>) == pjoin snd
+(.>>) = pjoin (\_ b -> b)
+{-
+(.>>) f1 f2 s = do
         (_, r) <- f1 s
         f2 r
+-}
 {-# INLINE (.>>) #-}
+
+pcons = pjoin (:)
+ 
 
 eatSpaces s = return ((), dropSpaces s)
 {-# INLINE eatSpaces #-}
@@ -51,9 +55,7 @@ parseStatement :: Parser [TclWord]
 parseStatement = choose [eatAndNext, parseEof, parseTokens]
  where stmtSep = parseOneOf "\n;" .>> eatSpaces 
        eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
-
-parseComment :: Parser ()
-parseComment = pchar '#' .>> getPred (/= '\n') .>> eatSpaces
+       parseComment = pchar '#' .>> getPred (/= '\n') .>> eatSpaces
 
 parseTokens :: Parser [TclWord]
 parseTokens = parseMany1 (eatSpaces .>> parseToken)
@@ -64,9 +66,10 @@ parseToken str = do
    case h of
      '{'  -> (parseExpand `orElse` parseNoSub) str
      '['  -> (parseSub `wrapWith` Subcommand) str
-     '"'  -> parseStr str
+     '"'  -> (parseStr `wrapWith` Word) str
      '\\' -> handleEsc str
      _    -> wordToken str
+ where parseNoSub = pnested `wrapWith` mkNoSub
 
 handleEsc :: Parser TclWord
 handleEsc = line_continue `orElse` esc_word
@@ -84,7 +87,7 @@ parseList_ = eatWhite .>> (parseEof `orElse` multi plistItem)
 listDisp str = do h <- safeHead "list item" str
                   case h of
                    '{' -> pnested str
-                   '"' -> parseStrRaw str 
+                   '"' -> parseStr str 
                    _   -> getListItem str
 
 getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
@@ -179,11 +182,11 @@ parseMany :: Parser t -> Parser [t]
 parseMany p = inner `orElse` (\s -> return ([],s))
  where inner = parseMany1 p
    
-parseMany1 p = pjoin (:) p (parseMany p)
+parseMany1 p = p `pcons` (parseMany p)
 
 -- TODO: Document and possibly rename 'multi'
 multi :: Parser t -> Parser [t]
-multi p = pjoin (:) p (parseEof `orElse` (multi p))
+multi p = p `pcons` (parseEof `orElse` (multi p))
 {-# INLINE multi #-}
  
 parseLit :: BString -> Parser BString
@@ -241,10 +244,6 @@ parseSub s = do
 
 
 {-
-wordChar ' ' = False
-wordChar !c = let ci = ord c in
-  (ord 'a' <= ci  && ci <= ord 'z') || (ord 'A' <= ci  && ci <= ord 'Z') ||
-  (ord '0' <= ci  && ci <= ord '9') || (c == '_')
 wordChar !c = c /= ' ' && any (`inRange` c) [('a','z'),('A','Z'), ('0','9')]  || c == '_'
 -}
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
@@ -262,10 +261,9 @@ parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
 
 braceVar = pnested
 
-parseStr = parseStrRaw `wrapWith` Word
 
 
-parseStrRaw = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
+parseStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
        inside = parseMany (noquotes `orElse` escaped_char)
 
@@ -279,7 +277,6 @@ mkNoSub s = NoSub s (runParse s)
 
 parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
 
-parseNoSub = pnested `wrapWith` mkNoSub
 
 escaped_char = chain [pchar '\\', parseAny]
 
@@ -297,22 +294,36 @@ parseInt s = case B.readInt s of
                 Nothing -> fail "expected int"
 
 
-data OTok = TokNum !Int | TokOp Oper | TokPar [OTok] | TokCom TokCmd | TokVar BString deriving (Eq,Show)
+data OTok = TokNum !Int | TokOp Oper | TokStr BString
+          | TokPar [OTok] | TokCom TokCmd 
+          | TokFun BString [OTok]
+          | TokVar BString  
+               deriving (Eq,Show)
+
 data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
+
 parseOp = (choose [op '*' OpTimes, parseOpPlus, parseOpMinus]) `wrapWith` TokOp
  where op c v = eatSpaces .>> pchar c .>> \s -> return (v,s) 
        parseOpPlus = op '+' OpPlus
        parseOpMinus = op '-' OpMinus
 
+sepBy1 :: Parser t -> Parser t2 -> Parser [t]
+sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
+
+commaSep :: Parser t -> Parser [t]
+commaSep = (`sepBy1` (eatSpaces .>> pchar ','))
+
 tokExpr :: Parser [OTok]
 tokExpr = parseMany1 toks
- where toks = choose [parseOp, intTok, parseCmd, pVar, parenTok]
-       intTok = (eatSpaces .>> parseInt) `wrapWith` TokNum
-       parenTok = (parseParen tokExpr) `wrapWith` TokPar
-       parseCmd = (eatSpaces .>> parseSub) `wrapWith` TokCom
-       pVar = (eatSpaces .>> doVarParse) `wrapWith` TokVar
-       parseParen :: Parser t -> Parser t
-       parseParen p = (eatSpaces .>> pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
+ where toks = choose [parseOp, intTok, parseCmd, pVar, pStr, parenTok, pFun]
+       intTok = parseInt `tok` TokNum
+       parseCmd = parseSub `tok` TokCom
+       pStr = parseStr `tok` TokStr
+       pVar = doVarParse `tok` TokVar
+       pFun = pjoin (\n v -> TokFun n v) (getPred1 wordChar "function name") (paren tokExpr)
+       parenTok = (paren tokExpr) `tok` TokPar
+       paren p = (pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
+       tok f w = (eatSpaces .>> f) `wrapWith` w
    
 {-
 
@@ -326,6 +337,13 @@ parseDouble s = do
 
 -- # TESTS # --
 
+should_fail_ act _ = let res = case act of 
+                                 Left _ -> True
+                                 _      -> False
+                     in TestCase $ assertBool "should fail" res
+
+mkwd = Word
+
 testEscaped = TestList [
         (escaped 1 "\\\"") ~? "pre-slashed quote should be escaped",
         checkFalse "non-slashed quote not escaped"  (escaped 1 " \""),
@@ -335,19 +353,11 @@ testEscaped = TestList [
   ]
  where checkFalse str val = TestCase $ assertBool str (not val)
 
-should_fail_ act _ = let res = case act of 
-                                 Left _ -> True
-                                 _      -> False
-                     in TestCase $ assertBool "should fail" res
-
-
-mklit = Word
-mkwd = Word
 
 parseStrTests = "parseStr" ~: TestList [
-      "Escaped works" ~: (mkwd "Oh \\\"yeah\\\" baby.", "") ?=? "\"Oh \\\"yeah\\\" baby.\"",
-      "Parse Str with leftover" ~: (mkwd "Hey there.", " 44") ?=? "\"Hey there.\" 44",
-      "Parse Str with dolla" ~: (mklit "How about \\$44?", "") ?=? "\"How about \\$44?\"",
+      "Escaped works" ~: ("Oh \\\"yeah\\\" baby.", "") ?=? "\"Oh \\\"yeah\\\" baby.\"",
+      "Parse Str with leftover" ~: ("Hey there.", " 44") ?=? "\"Hey there.\" 44",
+      "Parse Str with dolla" ~: ("How about \\$44?", "") ?=? "\"How about \\$44?\"",
       "bad parse1" ~: "What's new?" `should_fail` ()
    ]
  where (?=?) res str = Right res ~=? parseStr str
@@ -394,7 +404,7 @@ getInterpTests = "getInterp" ~: TestList [
     "unescaped $ after esc works" ~:
           ("a \\$", mkvar "variable", "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
-       ("a ",Right (mkwd "sub",[mklit "quail [puts 1]"]), " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
+       ("a ",Right (mkwd "sub",[mkwd "quail [puts 1]"]), " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
   ]
  where noInterp str = (getInterp str) `should_fail_` ()
        (?=?) (a,b,c) str = Right ((a,b),c) ~=? getInterp str
@@ -512,6 +522,8 @@ futureTests = "future" ~: TestList [intTests, tokTests] where
       ,"(3+4)" `should_be` [TokPar [TokNum 3, TokOp OpPlus, TokNum 4]]
       ,"3 + $cat" `should_be` [TokNum 3, TokOp OpPlus, TokVar "cat"]
       ,"3 + [gets $cat]" `should_be` [TokNum 3, TokOp OpPlus, TokCom (mkwd "gets", [mkwd "$cat"])]
+      ,"\" one \"" `should_be` [TokStr " one "]
+      ,"sin(4+4)" `should_be` [TokFun "sin" [TokNum 4, TokOp OpPlus, TokNum 4]]
     ] where should_be dat res = (B.unpack dat) ~: Right (res,"") ~=? tokExpr dat
 
   intTests = TestList [

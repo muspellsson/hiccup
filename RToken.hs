@@ -1,4 +1,5 @@
 module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, asParsed, rtokenTests ) where
+
 import qualified Data.ByteString.Char8 as B
 import BSParse (TclWord(..), doInterp, runParse)
 import Util (BString,pack)
