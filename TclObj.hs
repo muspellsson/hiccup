@@ -147,6 +147,7 @@ instance Parseable TclObj where
 
 asDouble :: (Monad m) => TclObj -> m Double
 asDouble (TclDouble d _) = return $! d
+asDouble (TclInt i _) = return $! (fromIntegral i)
 asDouble obj = do
   case asInt obj of 
     Just i  -> return $! (fromIntegral i)

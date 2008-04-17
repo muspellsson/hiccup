@@ -85,12 +85,30 @@ squarert x = do
         d1 <- T.asDouble x
 	return $! T.mkTclDouble (sqrt d1)
 
-plus x y = do
+data NPair = Ints !Int !Int | Doubles !Double !Double deriving (Eq,Show)
+
+-- TODO: Inline getNumerics manually and get rid of NPair?
+getNumerics !x !y =
    case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.mkTclInt (i1+i2))
+       (Just i1, Just i2) -> return $! Ints i1 i2
        _ -> case (T.asDouble x, T.asDouble y) of
-               (Just d1, Just d2) -> return $! T.mkTclDouble (d1+d2)
-               _ -> fail "can't use non-numeric string as operand of \"+\""
+               (Just d1, Just d2) -> return $! Doubles d1 d2
+               _ -> fail $ "expected numeric"
+{-# INLINE getNumerics #-}
+
+numop name iop dop !x !y = 
+   case getNumerics x y of
+       Just (Ints i1 i2)  -> return $! (T.mkTclInt (i1 `iop` i2))
+       Just (Doubles d1 d2) -> return $! T.mkTclDouble (d1 `dop` d2)
+       _ -> fail $ "can't use non-numeric string as operand of " ++ show name
+{-# INLINE numop #-}
+
+plus, minus, times, divide :: (Monad m) => T.TclObj -> T.TclObj -> m T.TclObj
+plus = numop "+" (+) (+) 
+minus = numop "-" (-) (-)
+times = numop "*" (*) (*)
+divide = numop "/" div (/)
+
 
 pow x y = do
    case (T.asInt x, T.asInt y) of
@@ -100,29 +118,6 @@ pow x y = do
            d2 <- T.asDouble y
 	   return $! T.mkTclDouble (d1 ** d2)
 
-minus x y = do
-   case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.mkTclInt (i1-i2))
-       _ -> do 
-           d1 <- T.asDouble x
-           d2 <- T.asDouble y
-	   return $! T.mkTclDouble (d1-d2)
-
-times !x !y = do
-   case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.mkTclInt (i1*i2))
-       _ -> do 
-           d1 <- T.asDouble x
-           d2 <- T.asDouble y
-	   return $! T.mkTclDouble (d1*d2)
-
-divide x y = do
-   case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.mkTclInt (i1 `div` i2))
-       _ -> do 
-           d1 <- T.asDouble x
-           d2 <- T.asDouble y
-	   return $! T.mkTclDouble (d1 / d2)
 
 lessThan a b = case tclCompare a b of
                  LT -> T.tclTrue

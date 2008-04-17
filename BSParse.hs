@@ -21,19 +21,10 @@ type Result a = ParseMonad (a, BString)
 type TokCmd = (TclWord, [TclWord])
 
 
--- pass = pjoin fst
 pass = pjoin (\a _ -> a)
---pass :: Parser t -> Parser t1 -> Parser t
---pass f1 f s = f1 s >>= \(v,r) -> f r >>= \(_,r2) -> return $! (v,r2)
 {-# INLINE pass #-}
 
--- (.>>) == pjoin snd
 (.>>) = pjoin (\_ b -> b)
-{-
-(.>>) f1 f2 s = do
-        (_, r) <- f1 s
-        f2 r
--}
 {-# INLINE (.>>) #-}
 
 pcons = pjoin (:)
