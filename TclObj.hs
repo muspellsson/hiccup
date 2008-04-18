@@ -28,7 +28,7 @@ module TclObj (
  ,objconcat
  ,tclObjTests ) where
 
-import qualified BSParse as P
+import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
@@ -158,7 +158,7 @@ asDouble obj = do
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
-asListS s = case P.parseList s of
+asListS s = case parseList s of
                Left r  -> fail $ "list parse failure: " ++ r
                Right lst -> return lst
 

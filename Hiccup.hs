@@ -20,7 +20,7 @@ coreProcs = makeCmdList $
   ("continue", procRetv EContinue)]
 
 
-baseProcs = mergeCmdLists [libCmds, coreProcs]
+baseCmds = mergeCmdLists [libCmds, coreProcs]
                           
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
@@ -36,7 +36,7 @@ mkInterp = mkInterpWithArgs []
 
 mkInterpWithArgs :: [BString] -> IO Interpreter
 mkInterpWithArgs args = do
-              st <- makeState (interpVars ++ (processArgs (map T.mkTclBStr args))) baseProcs
+              st <- makeState (interpVars ++ (processArgs (map T.mkTclBStr args))) baseCmds
               stref <- newIORef st
               return (Interpreter stref)
 
