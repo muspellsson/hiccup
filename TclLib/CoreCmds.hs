@@ -8,7 +8,7 @@ import Core
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
-coreCmds = makeCmdMap $ [
+coreCmds = makeCmdList [
   ("set", procSet),
   ("uplevel", procUpLevel),
   ("return", procReturn),

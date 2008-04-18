@@ -10,8 +10,8 @@ module Common (TclM
        ,runCheckResult
        ,withLocalScope
        ,withNS
-       ,makeCmdMap
-       ,mergeCmdMaps
+       ,makeCmdList
+       ,mergeCmdLists
        ,getCmd
        ,getCmdNS
        ,registerProc
@@ -144,14 +144,19 @@ mkProcAlias nsr pn = do
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
   
+data CmdList = CmdList { unCmdList :: [(String, TclCmd)] }
+makeCmdList = makeNsCmdList ""
+makeNsCmdList _ = CmdList
+
+mergeCmdLists :: [CmdList] -> CmdList
+mergeCmdLists = CmdList . concat . map unCmdList
+
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
 makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
  where toTclCmdObj (n,v) = (n, TclCmdObj n False (errStr n) Nothing v)
        errStr n = pack $ show n ++ " isn't a procedure"
 
-mergeCmdMaps :: [CmdMap] -> CmdMap
-mergeCmdMaps = CmdMap 0 . Map.unions . map unCmdMap
 
 
 tclErr :: String -> TclM a
@@ -166,14 +171,14 @@ setErrorInfo s = do
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
 
-makeState :: [(BString,T.TclObj)] -> CmdMap -> IO TclState
+makeState :: [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
 
-makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdMap -> IO TclState
-makeState' chans vlist procs = do 
+makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
+makeState' chans vlist cmdlst = do 
     fr <- createFrame (makeVarMap vlist)
     gns <- globalNS fr
-    ns <- newIORef (gns { nsProcs = procs })
+    ns <- newIORef (gns { nsProcs = makeCmdMap (unCmdList cmdlst) })
     setFrNS fr ns
     addChildNS ns (pack "") ns
     return $! TclState { tclChans = chans,
@@ -678,21 +683,24 @@ makeEnsemble name subs = top
                             x  -> x
 
 emptyCmdMap = CmdMap 0 Map.empty
+emptyCmdList = CmdList []
 emptyVarMap = Map.empty
 
 -- # TESTS # --
 
 runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
 runCheckResult t v =
-  do st <- makeState [] emptyCmdMap
+  do st <- mkEmptyState
      retv <- liftM fst (runTclM t st)
      return (retv == v)
 
 errWithEnv :: TclM a -> IO (Either Err a)
 errWithEnv t =
-    do st <- makeState [] emptyCmdMap
+    do st <- mkEmptyState
        retv <- liftM fst (runTclM t st)
        return retv
+
+mkEmptyState = makeState [] emptyCmdList
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
@@ -700,7 +708,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
   evalWithEnv t =
-    do st <- makeState [] emptyCmdMap
+    do st <- mkEmptyState
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 

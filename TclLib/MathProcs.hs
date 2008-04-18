@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-module TclLib.MathProcs (mathProcs, plus, 
+module TclLib.MathProcs (mathCmds, 
+        plus, 
         minus,
         times,
         divide,
@@ -17,7 +18,7 @@ import Control.Monad
 import System.Random
 import Test.HUnit
 
-mathProcs = makeCmdMap $
+mathCmds = makeCmdList $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 

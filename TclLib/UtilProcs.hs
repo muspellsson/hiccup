@@ -11,7 +11,7 @@ import Expr (runAsExpr)
 import Data.List (intersperse)
 import qualified TclObj as T
 
-utilProcs = makeCmdMap [
+utilProcs = makeCmdList [
    ("time", procTime),
    ("incr", procIncr), ("expr", procExpr), 
    ("after", cmdAfter), ("update", cmdUpdate)]

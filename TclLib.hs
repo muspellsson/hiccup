@@ -7,9 +7,9 @@ import TclLib.ArrayProcs
 import TclLib.ControlProcs
 import TclLib.StringProcs
 import TclLib.NSProcs
-import TclLib.MathProcs (mathProcs)
+import TclLib.MathProcs (mathCmds)
 import TclLib.UtilProcs
 import TclLib.CoreCmds (coreCmds)
 
-libCmds = mergeCmdMaps [ controlProcs, mathProcs, coreCmds, nsProcs, 
-                        ioProcs, listProcs, arrayProcs, stringProcs, utilProcs ]
+libCmds = mergeCmdLists [ controlProcs, mathCmds, coreCmds, nsProcs, 
+                          ioProcs, listProcs, arrayProcs, stringProcs, utilProcs ]

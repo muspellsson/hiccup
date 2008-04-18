@@ -14,13 +14,13 @@ import TclLib (libCmds)
 
 import Test.HUnit 
 
-coreProcs = makeCmdMap $
+coreProcs = makeCmdList $
  [("proc", procProc),
   ("break", procRetv EBreak),
   ("continue", procRetv EContinue)]
 
 
-baseProcs = mergeCmdMaps [libCmds, coreProcs]
+baseProcs = mergeCmdLists [libCmds, coreProcs]
                           
 processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)

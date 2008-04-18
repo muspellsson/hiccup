@@ -11,7 +11,7 @@ import qualified Data.ByteString.Char8 as B
 import TclObj ((.==))
 import Util
 
-ioProcs = makeCmdMap $ 
+ioProcs = makeCmdList $ 
  [("puts",procPuts),("gets",procGets),("read",cmdRead),
   ("open", procOpen), ("close", procClose),("flush", procFlush),
   ("exit", procExit), ("source", procSource), ("eof", procEof)]

@@ -11,7 +11,7 @@ import Data.Char (toLower,toUpper)
 
 import Test.HUnit
 
-stringProcs = makeCmdMap [("string", procString), ("append", procAppend), ("split", procSplit)]
+stringProcs = makeCmdList [("string", procString), ("append", procAppend), ("split", procSplit)]
 
 procString = makeEnsemble "string" [
    ("trim", string_Op "trim" T.trim), 

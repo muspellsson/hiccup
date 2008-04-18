@@ -10,7 +10,7 @@ import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
 
-listProcs = makeCmdMap $
+listProcs = makeCmdList $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
@@ -104,7 +104,6 @@ procLsort args =  case args of
               items <- T.asList lst 
               sortEm sf items >>= return . T.mkTclList
 
-ifTrue fun b = if b then fun else id
 
 -- TODO: This is so ugly.
 sortEm :: SortFlags -> [T.TclObj] -> TclM [T.TclObj]
@@ -119,6 +118,7 @@ sortEm (SF stype rev nocase) lst = do
         modder = case stype of
                   AsciiSort -> paired (return . caser . T.asBStr) >>= retSortFst
                   IntSort   -> paired (T.asInt) >>= retSortFst
+        ifTrue fun b = if b then fun else id
 
 cmdLrepeat args = case args of 
     (ti:x:xs) -> do 

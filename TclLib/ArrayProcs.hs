@@ -10,7 +10,7 @@ import qualified Data.Map as Map
 import VarName 
 import Text.Printf
 
-arrayProcs = makeCmdMap [("array", procArray), ("parray", procParray)]
+arrayProcs = makeCmdList [("array", procArray), ("parray", procParray)]
 
 procParray args = case args of
      [name] -> do let n = T.asBStr name 
