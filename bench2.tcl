@@ -18,7 +18,7 @@ proc fact {x} {
 }
 
 proc repeat { count code } {
-    for {set i__ 1} { <= $i__ $count } { incr i__ } { uplevel $code }
+    for {set i 1} { <= $i $count } { incr i } { uplevel $code }
 }
 
 proc run_things { {rep 1} {fci 3} { ci 11 } } {
@@ -35,4 +35,4 @@ proc run_things { {rep 1} {fci 3} { ci 11 } } {
   }
 }
 
-run_things 5
+run_things 5 3 11

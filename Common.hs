@@ -82,7 +82,7 @@ newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
 
 data Namespace = TclNS {
          nsName :: BString,
-         nsProcs :: CmdMap,
+         nsCmds :: CmdMap,
          nsFrame :: FrameRef,
          nsExport :: [BString],
          nsParent :: Maybe NSRef,
@@ -178,7 +178,7 @@ makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans vlist cmdlst = do 
     fr <- createFrame (makeVarMap vlist)
     gns <- globalNS fr
-    ns <- newIORef (gns { nsProcs = makeCmdMap (unCmdList cmdlst) })
+    ns <- newIORef (gns { nsCmds = makeCmdMap (unCmdList cmdlst) })
     setFrNS fr ns
     addChildNS ns (pack "") ns
     return $! TclState { tclChans = chans,
@@ -187,13 +187,13 @@ makeState' chans vlist cmdlst = do
                          tclGlobalNS = ns } 
  where globalNS fr = do 
         return $ TclNS { nsName = nsSep, 
-                         nsProcs = emptyCmdMap, nsFrame = fr, 
+                         nsCmds = emptyCmdMap, nsFrame = fr, 
                          nsExport = [],
                          nsParent = Nothing, nsChildren = Map.empty }
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsCmdMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsProcs v)
+getNsCmdMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsCmds v)
 {-# INLINE getNsCmdMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
@@ -534,7 +534,7 @@ importNS force name = do
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
-               let pnames = Map.keys (unCmdMap (nsProcs ns))
+               let pnames = Map.keys (unCmdMap (nsCmds ns))
                let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
                return (globMatches pat filt)
 
@@ -564,7 +564,7 @@ mkEmptyNS name parent = do
     let sep = if pname == nsSep then B.empty else nsSep
     let fullname = B.concat [pname, sep, name]
     new <- newIORef $ TclNS { nsName = fullname, 
-                              nsProcs = emptyCmdMap, nsFrame = emptyFr, 
+                              nsCmds = emptyCmdMap, nsFrame = emptyFr, 
                               nsExport = [],
                               nsParent = Just parent, nsChildren = Map.empty }
     addChildNS parent name new
@@ -652,7 +652,7 @@ changeProcs nsr fun = do
            modKids (\x -> changeProcs x id) ns
            writeIORef nsr (updateNS ns)
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
-       updateNS ns = ns { nsProcs = update (nsProcs ns) }
+       updateNS ns = ns { nsCmds = update (nsCmds ns) }
 
 modKids f ns = let kidfun kr = do 
                         kid <- readIORef kr
