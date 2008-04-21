@@ -95,7 +95,9 @@ bstrAsInt bs = case BS.readInt bs of
                Nothing    -> fail ("Bad int: " ++ show bs)
                Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
 
-bstrAsSeq st = liftM S.fromList (asListS st)
+bstrAsSeq s = case parseList s of
+                    Left r  -> fail $ "list parse failure: " ++ r
+                    Right lst -> return (S.fromList lst)
 {-
 instance ITObj BS.ByteString where
   asStr = BS.unpack
@@ -158,9 +160,6 @@ asDouble obj = do
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
-asListS s = case parseList s of
-               Left r  -> fail $ "list parse failure: " ++ r
-               Right lst -> return lst
 
 
 trueValues = map pack ["1", "true", "yes", "on"]

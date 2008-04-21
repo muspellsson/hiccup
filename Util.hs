@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Util (BString, joinWith, joinWithBS, pack, unpack, bsNull,
-             dropSpaces, mapFst, mapSnd, escapeStr, listEscape,
+             dropSpaces, mapFst, mapSnd, listEscape,
              orElse, ifFails, commaList,
              downCase, slurpFile,
              utilTests )  where
