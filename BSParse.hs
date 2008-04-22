@@ -63,7 +63,7 @@ parseSub s = do
 handleEsc :: Parser TclWord
 handleEsc = line_continue `orElse` esc_word
  where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
-       esc_word = (chain [escaped_char, tryGet wordToken]) `wrapWith` Word
+       esc_word = (chain [escapedChar, tryGet wordToken]) `wrapWith` Word
 
 -- List parsing
 parseList s = parseList_ s >>= return . fst
@@ -141,16 +141,20 @@ orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 tryGet fn = fn `orElse` (\s -> return ("", s))
      
 chain :: [Parser BString] -> Parser BString
+chain lst = (foldr pcons (\s -> return ([],s)) lst) `wrapWith` B.concat
+{-# INLINE chain #-}
+{-
 chain lst !rs = inner lst [] rs
  where inner []     !acc !r = return (B.concat (reverse acc), r)
        inner (f:fs) !acc !r = do (s,r2) <- f r 
                                  inner fs (s:acc) r2
+-}
 
 choose = foldr1 orElse
 {-# INLINE choose #-}
 
 pjoin :: (t1 -> t2 -> t3) -> Parser t1 -> Parser t2 -> Parser t3
-pjoin op a b s = do
+pjoin op a b !s = do
        (w,r)   <- a s
        (w2,r2) <- b r
        return ((op w w2), r2)
@@ -226,7 +230,7 @@ wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange
 
 wordToken = parseMany1 ((chain [pchar '$', parseVarBody, tryGet parseInd]) `orElse` inner) `wrapWith` B.concat
  where pthing = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"
-       inner = (parseMany1 (pthing `orElse` escaped_char)) `wrapWith` B.concat
+       inner = (parseMany1 (pthing `orElse` escapedChar)) `wrapWith` B.concat
  -- TODO: Rename pthing
 
 parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
@@ -238,7 +242,7 @@ braceVar = parseBlock
 
 parseStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
-       inside = parseMany (noquotes `orElse` escaped_char)
+       inside = parseMany (noquotes `orElse` escapedChar)
 
 escaped v s = escaped' v
  where escaped' !i = if i <= 0 
@@ -246,10 +250,10 @@ escaped v s = escaped' v
                          else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
 
-escaped_char = chain [pchar '\\', parseAny]
+escapedChar = chain [pchar '\\', parseAny]
 
 parseBlock = pchar '{' .>> nest_filling `pass` pchar '}'
- where inner = choose [escaped_char, braces, nobraces]
+ where inner = choose [escapedChar, braces, nobraces]
        nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
        braces = chain [pchar '{', nest_filling, pchar '}']
        nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"

@@ -65,8 +65,8 @@ doCall !pn !mproc args = do
 {-# INLINE doCall #-}
 
 doCond :: T.TclObj -> TclM Bool
-doCond str = do
-      p <- asParsed str
+doCond obj = do
+      p <- asParsed obj
       case p of
         [x]      -> do r <- runCmd x
                        return $! T.asBool r
