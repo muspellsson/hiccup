@@ -3,7 +3,7 @@ module Expr.Eval (runExpr,Callback, exprEvalTests) where
 import Expr.TExp
 import qualified TclObj as T
 import Util
-import qualified TclLib.MathProcs as Math
+import qualified MathOp as Math
 import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
