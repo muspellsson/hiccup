@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module BSExpr where
+module BSExpr (Atom(..),Expr(..),parseExpr,bsExprTests) where
 
 import BSParse
 import TclParse
@@ -105,9 +105,7 @@ parseOp = eatSpaces .>> choose plist
        plist = map op2parser operators
 
 
-bsExprTests = TestList [futureTests]
-
-futureTests = "future" ~: TestList [atomTests, intTests, itemTests, exprTests] where
+bsExprTests = "BSExpr" ~: TestList [atomTests, intTests, itemTests, exprTests] where
   num i = Item (ANum i)
   str s = Item (AStr s)
   should_be_ p dat res = (B.unpack dat) ~: Right (res, "") ~=? p dat

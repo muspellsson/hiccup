@@ -37,6 +37,7 @@ import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
+import TObj
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -88,18 +89,6 @@ tclFalse = mkTclInt 0
 
 
 trim = BS.reverse . dropSpaces . BS.reverse . dropSpaces
-
-class ITObj o where
-  asBool :: o -> Bool
-  asInt :: (Monad m) => o -> m Int 
-  asDouble :: (Monad m) => o -> m Double
-  asBStr :: o -> BString
-  asSeq   :: (Monad m) => o -> m (S.Seq o)
-  fromInt :: Int -> o
-  fromDouble :: Double -> o
-  fromBStr :: BString -> o
-  fromStr :: String -> o
-  fromBool :: Bool -> o
 
 bstrAsInt bs = case BS.readInt bs of
                Nothing    -> fail ("Bad int: " ++ show bs)
