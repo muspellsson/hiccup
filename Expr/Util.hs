@@ -3,9 +3,9 @@ module Expr.Util where
 import qualified TclObj as T
 import Expr.TExp
 
-tInt i = TVal (T.mkTclInt i)
-tStr s = TVal (T.mkTclStr s)
-tFloat f = TVal (T.mkTclDouble f)
+tInt i = TVal (T.fromInt i)
+tStr s = TVal (T.fromStr s)
+tFloat f = TVal (T.fromDouble f)
 
 (.&&) = TOp OpAnd
 (.||) = TOp OpOr
@@ -26,4 +26,4 @@ instance Num TExp where
   abs = undefined
   signum = undefined
   negate = undefined
-  fromInteger i =  TVal (T.mkTclInt (fromIntegral i))
+  fromInteger i =  TVal (T.fromInt (fromIntegral i))

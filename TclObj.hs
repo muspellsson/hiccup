@@ -3,6 +3,8 @@ module TclObj (
  TclObj
  ,ITObj
  ,fromInt
+ ,fromStr
+ ,fromBStr
  ,fromDouble
  ,mkTclStr
  ,mkTclBStr
@@ -96,6 +98,7 @@ class ITObj o where
   fromInt :: Int -> o
   fromDouble :: Double -> o
   fromBStr :: BString -> o
+  fromStr :: String -> o
   fromBool :: Bool -> o
 
 bstrAsInt bs = case BS.readInt bs of
@@ -160,6 +163,7 @@ instance ITObj TclObj where
   fromInt = mkTclInt
   fromDouble = mkTclDouble
   fromBStr = mkTclBStr
+  fromStr = mkTclStr
   fromBool !b = if b then tclTrue else tclFalse
   {-# INLINE fromBool #-}
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Expr.Parse (exprParseTests, expr) where
 
 import Text.ParserCombinators.Parsec
@@ -6,6 +7,7 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Expr
 
 import qualified TclObj as T
+import Util (pack)
 
 import Expr.TExp
 import Expr.Util
@@ -79,12 +81,12 @@ boolval = do
 
 myvar = do char '$' 
            s <- identifier
-           return $ TVar s
+           return $ TVar (pack s)
         <?> "variable"
 
 myfun = do s <- identifier
            inner <- parens (myexpr `sepBy` (char ','))
-           return $ TFun s inner
+           return $ TFun (pack s) inner
 
 
 --- Unit Testing ---

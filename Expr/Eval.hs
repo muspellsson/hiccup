@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Expr.Eval (runExpr,Callback, exprEvalTests) where
 import Expr.TExp
 import qualified TclObj as T
@@ -17,11 +18,11 @@ objapply lu f x y = do
 funapply lu fn al = do
   args <- mapM (\v -> runExpr v lu) al
   lu (mkCmd fn args)
+ where mkCmd a b = Right (a,b)
 
 type CBData = Either BString (BString, [T.TclObj])
 type Callback m = (CBData -> m T.TclObj)
 
-mkCmd a b = Right (pack a,b)
 
 runExpr :: (Monad m) => TExp -> Callback m -> m T.TclObj
 runExpr exp lu = 
@@ -43,8 +44,8 @@ runExpr exp lu =
     (TUnOp OpNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
     (TUnOp OpNeg v) -> runExpr v lu >>= procNegate
     (TVal v) -> return $! v
-    (TVar n) -> lu (Left (pack n))
-    (TFun fn al)  -> funapply lu fn al
+    (TVar n) -> lu (Left n)
+    (TFun fn al) -> funapply lu fn al
  where objap = objapply lu
        up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
@@ -59,7 +60,7 @@ procBool f a b = do
    return $! T.fromBool (ab `f` bb)
 
 exprEvalTests = TestList [evalTests, varEvalTests] where
-    mint v = T.mkTclInt v
+    mint v = T.fromInt v
     evalTests = TestList
       [ 
         (tInt 3) `eql` (mint 3),
@@ -72,8 +73,8 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
       ]
      where eql a b = (runExpr a (return . make)) ~=? Just b
-           make (Left a)  = T.mkTclBStr a
-           make (Right _) = T.mkTclStr "PROC"
+           make (Left a)  = T.fromBStr a
+           make (Right _) = T.fromStr "PROC"
      
     varEvalTests = TestList [
         "$num -> 4" ~: (TVar "num") `eql` (mint 4),
@@ -82,7 +83,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         "$boo == \"bean\" -> true" ~: ((TVar "boo") `eq` (tStr "bean")) `eql` T.tclTrue
       ]
      where eql a b = (runExpr a lu) ~=? Just b
-           table = M.fromList . mapFst pack $ [("boo", T.mkTclStr "bean"), ("num", T.mkTclInt 4)]
+           table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]
            lu :: (Monad m) => Callback m
            lu (Left v)  = M.lookup v table
-           lu (Right _) = return $ T.mkTclStr "PROC"
+           lu (Right _) = return $ T.fromStr "PROC"
