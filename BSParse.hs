@@ -1,154 +1,31 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module BSParse ( runParse, getInterp, TclWord(..), parseList
-            ,TokCmd
-            ,bsParseTests
-  ) where
+module BSParse where
 
 import qualified Data.ByteString.Char8 as B
-import Control.Monad
+import Control.Monad (mplus)
 import Data.Ix
 import Util hiding (orElse)
 import Test.HUnit 
 
-data TclWord = Word !B.ByteString 
-             | Subcommand TokCmd 
-             | NoSub !B.ByteString (Result [TokCmd])
-             | Expand TclWord deriving (Show,Eq)
-
 type Parser a = BString -> Result a
 type ParseMonad = Either String
 type Result a = ParseMonad (a, BString)
-type TokCmd = (TclWord, [TclWord])
-
-
-runParse :: Parser [TokCmd]
-runParse = parseStatements `wrapWith` asCmds
- where asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
-
-
-parseStatements :: Parser [[TclWord]]
-parseStatements = multi1 (eatSpaces .>> parseStatement) `pass` parseEof
-  
-
-parseStatement :: Parser [TclWord]
-parseStatement = choose [eatAndNext, parseEof, parseTokens]
- where stmtSep = parseOneOf "\n;" .>> eatSpaces 
-       eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
-       parseComment = pchar '#' .>> getPred (/= '\n') .>> eatSpaces
-
-parseTokens :: Parser [TclWord]
-parseTokens = parseMany1 (eatSpaces .>> parseToken)
-
-parseToken :: Parser TclWord
-parseToken str = do 
-   h <- safeHead "token" str
-   case h of
-     '{'  -> (parseExpand `orElse` parseNoSub) str
-     '['  -> (parseSub `wrapWith` Subcommand) str
-     '"'  -> (parseStr `wrapWith` Word) str
-     '\\' -> handleEsc str
-     _    -> (wordToken `wrapWith` Word) str
- where parseNoSub = parseBlock `wrapWith` mkNoSub
-       parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
-
-mkNoSub s = NoSub s (runParse s)
-
-parseSub :: Parser TokCmd
-parseSub s = do 
-  (p,aft) <- brackets parseTokens $ s
-  case p of
-    [] -> fail "empty subcommand"
-    (ph:pt) -> return ((ph,pt), aft)
-
-handleEsc :: Parser TclWord
-handleEsc = line_continue `orElse` esc_word
- where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
-       esc_word = (chain [escapedChar, tryGet wordToken]) `wrapWith` Word
-
--- List parsing
-parseList s = parseList_ s >>= return . fst
-parseList_ :: Parser [BString]
-parseList_ = eatWhite .>> (parseEof `orElse` multi1 plistItem)
- where isWhite = (`elem` " \t\n")
-       eatWhite st = return ((), B.dropWhile isWhite st)
-       plistItem = listDisp `pass` eatWhite
-
-listDisp str = do h <- safeHead "list item" str
-                  case h of
-                   '{' -> parseBlock str
-                   '"' -> parseStr str 
-                   _   -> getListItem str
-
-getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
- where (w,n) = B.splitAt (listItemEnd s) s
-
-listItemEnd s = inner 0 False where 
-   inner i esc = if i == B.length s then i
-                     else if esc then inner (i+1) False
-                           else case B.index s i of
-                                  '\\' -> inner (i+1) True
-                                  v  -> if v `B.elem` "{}\" \t\n" then i else inner (i+1) False
-
-
--- TODO: UGLY
-getInterp :: Parser (BString, Either BString TokCmd)
-getInterp str = do
-   loc <- case B.findIndex (\x -> x == '$' || x == '[') str of
-            Just v -> return v
-            Nothing -> fail "no matching $ or ["
-   if escaped loc str
-     then dorestfrom loc str
-     else let res = pjoin (,) (parseLen loc) interpItem
-          in (res `orElse` dorestfrom loc) str
- where dorestfrom loc = (pjoin (\s (p,v) -> (B.append s p, v)) (parseLen (loc+1)) getInterp) 
-       interpItem = (doVarParse `wrapWith` Left) `orElse` (parseSub `wrapWith` Right) 
-
-doVarParse :: Parser BString
-doVarParse = pchar '$' .>> parseVarRef
-
-parseVarRef :: Parser BString
-parseVarRef = chain [ parseVarTerm `orElse` getNS
-                      ,tryGet parseVarRef
-                      ,tryGet parseInd ]
- where getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
-
-parseVarTerm :: Parser BString
-parseVarTerm = getVar `orElse` braceVar
- where getVar = getPred1 wordChar "word"
-
-parseInd :: Parser BString
-parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
-{-
-parseInd str = do 
-    pchar '(' str
-    ind <- case B.elemIndex ')' str of
-             Just v -> return v
-             Nothing -> fail "Couldn't find matching \")\""
-    parseLen (ind+1) str
--}
-
--- General Parsing
-
 
 eatSpaces s = return ((), dropSpaces s)
 {-# INLINE eatSpaces #-}
 
+emit v s = return (v,s)
+{-# INLINE emit #-}
 
 orElse :: Parser t -> Parser t -> Parser t
 orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
-tryGet fn = fn `orElse` (\s -> return ("", s))
+tryGet fn = fn `orElse` (emit "")
      
 chain :: [Parser BString] -> Parser BString
-chain lst = (foldr pcons (\s -> return ([],s)) lst) `wrapWith` B.concat
+chain lst = (foldr pcons (emit []) lst) `wrapWith` B.concat
 {-# INLINE chain #-}
-{-
-chain lst !rs = inner lst [] rs
- where inner []     !acc !r = return (B.concat (reverse acc), r)
-       inner (f:fs) !acc !r = do (s,r2) <- f r 
-                                 inner fs (s:acc) r2
--}
 
 choose = foldr1 orElse
 {-# INLINE choose #-}
@@ -167,12 +44,14 @@ pass = pjoin (\a _ -> a)
 {-# INLINE (.>>) #-}
 
 pcons = pjoin (:)
+{-# INLINE pcons #-}
 
 parseMany :: Parser t -> Parser [t]
-parseMany p = inner `orElse` (\s -> return ([],s))
+parseMany p = inner `orElse` (emit [])
  where inner = parseMany1 p
    
 parseMany1 p = p `pcons` (parseMany p)
+{-# INLINE parseMany1 #-}
 
 -- TODO: Document and possibly rename 'multi1'
 multi1 :: Parser t -> Parser [t]
@@ -184,6 +63,7 @@ parseLit :: BString -> Parser BString
 parseLit !w s = if w `B.isPrefixOf` s 
                     then return (w, B.drop (B.length w) s) 
                     else fail $ "didn't match " ++ show w
+{-# INLINE parseLit #-}
 
 
 parseLen :: Int -> Parser BString
@@ -193,9 +73,10 @@ parseLen !i = \s -> if B.length s < i
 {-# INLINE parseLen #-}
          
 parseOneOf !cl = parseCharPred (`elem` cl) ("one of " ++ show cl)
-parseChar :: Char -> Parser BString
-parseChar !c = parseCharPred (== c) (show c)
-pchar = parseChar -- shorthand
+
+pchar :: Char -> Parser BString
+pchar !c = parseCharPred (== c) (show c)
+{-# INLINE pchar #-}
 
 parseAny = parseCharPred (const True) "any char"
 parseCharPred pred exp s = case B.uncons s of
@@ -220,6 +101,12 @@ parseEof s = if B.null s
                then return ([], s) 
                else fail $ "expected eof, got " ++ show (B.head s)
 
+sepBy1 :: Parser t -> Parser t2 -> Parser [t]
+sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
+
+commaSep :: Parser t -> Parser [t]
+commaSep = (`sepBy1` (eatSpaces .>> pchar ','))
+
 
 safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)
 {-# INLINE safeHead #-}
@@ -228,26 +115,11 @@ brackets p = (pchar '[' .>> p) `pass` (eatSpaces .>> pchar ']')
 
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
-wordToken = parseMany1 ((chain [pchar '$', parseVarBody, tryGet parseInd]) `orElse` inner) `wrapWith` B.concat
- where pthing = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"
-       inner = (parseMany1 (pthing `orElse` escapedChar)) `wrapWith` B.concat
- -- TODO: Rename pthing
-
-parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
- where braceIt w = B.concat ["{", w , "}"]
-       pthing = getPred1 (`notElem` "( ${}[]\n\t;") "inner word"
-
 braceVar = parseBlock
-
 
 parseStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
        inside = parseMany (noquotes `orElse` escapedChar)
-
-escaped v s = escaped' v
- where escaped' !i = if i <= 0 
-                         then False 
-                         else (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
 
 escapedChar = chain [pchar '\\', parseAny]
@@ -257,55 +129,9 @@ parseBlock = pchar '{' .>> nest_filling `pass` pchar '}'
        nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
        braces = chain [pchar '{', nest_filling, pchar '}']
        nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"
+{-# INLINE parseBlock #-}
 
 
--- Toys for later
-parseInt :: Parser Int 
-parseInt s = case B.readInt s of
-                Just x -> return x
-                Nothing -> fail "expected int"
-
-
-data OTok = TokNum !Int | TokOp Oper | TokStr BString
-          | TokPar [OTok] | TokCom TokCmd 
-          | TokFun BString [[OTok]]
-          | TokVar BString  
-               deriving (Eq,Show)
-
-data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
-
-parseOp = (choose [op '*' OpTimes, parseOpPlus, parseOpMinus]) `wrapWith` TokOp
- where op c v = eatSpaces .>> pchar c .>> \s -> return (v,s) 
-       parseOpPlus = op '+' OpPlus
-       parseOpMinus = op '-' OpMinus
-
-sepBy1 :: Parser t -> Parser t2 -> Parser [t]
-sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
-
-commaSep :: Parser t -> Parser [t]
-commaSep = (`sepBy1` (eatSpaces .>> pchar ','))
-
-tokExpr :: Parser [OTok]
-tokExpr = parseMany1 toks
- where toks = choose [parseOp, intTok, parseCmd, pVar, pStr, parenTok, pFun]
-       intTok = parseInt `tok` TokNum
-       parseCmd = parseSub `tok` TokCom
-       pStr = parseStr `tok` TokStr
-       pVar = doVarParse `tok` TokVar
-       pFun = pjoin (\n v -> TokFun n v) (getPred1 wordChar "function name") (paren (commaSep tokExpr))
-       parenTok = (paren tokExpr) `tok` TokPar
-       paren p = (pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
-       tok f w = (eatSpaces .>> f) `wrapWith` w
-   
-{-
-
-parseDouble :: Parser Double
-parseDouble s = do
-    (ds, r) <- chain [parseNums, parseChar '.', parseNums] s
-    return (read (B.unpack ds), r)
- where parseNums = getPred1 (inRange ('0','9'))
-
--}
 
 -- # TESTS # --
 
@@ -314,14 +140,6 @@ should_fail_ act _ = let res = case act of
                                  _      -> False
                      in TestCase $ assertBool "should fail" res
 
-testEscaped = TestList [
-        (escaped 1 "\\\"") ~? "pre-slashed quote should be escaped",
-        checkFalse "non-slashed quote not escaped"  (escaped 1 " \""),
-        checkFalse "non-slashed quote not escaped"  (escaped 1 " \""),
-        (escaped 2 " \\\"") ~? "pre-slashed quote should be escaped",
-        checkFalse "non-slashed quote not escaped"  (escaped 2 "  \"")
-  ]
- where checkFalse str val = TestCase $ assertBool str (not val)
 
 
 parseStrTests = "parseStr" ~: TestList [
@@ -343,54 +161,6 @@ braceVarTests = TestList [
  where (?=?) res str = Right res ~=? braceVar str
        should_fail str _  = (braceVar str) `should_fail_` ()
 
-getInterpTests = "getInterp" ~: TestList [
-    "Escaped $ works" ~: noInterp "a \\$variable",
-    "Bracket interp 1" ~: ("", mkvar "booga", "") ?=? "${booga}",
-    "Bracket interp 2" ~: ("", mkvar "oh yeah!", "") ?=? "${oh yeah!}",
-    "Bracket interp 3" ~: (" ", mkvar " !?! ", " ") ?=? " ${ !?! } ",
-    "global namespace" ~: ("", mkvar "::booga", "") ?=? "$::booga",
-    ":::"              ~: noInterp "$:::booga",
-    "some namespace" ~: ("", mkvar "log::booga", "") ?=? "$log::booga", -- TODO
-    "unescaped $ works" ~:
-          ("a ", mkvar "variable", "")  ?=? "a $variable",
-    "escaped $ works" ~:
-          ("a \\$ ", mkvar "variable", "")  ?=? "a \\$ $variable",
-    "escaped $ works 2" ~:
-          noInterp  "you deserve \\$44.",
-    "adjacent interp works" ~:
-          ("", mkvar "var", "$bar$car")  ?=? "$var$bar$car",
-    "interp after escaped dolla" ~:
-          ("a \\$", mkvar "name", " guy")  ?=? "a \\$$name guy",
-    "interp after dolla" ~:
-          ("you have $", mkvar "dollars", "")  ?=? "you have $$dollars",
-    "Escaped ["   ~: noInterp "a \\[sub] thing.",
-    "Trailing bang" ~: ("", mkvar "var",  "!" ) ?=? "$var!",
-    "basic arr" ~: ("", mkvar "boo(4)", " " ) ?=? "$boo(4) ",
-    "basic arr2" ~: (" ", mkvar "boo(4)", " " ) ?=? " $boo(4) ",
-    "basic arr3" ~: ("", mkvar "boo( 4,5 )", " " ) ?=? "$boo( 4,5 ) ",
-    "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
-    "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
-    "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
-    "unescaped $ after esc works" ~:
-          ("a \\$", mkvar "variable", "") ?=? "a \\$$variable",
-    "Escaped [] crazy" ~:
-       ("a ",Right (Word "sub",[Word "quail [puts 1]"]), " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
-  ]
- where noInterp str = (getInterp str) `should_fail_` ()
-       (?=?) (a,b,c) str = Right ((a,b),c) ~=? getInterp str
-       mkvar w = Left w
-
-getWordTests = "wordToken" ~: TestList [
-     "empty" ~: "" `should_fail` ()
-     ,"Simple2" ~: ("$whoa", "") ?=? "$whoa"
-     ,"Simple with bang" ~: ("whoa!", " ") ?=? "whoa! "
-     ,"braced, then normal" ~: ("${x}$x", "") ?=? "${x}$x"
-     ,"non-var, then var" ~: ("**$x", "") ?=? "**$x"
-     ,"non-var, then var w/ space" ~: ( "**${a b}", "") ?=? "**${a b}"
-     ,"escaped" ~: ( "x\\ y", "")  ?=? "x\\ y"
-  ]
- where should_fail str _ = (wordToken str) `should_fail_` ()
-       (?=?) res str = Right res ~=? wordToken str
 
 blockTests = "code block" ~: TestList [
   "Fail nested" ~: "  {       the end" `should_fail` (),
@@ -406,102 +176,7 @@ blockTests = "code block" ~: TestList [
  where should_be act exp = Right (exp, B.empty) ~=? parseBlock act
        should_fail act _ = (parseBlock act) `should_fail_` ()
 
-parseTokensTests = "parseTokens" ~: TestList [
-     " x " ~: "x" ?=> ([Word "x"], "")
-     ," x y " ~: " x y " ?=> ([Word "x", Word "y"], " ")
-     ,"x y" ~: "x y" ?=> ([Word "x", Word "y"], "")
-     ,"x { y 0 }" ~: "x { y 0 }" ?=> ([Word "x", nosub " y 0 "], "")
-     ,"x {y 0}" ~: "x {y 0}" ?=> ([Word "x", nosub "y 0"], "")
-   ]
- where (?=>) str (res,r) = Right (res, r) ~=? parseTokens str
-       nosub = mkNoSub
 
-parseListTests = "parseList" ~: TestList [
-     " x " `should_be` ["x"]
-     ,""   `should_be` []
-     ,"\t \t" `should_be` []
-     ," x y " `should_be` ["x", "y"]
-     ,"x y" ~: "x y" ?=> ["x", "y"]
-     ,"x { y {z}}" `should_be` ["x", " y {z}"]
-     ,"x { y 0 }" ~: "x { y 0 }" ?=> ["x", " y 0 "]
-     ,"x [puts yay]" ~: "x [puts yay]" ?=> ["x", "[puts", "yay]"]
-     ," y { \\{ \\{ \\{ } { x }" `should_be` ["y", " \\{ \\{ \\{ ", " x "]
-     , "unmatched fail" ~: fails " { { "
-     ,"x {y 0}" ~: "x {y 0}" ?=> ["x", "y 0"]
-     ,"with nl" ~: "x  1 \n y 2 \n z 3" ?=> ["x", "1", "y", "2", "z", "3"]
-     ,"escaped1" ~: "x \\{ z" ?=> ["x", "\\{", "z"]
-   ]
- where (?=>) str res = Right res ~=? parseList str
-       fails str = (parseList str) `should_fail_` ()
-       should_be str res = (B.unpack str) ~: Right res ~=? parseList str
-
-parseVarRefTests = "parseVarRef" ~: TestList [
-     "empty string" ~: "" `should_fail` ()
-    ,"standard" ~: "boo" ?=> ("boo", "")
-    ,"global" ~: "::boo" ?=> ("::boo", "")
-    ,"arr1" ~: "boo(one) " ?=> ("boo(one)", " ")
-    ,"ns arr1" ~: "::big::boo(one) " ?=> ("::big::boo(one)", " ")
-    ,"::big(3)$::boo(one)" ?=> ("::big(3)", "$::boo(one)")
-    , "triple" ~: "::one::two::three" ?=> ("::one::two::three","")
-    , "brace" ~: "::one::{t o}::three" ?=> ("::one::t o::three","")
-    , "mid paren" ~: "::one::two(1)::three" ?=> ("::one::two(1)", "::three")
-    , "\\( in index" ~: "x(\\()" ?=> ("x(\\()", "")
-   ]
- where (?=>) str (p,r) = Right (p, r) ~=? parseVarRef str
-       should_fail a () = (parseVarRef a) `should_fail_` ()
-
-
-runParseTests = "runParse" ~: TestList [
-     "one token" ~: (pr ["exit"]) ?=? "exit",
-     "multi-line" ~: (pr ["puts", "44"]) ?=? " puts \\\n   44",
-     "escaped space" ~: (pr ["puts", "\\ "]) ?=? " puts \\ ",
-     "empty" ~: ([],"") ?=? " ",
-     "empty2" ~: ([],"") ?=? "",
-     "unmatched" ~: "{ { }" `should_fail` (),
-     "a b " ~: "a b " `should_be` ["a", "b"],
-     "two vars" ~: (pr ["puts", "$one$two"]) ?=? "puts $one$two",
-     "brace" ~: (pr ["puts", "${oh no}"]) ?=? "puts ${oh no}",
-     "arr 1" ~: (pr ["set","buggy(4)", "11"]) ?=? "set buggy(4) 11",
-     "arr 2" ~: (pr ["set","buggy($bean)", "11"]) ?=? "set buggy($bean) 11",
-     "arr 3" ~: (pr ["set","buggy($bean)", "$koo"]) ?=? "set buggy($bean) $koo"
-     ,"arr 4" ~: (pr ["set","buggy($bean)", "${wow}"]) ?=? "set buggy($bean) ${wow}"
-     ,"arr w/ esc index" ~: (pr ["set","x(\\))", "4"]) ?=? "set x(\\)) 4"
-     ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
-     ,"hashed num" ~: (pr ["uplevel", "#1", "exit"]) ?=? "uplevel #1 exit"
-     ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
-     ,"expand" ~: ([(Word "incr", [Expand (Word "$boo")])], "") ?=? "incr {*}$boo"
-     ,"no expand" ~: ([(Word "incr", [mkNoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
-  ]
- where should_fail str () = (runParse str) `should_fail_` ()
-       should_be str res = Right (pr res) ~=? (runParse str)
-       (?=?) (res,r) str = Right (res, r) ~=? runParse str
-       pr (x:xs) = ([(Word x, map Word xs)], "")
-       pr []     = error "bad test!"
-
-futureTests = "future" ~: TestList [intTests, tokTests] where
-  tokTests = TestList [
-      "3 + 4" `should_be` [TokNum 3, TokOp OpPlus, TokNum 4]
-      ,"3+4" `should_be` [TokNum 3, TokOp OpPlus, TokNum 4]
-      ,"3-4" `should_be` [TokNum 3, TokOp OpMinus, TokNum 4]
-      ,"(3+4)" `should_be` [TokPar [TokNum 3, TokOp OpPlus, TokNum 4]]
-      ,"3 + $cat" `should_be` [TokNum 3, TokOp OpPlus, TokVar "cat"]
-      ,"3 + [gets $cat]" `should_be` [TokNum 3, TokOp OpPlus, TokCom (Word "gets", [Word "$cat"])]
-      ,"\" one \"" `should_be` [TokStr " one "]
-      ,"sin(4+4)" `should_be` [TokFun "sin" [[TokNum 4, TokOp OpPlus, TokNum 4]]]
-      ,"min(5,11)" `should_be` [TokFun "min" [[TokNum 5], [TokNum 11]]]
-    ] where should_be dat res = (B.unpack dat) ~: Right (res,"") ~=? tokExpr dat
-
-  intTests = TestList [
-       "44" `should_be` 44
-       ,"9" `should_be` 9
-       ,"catfish" `should_fail` ()
-    ] where should_be dat res = Right (res,"") ~=? parseInt dat
-            should_fail dat () = (parseInt dat) `should_fail_` ()
-      
-
-bsParseTests = TestList [ blockTests, testEscaped, braceVarTests,
-                   parseStrTests, getInterpTests, getWordTests,
-                   parseTokensTests, parseListTests, runParseTests, 
-                   parseVarRefTests, futureTests ]
+bsParseTests = TestList [ blockTests, braceVarTests, parseStrTests ]
 
 -- # ENDTESTS # --
