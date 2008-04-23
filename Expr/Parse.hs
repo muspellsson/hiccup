@@ -37,19 +37,19 @@ pexpr = do
 myexpr = buildExpressionParser table factor
 
 table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
+        ,[prefix '!' (TUnOp OpNot), prefix '-' (TUnOp OpNeg) ]
         ,[op1 '+' (OpPlus) AssocLeft, op1 '-' (OpMinus) AssocLeft] 
         ,[op "==" (OpEql) AssocLeft, op "!=" (OpNeql) AssocLeft] 
         ,[op "eq" OpStrEq AssocLeft, op "ne" OpStrNe AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
         ,[op1 '<' OpLt AssocLeft, op1 '>' OpGt AssocLeft]
         ,[op "&&" OpAnd AssocLeft, op "||" OpOr AssocLeft]
-        ,[prefix '!' (TUnOp OpNot) ]
      ]
    where
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc
      op1 s f assoc = Infix (do{ schar s; return (TOp f)}) assoc
      tryop s f assoc = Infix (do{ try(symbol s); return (TOp f)}) assoc
-     prefix c f = Prefix (do { schar c; return f})
+     prefix c f = Prefix (do { try(schar c); return f})
 
 factor = nested <|> numval
          <|>  boolval <|> mystr <|> myvar <|> myfun <?> "term"

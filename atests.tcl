@@ -171,6 +171,8 @@ test "expr fun parse" {
   assert_err { expr {} }
   # TODO: Not yet
   # assert_noerr { expr {[set x ""]} }
+
+  checkthat [expr { 3 + -(-3) }] == 6
 }
 
 test "double compare" {

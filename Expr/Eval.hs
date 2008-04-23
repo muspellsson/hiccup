@@ -41,12 +41,17 @@ runExpr exp lu =
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
     (TOp OpOr a b) -> objap (procBool (||)) a b
     (TUnOp OpNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
+    (TUnOp OpNeg v) -> runExpr v lu >>= procNegate
     (TVal v) -> return $! v
     (TVar n) -> lu (Left (pack n))
     (TFun fn al)  -> funapply lu fn al
  where objap = objapply lu
        up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
+
+procNegate v = do
+   i <- T.asInt v
+   return $ T.fromInt (negate i)
 
 procBool f a b = do 
    let ab = T.asBool a
