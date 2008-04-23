@@ -5,6 +5,7 @@ import BSParse
 import TclParse
 import Util hiding (orElse)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.Map as M
 import Test.HUnit hiding (Node)
 
 {-
@@ -31,9 +32,9 @@ showExpr (Item (ANum i)) = show i
 showExpr (Item x) = show x
 showExpr (Paren e) = showExpr e
 showExpr (UnApp o e) = "(" ++ show o ++ " " ++ showExpr e ++ ")"
-showExpr (BinApp a OpPlus b) = "(+ " ++ showExpr a ++ " " ++ showExpr b  ++ ")"
-showExpr (BinApp a OpMinus b) = "(- " ++ showExpr a ++ " " ++ showExpr b ++ ")"
-showExpr (BinApp a OpTimes b) = "(* " ++ showExpr a ++ " " ++ showExpr b  ++ ")"
+showExpr (BinApp a op b) = showOpExpr (getOpName op) a b
+
+showOpExpr ops a b = "(" ++ ops ++ " " ++ showExpr a ++ " " ++ showExpr b ++ ")"
 
 parseShow s = case parseExpr (B.pack s) of
                 Left r -> r
@@ -65,24 +66,37 @@ fixApp a op b@(BinApp a2 op2 b2) = if op `higherPrec` op2 then (BinApp (BinApp a
 fixApp a op b = BinApp a op b
 
 getPrec op = case op of
-              OpPlus -> 1 
-              OpMinus -> 1
-              OpTimes -> 2
+              OpEql -> 1
+              OpPlus -> 2 
+              OpMinus -> 2
+              OpTimes -> 3
 higherPrec op1 op2 = getPrec op1 >= getPrec op2
 
 paren p = (pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
 
-data Oper = OpPlus | OpMinus | OpTimes deriving (Eq,Show)
+data Oper = OpPlus | OpMinus | OpTimes | OpEql deriving (Eq,Show, Ord)
 
+operators = [OpDef "+" OpPlus 2, OpDef "-" OpMinus 2, OpDef "*" OpTimes 3, OpDef "==" OpEql 1]
 
-parseOp = (choose [op '*' OpTimes, op '+' OpPlus, op '-' OpMinus])
+getOpName op = case M.lookup op opsByOper of
+                 Just v -> B.unpack $ opName v
+                 Nothing -> error "wtf"
+opName (OpDef n _ _) = n
+opsByOper = M.fromList (map pairer operators)
+  where pairer a@(OpDef _ o _) = (o,a)
+
+data OpDef = OpDef BString Oper Int
+
+parseOp = (choose [op '*' OpTimes, op '+' OpPlus, op '-' OpMinus, sop "==" OpEql])
  where op c v = eatSpaces .>> pchar c .>> emit v
+       sop s v = eatSpaces .>> parseLit s .>> emit v
 
 
 bsExprTests = TestList [futureTests]
 
 futureTests = "future" ~: TestList [atomTests, intTests, itemTests, exprTests] where
   num i = Item (ANum i)
+  str s = Item (AStr s)
   should_be_ p dat res = (B.unpack dat) ~: Right (res, "") ~=? p dat
   atomTests = TestList [
      "11" `should_be` (ANum 11)
@@ -104,6 +118,7 @@ futureTests = "future" ~: TestList [atomTests, intTests, itemTests, exprTests] w
      ,"(1 * 2) + 1" `should_be` (BinApp (BinApp  (num 1) OpTimes (num 2)) OpPlus (num 1))
      ,"1 * 2 + 1" `should_be` (BinApp (BinApp  (num 1) OpTimes (num 2)) OpPlus (num 1))
      ,"1 + 2 * 1" `should_be` (BinApp (num 1) OpPlus (BinApp (num 2) OpTimes (num 1)))
+     ,"1 == \"1\"" `should_be` (BinApp (num 1) OpEql (str "1"))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
 
   intTests = TestList [

@@ -43,7 +43,7 @@ table = [[op1 '*' (OpTimes) AssocLeft, op1 '/' (OpDiv)  AssocLeft]
         ,[tryop "<=" (OpLte) AssocLeft, tryop ">=" (OpGte) AssocLeft] 
         ,[op1 '<' OpLt AssocLeft, op1 '>' OpGt AssocLeft]
         ,[op "&&" OpAnd AssocLeft, op "||" OpOr AssocLeft]
-        ,[prefix '!' TNot]
+        ,[prefix '!' (TUnOp OpNot) ]
      ]
    where
      op s f assoc = Infix (do{ symbol s; return (TOp f)}) assoc

@@ -40,7 +40,7 @@ runExpr exp lu =
     (TOp OpStrNe a b) -> objap (sup T.strNe) a b
     (TOp OpAnd a b) -> objap (procBool (&&)) a b
     (TOp OpOr a b) -> objap (procBool (||)) a b
-    (TNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
+    (TUnOp OpNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
     (TVal v) -> return $! v
     (TVar n) -> lu (Left (pack n))
     (TFun fn al)  -> funapply lu fn al

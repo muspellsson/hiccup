@@ -7,6 +7,8 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpOr
   deriving (Show,Eq)
 
-data TExp = TOp !Op TExp TExp | TNot TExp | TVar String 
+data UnOp = OpNot deriving (Eq,Show)
+
+data TExp = TOp !Op TExp TExp | TUnOp UnOp TExp | TVar String 
             | TFun String [TExp] | TVal T.TclObj 
    deriving (Show,Eq)
