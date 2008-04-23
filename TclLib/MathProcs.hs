@@ -45,18 +45,18 @@ mathSrand v = do
 
 procRand _ = mathRand
 
-mathRand = io randomIO >>= return . T.mkTclDouble
+mathRand = io randomIO >>= return . T.fromDouble
 
 onearg f = m1 inner
  where inner x = do
             d <- T.asDouble x
-	    return (T.mkTclDouble (f d))
+	    return (T.fromDouble (f d))
 {-# INLINE onearg #-}
 
 absfun x = case T.asInt x of
             Nothing -> do d <- T.asDouble x
-                          return (T.mkTclDouble (abs d))
-            Just i  -> return (T.mkTclInt (abs i))
+                          return (T.fromDouble (abs d))
+            Just i  -> return (T.fromInt (abs i))
 
 m1 f args = case args of
   [a] -> f a
@@ -66,7 +66,7 @@ m1 f args = case args of
 
 many !f !i args = case args of
   [a,b] -> f a b
-  _ -> foldM f (T.mkTclInt i) args
+  _ -> foldM f (T.fromInt i) args
 {-# INLINE many #-}
 
 m2 f args = case args of
@@ -81,14 +81,15 @@ procNot args = case args of
 
 squarert x = do
     case T.asInt x of
-      Just i -> return $! T.mkTclDouble (sqrt (fromIntegral i))
+      Just i -> return $! T.fromDouble (sqrt (fromIntegral i))
       Nothing -> do
         d1 <- T.asDouble x
-	return $! T.mkTclDouble (sqrt d1)
+	return $! T.fromDouble (sqrt d1)
 
 data NPair = Ints !Int !Int | Doubles !Double !Double deriving (Eq,Show)
 
 -- TODO: Inline getNumerics manually and get rid of NPair?
+getNumerics :: (T.ITObj t) => t -> t -> Maybe NPair
 getNumerics !x !y =
    case (T.asInt x, T.asInt y) of
        (Just i1, Just i2) -> return $! Ints i1 i2
@@ -99,12 +100,12 @@ getNumerics !x !y =
 
 numop name iop dop !x !y = 
    case getNumerics x y of
-       Just (Ints i1 i2)  -> return $! (T.mkTclInt (i1 `iop` i2))
-       Just (Doubles d1 d2) -> return $! T.mkTclDouble (d1 `dop` d2)
+       Just (Ints i1 i2)  -> return $! (T.fromInt (i1 `iop` i2))
+       Just (Doubles d1 d2) -> return $! T.fromDouble (d1 `dop` d2)
        _ -> fail $ "can't use non-numeric string as operand of " ++ show name
 {-# INLINE numop #-}
 
-plus, minus, times, divide :: (Monad m) => T.TclObj -> T.TclObj -> m T.TclObj
+plus, minus, times, divide :: (Monad m, T.ITObj t) => t -> t -> m t
 plus = numop "+" (+) (+) 
 minus = numop "-" (-) (-)
 times = numop "*" (*) (*)
@@ -113,52 +114,40 @@ divide = numop "/" div (/)
 
 pow x y = do
    case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.mkTclInt (i1^i2))
+       (Just i1, Just i2) -> return $! (T.fromInt (i1^i2))
        _ -> do 
            d1 <- T.asDouble x
            d2 <- T.asDouble y
-	   return $! T.mkTclDouble (d1 ** d2)
+	   return $! T.fromDouble (d1 ** d2)
 
 
-lessThan a b = case tclCompare a b of
-                 LT -> T.tclTrue
-                 _  -> T.tclFalse
+lessThan a b = T.fromBool $! (tclCompare a b == LT)
 
 lessThanProc args = case args of
    [a,b] -> return $! lessThan a b
    _     -> argErr "<"
 
-lessThanEq a b = case tclCompare a b of
-                   GT -> T.tclFalse
-                   _  -> T.tclTrue
+lessThanEq a b = T.fromBool $! (tclCompare a b /= GT)
 
 lessThanEqProc args = case args of
    [a,b] -> return $! (lessThanEq a b)
    _     -> argErr "<="
 
-greaterThan a b = case tclCompare a b of
-                     GT -> T.tclTrue
-                     _  -> T.tclFalse
+greaterThan a b = T.fromBool $! (tclCompare a b == GT)
 
 greaterThanProc args = case args of
    [a,b] -> return $! greaterThan a b
    _     -> argErr ">"
 
-greaterThanEq a b = case tclCompare a b of
-                     LT -> T.tclFalse
-                     _  -> T.tclTrue
+greaterThanEq a b = T.fromBool $! (tclCompare a b  /= LT)
 
-equals a b = case tclCompare a b of
-               EQ -> T.tclTrue
-               _  -> T.tclFalse
+equals a b = T.fromBool $! (tclCompare a b == EQ)
 
 procEql args = case args of
    [a,b] -> return $! (equals a b)
    _     -> argErr "=="
 
-notEquals a b = case tclCompare a b of
-                 EQ -> T.tclFalse
-                 _  -> T.tclTrue
+notEquals a b = T.fromBool $! (tclCompare a b /= EQ)
 
 procNotEql args = case args of
       [a,b] -> case (T.asInt a, T.asInt b) of
@@ -200,7 +189,8 @@ testProcEq = TestList [
    ]
  where (?=?) a b = assert (runCheckResult b (Right a))
        is c b = (T.fromBool b) ?=? c
-       int i = T.mkTclInt i
+       int :: Int -> T.TclObj
+       int i = T.fromInt i
        str s = T.mkTclStr s
 
 mathTests = TestList [ testProcEq ]

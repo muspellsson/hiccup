@@ -1,6 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
 module TclObj (
  TclObj
+ ,ITObj
+ ,fromInt
+ ,fromDouble
  ,mkTclStr
  ,mkTclBStr
  ,mkTclList
@@ -81,15 +84,19 @@ isEmpty v = BS.null (asBStr v)
 tclTrue = mkTclInt 1
 tclFalse = mkTclInt 0
 
-fromBool !b = if b then tclTrue else tclFalse
 
 trim = BS.reverse . dropSpaces . BS.reverse . dropSpaces
 
 class ITObj o where
   asBool :: o -> Bool
-  asInt :: (Monad m) => o -> m Int
+  asInt :: (Monad m) => o -> m Int 
+  asDouble :: (Monad m) => o -> m Double
   asBStr :: o -> BString
   asSeq   :: (Monad m) => o -> m (S.Seq o)
+  fromInt :: Int -> o
+  fromDouble :: Double -> o
+  fromBStr :: BString -> o
+  fromBool :: Bool -> o
 
 bstrAsInt bs = case BS.readInt bs of
                Nothing    -> fail ("Bad int: " ++ show bs)
@@ -128,6 +135,17 @@ instance ITObj TclObj where
   asInt (TclList _ v)         = bstrAsInt v
   {-# INLINE asInt #-}
 
+  asDouble (TclDouble d _) = return $! d
+  asDouble (TclInt i _) = return $! (fromIntegral i)
+  asDouble obj = do
+      case asInt obj of 
+        Just i  -> return $! (fromIntegral i)
+        Nothing -> let strval = asStr obj 
+                   in case reads strval of
+                     [(d,"")] -> return $! d -- TODO: not quite right.
+                     _ -> fail $ "expected float but got " ++ show strval
+
+  {-# INLINE asDouble #-}
 
   asBStr (TclBStr s _ _) = s
   asBStr (TclInt _ b) = b
@@ -139,6 +157,12 @@ instance ITObj TclObj where
   asSeq (TclList l _)   = return l
   asSeq v               = return (S.singleton v)
 
+  fromInt = mkTclInt
+  fromDouble = mkTclDouble
+  fromBStr = mkTclBStr
+  fromBool !b = if b then tclTrue else tclFalse
+  {-# INLINE fromBool #-}
+
 instance Parseable TclObj where
   asParsed (TclBStr _ _ (Left f))  = fail f
   asParsed (TclBStr _ _ (Right r)) = return r
@@ -147,16 +171,6 @@ instance Parseable TclObj where
   asParsed (TclList _ s) = asParsed s
   {-# INLINE asParsed #-}
 
-asDouble :: (Monad m) => TclObj -> m Double
-asDouble (TclDouble d _) = return $! d
-asDouble (TclInt i _) = return $! (fromIntegral i)
-asDouble obj = do
-  case asInt obj of 
-    Just i  -> return $! (fromIntegral i)
-    Nothing -> let strval = asStr obj 
-               in case reads strval of
-                 [(d,"")] -> return $! d -- TODO: not quite right.
-                 _ -> fail $ "expected float but got " ++ show strval
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
@@ -198,7 +212,8 @@ testAsBool = TestList [
    (str "on") `is` True,
    (fromBool False) `is` False
   ]
- where is a b = asBool a ~=? b
+ where is :: TclObj -> Bool -> Test
+       is a b = asBool a ~=? b
        int i = mkTclInt i
        str s = mkTclStr s
 
