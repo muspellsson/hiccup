@@ -201,6 +201,7 @@ putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = modify (\v -> v { tclStack = f (tclStack v) })
 {-# INLINE modStack #-}
+
 getFrame = do st <- gets tclStack
               case st of
                  (fr:_) -> return $! fr

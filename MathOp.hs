@@ -37,6 +37,8 @@ plus = numop "+" (+) (+)
 minus = numop "-" (-) (-)
 times = numop "*" (*) (*)
 divide = numop "/" div (/)
+{-# INLINE plus #-}
+{-# INLINE minus #-}
 
 squarert x = do
     case T.asInt x of
@@ -60,8 +62,10 @@ pow x y = do
 
 
 lessThan a b = T.fromBool $! (tclCompare a b == LT)
+{-# INLINE lessThan #-}
 
 lessThanEq a b = T.fromBool $! (tclCompare a b /= GT)
+{-# INLINE lessThanEq #-}
 
 greaterThan a b = T.fromBool $! (tclCompare a b == GT)
 
