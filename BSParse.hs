@@ -43,6 +43,7 @@ pass = pjoin (\a _ -> a)
 (.>>) = pjoin (\_ b -> b)
 {-# INLINE (.>>) #-}
 
+pcons :: Parser t -> Parser [t] -> Parser [t]
 pcons = pjoin (:)
 {-# INLINE pcons #-}
 

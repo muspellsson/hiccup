@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module BSExpr (Atom(..),Expr(..)
        ,Exprable(..)
+       ,TNum(..)
        ,parseFullExpr
        ,parseExpr
        ,exprToLisp
@@ -25,12 +26,40 @@ instance Exprable B.ByteString where
                Left err -> fail err
 -}
 
+data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
+
+consumed :: Parser t -> Parser BString
+consumed p s = do 
+    (_,r) <- p s 
+    let lendiff = B.length s - B.length r
+    return (B.take lendiff s, r)
+
+parseNum :: Parser TNum
+parseNum s = do
+   (i,r) <- parseInt s
+   (dubpart i) `orElse` (emit (TInt i)) $ r
+ where dubpart i = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
+       dtail = (consumed (pchar '.' .>> digstring)) `wrapWith` B.unpack
+       digstring = getPred1 (`elem` "0123456789")  "digit"
+
 parseInt :: Parser Int 
 parseInt s = case B.readInt s of
                 Just x -> return x
                 Nothing -> fail "expected int"
 
-data Atom = AStr !BString | ANum !Int | AVar !(NSQual VarName)
+parseDouble :: Parser Double
+parseDouble s = do
+   (i,r) <- parseInt s
+   (dt,r2) <- dtail r
+   return (fromIntegral i + (read ('0':dt)), r2)
+ where dtail :: Parser String 
+       dtail = ((pchar '.') `pcons` digstring) `wrapWith` (map B.head)
+       digstring = parseMany1 (parseOneOf "0123456789") 
+   
+   
+   
+
+data Atom = AStr !BString | ANum !TNum | AVar !(NSQual VarName)
            | AFun !BString Expr | ACom TokCmd deriving (Eq,Show)
 
 data Expr = Item Atom | BinApp !Op Expr Expr | UnApp !UnOp Expr | Paren Expr deriving (Eq,Show)
@@ -81,19 +110,20 @@ exprToLisp s = case parseExpr (B.pack s) of
 parseAtom = choose [str,var,cmd,num,bool,fun]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
         str = atom parseStr AStr
-        num = atom parseInt ANum
+        num = atom parseNum ANum
         var = atom doVarParse (AVar . parseVarName)
         cmd = atom parseSub ACom
-        bool = atom parseBool ANum
+        bool = atom parseBool (ANum . TInt)
         fun = atom (pjoin (,) (getPred1 wordChar "function name") (paren parseExpr)) (\(x,y) -> AFun x y)
 
-parseBool = (parseLit "true" .>> emit 1) `orElse` (parseLit "false" .>> emit 0)
+parseBool = (strChoose ["true","on"] .>> emit 1) `orElse` (strChoose ["false", "off"] .>> emit 0)
+  where strChoose = choose . map parseLit
         
 parseUnOp = notop `orElse` negop
   where negop = pchar '-' `wrapWith` (const OpNeg)
         notop = pchar '!' `wrapWith` (const OpNot)
 
-parseItem = (parseAtom `wrapWith` Item) `orElse` (pjoin UnApp parseUnOp parseItem)
+parseItem = (parseAtom `wrapWith` Item) `orElse` ((paren parseExpr) `wrapWith` Paren) `orElse` (pjoin UnApp parseUnOp parseItem)
 
 parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
@@ -115,36 +145,42 @@ parseOp = eatSpaces .>> choose plist
        plist = map op2parser operators
 
 
-bsExprTests = "BSExpr" ~: TestList [atomTests, intTests, itemTests, exprTests] where
-  num i = Item (ANum i)
+bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, exprTests] where
+  int i = Item (ANum (TInt i))
+  dub d = Item (ANum (TDouble d))
   str s = Item (AStr s)
   app2 a op b = BinApp op a b
   should_be_ p dat res = (B.unpack dat) ~: Right (res, "") ~=? p dat
   atomTests = TestList [
-     "11" `should_be` (ANum 11)
-     ,"true" `should_be` (ANum 1)
-     ,"false" `should_be` (ANum 0)
-     ,"sin(4)" `should_be` (AFun "sin" (num 4))
+     "11" `should_be` (ANum (TInt 11))
+     ,"true" `should_be` (ANum (TInt 1))
+     ,"false" `should_be` (ANum (TInt 0))
+     ,"sin(4)" `should_be` (AFun "sin" (int 4))
      ,"$candy" `should_be` (AVar (NSQual Nothing (VarName "candy" Nothing)))
      ,"\"what\"" `should_be` (AStr "what")
      ,"[incr x]" `should_be` (ACom (Word "incr", [Word "x"])) 
    ] where should_be = should_be_ parseAtom
 
   itemTests = TestList [
-     "11" `should_be` (num 11)
-     ,"!0" `should_be` (UnApp OpNot (num 0))
-     ,"--4" `should_be` (UnApp OpNeg (Item (ANum (-4))))
+     "11" `should_be` (int 11)
+     ,"!0" `should_be` (UnApp OpNot (int 0))
+     ,"--4" `should_be` (UnApp OpNeg (int (-4)))
      ,"![is_done]" `should_be` (UnApp OpNot (Item (ACom (Word "is_done", []))))
    ] where should_be = should_be_ parseItem
  
   exprTests = TestList [
-     "11" `should_be` (Item (ANum 11))
-     ,"(1 * 2) + 1" `should_be` (app2 (Paren (app2 (num 1) OpTimes (num 2))) OpPlus (num 1))
-     ,"1 * 2 + 1" `should_be` (app2 (app2 (num 1) OpTimes (num 2)) OpPlus (num 1))
-     ,"1 + 2 * 1" `should_be` (app2 (num 1) OpPlus (app2 (num 2) OpTimes (num 1)))
-     ,"1 == \"1\"" `should_be` (app2 (num 1) OpEql (str "1"))
-     ,"1 + 1 != \"1\"" `should_be` (app2 (app2 (num 1) OpPlus (num 1)) OpNeql (str "1"))
+     "11" `should_be` (int 11)
+     ,"(1 * 2) + 1" `should_be` (app2 (Paren (app2 (int 1) OpTimes (int 2))) OpPlus (int 1))
+     ,"1 * 2 + 1" `should_be` (app2 (app2 (int 1) OpTimes (int 2)) OpPlus (int 1))
+     ,"1 + 2 * 1" `should_be` (app2 (int 1) OpPlus (app2 (int 2) OpTimes (int 1)))
+     ,"1 == \"1\"" `should_be` (app2 (int 1) OpEql (str "1"))
+     ,"1 + 1 != \"1\"" `should_be` (app2 (app2 (int 1) OpPlus (int 1)) OpNeql (str "1"))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
+  
+  numTests = TestList [
+      "44" `should_be` TInt 44
+      ,"44.8" `should_be` TDouble 44.8
+   ] where should_be dat res = Right (res,"") ~=? parseNum dat
 
   intTests = TestList [
        "44" `should_be` 44

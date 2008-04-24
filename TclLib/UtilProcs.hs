@@ -7,7 +7,7 @@ import Control.Concurrent (threadDelay)
 import Core (evalTcl, subst, callProc)
 import Common
 import Util (unpack)
-import Expr (runAsExpr, runAsBsExpr)
+import Expr (runAsExpr, runAsBsExpr, CBData(..))
 import Data.List (intersperse)
 import qualified TclObj as T
 
@@ -69,14 +69,13 @@ cmdUpdate args = case args of
 procExpr args = do  
   al <- mapM subst args 
   let s = concat $ intersperse " " (map unpack al)
-  runAsExpr s lu
- where lu v = case v of
-		Left n      -> varGetNS n
-		Right (n,a) -> callProc n a
+  runAsExpr s exprCallback
+
+exprCallback v = case v of
+		VarRef n      -> varGetNS n
+		FunRef (n,a) -> callProc n a
 
 procBsExpr args = case args of
-  [s] -> runAsBsExpr s lu
-  _  -> argErr "bsexpr"
- where lu v = case v of
-		Left n      -> varGetNS n
-		Right (n,a) -> callProc n a
+  [s] -> runAsBsExpr s exprCallback
+  []  -> argErr "bsexpr"
+  _   -> runAsBsExpr (T.objconcat args) exprCallback
