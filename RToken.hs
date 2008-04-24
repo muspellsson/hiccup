@@ -1,18 +1,22 @@
-module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, asParsed, rtokenTests ) where
+module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, 
+  tokCmdToParsed,
+  asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), doInterp, runParse)
+import TclParse (TclWord(..), doInterp, runParse, TokCmd)
 import Util (BString,pack)
 import VarName
+import BSExpr
 import Test.HUnit
 
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
+type ExprResult = Either String Expr
 type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok !Cmd | ExpTok RToken
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString RToken 
-              | Block !BString TokResult deriving (Eq,Show)
+              | Block !BString TokResult ExprResult deriving (Eq,Show)
 
 
 noInterp tok = case tok of
@@ -56,7 +60,7 @@ isEmpty _          = False
 compToken :: TclWord -> RToken
 compToken tw = case tw of
           (Word s)        -> compile s
-          (NoSub s res)   -> Block s (fromParsed res)
+          (NoSub s res)   -> Block s (fromParsed res) (fromExpr (parseFullExpr s))
           (Expand t)      -> ExpTok (compToken t)
           (Subcommand c)  -> compCmd c
 
@@ -71,6 +75,8 @@ instance Parseable B.ByteString where
                   Right p -> return p
   {-# INLINE asParsed #-}
 
+tokCmdToParsed tc = Right [toCmd tc]
+
 tryParsed :: BString -> TokResult
 tryParsed s = case runParse s of
                 Left w -> Left $ "parse failed: " ++ w
@@ -81,6 +87,11 @@ fromParsed m = case m of
    Left w     -> Left $ "parse failed: " ++ w
    Right (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("incomplete parse: " ++ show rs)
 
+fromExpr m = case m of 
+   Left w     -> Left $ "expr parse failed: " ++ w
+   Right (r,rs) -> if B.null rs then Right r else Left ("incomplete expr parse: " ++ show rs)
+
+toCmd :: TokCmd -> Cmd
 toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
   where handleProc (Lit v) = Left (parseProc v)
         handleProc xx      = Right xx
@@ -102,7 +113,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (vlocal (pack "puts"))), [lit "4"])])
     ]
   
-  block s v = Block (pack s) (Right v)
+  block s v = Block (pack s) (Right v) (Left "")
   mknosub s = NoSub (pack s) (runParse (pack s))
   mkwd = Word . pack
   lit = Lit . pack 

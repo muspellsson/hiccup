@@ -7,13 +7,14 @@ import Control.Concurrent (threadDelay)
 import Core (evalTcl, subst, callProc)
 import Common
 import Util (unpack)
-import Expr (runAsExpr)
+import Expr (runAsExpr, runAsBsExpr)
 import Data.List (intersperse)
 import qualified TclObj as T
 
 utilProcs = makeCmdList [
    ("time", procTime),
    ("incr", procIncr), ("expr", procExpr), 
+   ("bsexpr", procBsExpr),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
 procIncr args = case args of
@@ -70,5 +71,12 @@ procExpr args = do
   let s = concat $ intersperse " " (map unpack al)
   runAsExpr s lu
  where lu v = case v of
-		Left n      -> varGet n
+		Left n      -> varGetNS n
+		Right (n,a) -> callProc n a
+
+procBsExpr args = case args of
+  [s] -> runAsBsExpr s lu
+  _  -> argErr "bsexpr"
+ where lu v = case v of
+		Left n      -> varGetNS n
 		Right (n,a) -> callProc n a

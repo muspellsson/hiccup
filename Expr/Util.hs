@@ -2,6 +2,11 @@ module Expr.Util where
 
 import qualified TclObj as T
 import Expr.TExp
+import Util 
+
+data TExp = TOp !Op TExp TExp | TUnOp UnOp TExp | TVar BString 
+            | TFun BString [TExp] | TVal T.TclObj 
+   deriving (Show,Eq)
 
 tInt i = TVal (T.fromInt i)
 tStr s = TVal (T.fromStr s)

@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Eval (runExpr,Callback, exprEvalTests) where
+module Expr.Eval (runExpr, runBSExpr, Callback, exprEvalTests) where
 import Expr.TExp
 import qualified TclObj as T
+import VarName
+import BSExpr
 import Util
 import qualified MathOp as Math
 import qualified Data.Map as M
@@ -20,35 +22,58 @@ funapply lu fn al = do
   lu (mkCmd fn args)
  where mkCmd a b = Right (a,b)
 
-type CBData = Either BString (BString, [T.TclObj])
+type CBData = Either (NSQual VarName) (BString, [T.TclObj])
 type Callback m = (CBData -> m T.TclObj)
 
+getOpFun !op = case op of
+    OpLt -> up Math.lessThan
+    OpPlus -> Math.plus
+    OpTimes -> Math.times
+    OpMinus -> Math.minus
+    OpDiv -> Math.divide 
+    OpEql -> up Math.equals
+    OpNeql -> up Math.notEquals
+    OpGt -> up Math.greaterThan
+    OpLte -> up Math.lessThanEq
+    OpGte -> up Math.greaterThanEq
+    OpStrEq -> sup T.strEq
+    OpStrNe -> sup T.strNe
+    OpAnd -> procBool (&&)
+    OpOr -> procBool (||)
+ where up f a b = return (f a b)
+       sup f a b = return (T.fromBool (f a b))
+
+runBSExpr :: (Monad m) => Expr -> Callback m -> m T.TclObj
+runBSExpr exp lu = 
+  case exp of
+    (BinApp op a b) -> objap (getOpFun op) a b
+    (UnApp OpNot v) -> run v >>= return . T.fromBool . not . T.asBool
+    (UnApp OpNeg v) -> run v >>= procNegate
+    (Paren e)       -> run e
+    (Item v) -> getItem v
+ where objap f !x !y = do
+         r1 <- run x 
+         r2 <- run y 
+         f r1 r2
+       run v = runBSExpr v lu
+       getVar vn = lu (Left vn)
+       callFun fn args = lu (Right (fn, args))
+       getItem (ANum i) = return $! T.fromInt i
+       getItem (AStr s) = return $! T.fromBStr s
+       getItem (AVar vn) = getVar vn
+       getItem (AFun fn e) = run e >>= \r -> callFun fn [r]
+       getItem (ACom _) = fail "not quite yet"
 
 runExpr :: (Monad m) => TExp -> Callback m -> m T.TclObj
 runExpr exp lu = 
   case exp of
-    (TOp OpPlus a b) -> objap Math.plus a b
-    (TOp OpTimes a b) -> objap Math.times a b
-    (TOp OpMinus a b) -> objap Math.minus a b
-    (TOp OpDiv a b) -> objap Math.divide a b
-    (TOp OpEql a b) -> objap (up Math.equals) a b
-    (TOp OpLt a b) -> objap (up Math.lessThan) a b
-    (TOp OpNeql a b) -> objap (up Math.notEquals) a b
-    (TOp OpGt a b) -> objap (up Math.greaterThan) a b
-    (TOp OpLte a b) -> objap (up Math.lessThanEq) a b
-    (TOp OpGte a b) -> objap (up Math.greaterThanEq) a b
-    (TOp OpStrEq a b) -> objap (sup T.strEq) a b
-    (TOp OpStrNe a b) -> objap (sup T.strNe) a b
-    (TOp OpAnd a b) -> objap (procBool (&&)) a b
-    (TOp OpOr a b) -> objap (procBool (||)) a b
+    (TOp op a b) -> objap (getOpFun op) a b
     (TUnOp OpNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
     (TUnOp OpNeg v) -> runExpr v lu >>= procNegate
     (TVal v) -> return $! v
-    (TVar n) -> lu (Left n)
+    (TVar n) -> lu (Left (parseVarName n))
     (TFun fn al) -> funapply lu fn al
  where objap = objapply lu
-       up f a b = return (f a b)
-       sup f a b = return (T.fromBool (f a b))
 
 procNegate v = do
    i <- T.asInt v
@@ -73,7 +98,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
       ]
      where eql a b = (runExpr a (return . make)) ~=? Just b
-           make (Left a)  = T.fromBStr a
+           make (Left _)  = T.fromBStr "ERROR"
            make (Right _) = T.fromStr "PROC"
      
     varEvalTests = TestList [
@@ -85,5 +110,5 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
      where eql a b = (runExpr a lu) ~=? Just b
            table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]
            lu :: (Monad m) => Callback m
-           lu (Left v)  = M.lookup v table
+           lu (Left (NSQual _ (VarName v _)))  = M.lookup v table
            lu (Right _) = return $ T.fromStr "PROC"
