@@ -1,5 +1,5 @@
 module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, 
-  tokCmdToParsed,
+  tokCmdToCmd,
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -75,7 +75,7 @@ instance Parseable B.ByteString where
                   Right p -> return p
   {-# INLINE asParsed #-}
 
-tokCmdToParsed tc = Right [toCmd tc]
+tokCmdToCmd = toCmd 
 
 tryParsed :: BString -> TokResult
 tryParsed s = case runParse s of
@@ -99,7 +99,7 @@ toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
 singleTok b = [toCmd (Word b,[])]
 
 rtokenTests = TestList [compTests, compTokenTests] where
-  compTests = TestList [ 
+  compTests = "compile" ~: TestList [ 
       "x -> x" ~: "x" `compiles_to` (lit "x")  
       ,"$x -> VarRef x" ~: "$x" `compiles_to` (varref "x")  
       ,"x(G) -> ArrRef x G" ~: "$x(G)" `compiles_to` (arrref "x" (lit "G"))  
@@ -108,12 +108,12 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"cmd" ~: "[double 4]" `compiles_to` cmdTok (Left (vlocal (pack "double")), [lit "4"])
     ]
 
-  compTokenTests = TestList [ 
+  compTokenTests = "compToken" ~: TestList [ 
       "1" ~: (mkwd "x")  `tok_to` (lit "x")  
       ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (vlocal (pack "puts"))), [lit "4"])])
     ]
   
-  block s v = Block (pack s) (Right v) (Left "")
+  block s v = Block (pack s) (Right v) ((fromExpr . parseFullExpr . pack) s)
   mknosub s = NoSub (pack s) (runParse (pack s))
   mkwd = Word . pack
   lit = Lit . pack 

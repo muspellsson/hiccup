@@ -51,7 +51,10 @@ data TclObj = TclInt !Int BString |
               TclBStr !BString (Maybe Int) (Either String Parsed) (Either String Expr) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
-mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) (Left "must come from block")
+mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) tryExpr
+ where tryExpr = case parseFullExpr s of
+                    Right (e,_) -> Right e
+                    Left err    -> Left err
 {-# INLINE mkTclBStr #-}
 
 mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))

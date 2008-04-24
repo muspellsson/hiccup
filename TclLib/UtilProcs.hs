@@ -4,7 +4,7 @@ module TclLib.UtilProcs ( utilProcs ) where
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
-import Core (evalTcl, subst, callProc)
+import Core (evalTcl, subst, runCmd, callProc)
 import Common
 import Util (unpack)
 import Expr (runAsExpr, runAsBsExpr, CBData(..))
@@ -13,8 +13,8 @@ import qualified TclObj as T
 
 utilProcs = makeCmdList [
    ("time", procTime),
-   ("incr", procIncr), ("expr", procExpr), 
-   ("bsexpr", procBsExpr),
+   ("incr", procIncr), ("old_expr", procExpr), 
+   ("expr", procBsExpr),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
 procIncr args = case args of
@@ -72,10 +72,11 @@ procExpr args = do
   runAsExpr s exprCallback
 
 exprCallback v = case v of
-		VarRef n      -> varGetNS n
-		FunRef (n,a) -> callProc n a
+    VarRef n     -> varGetNS n
+    FunRef (n,a) -> callProc n a
+    CmdEval cmd  -> runCmd cmd
 
 procBsExpr args = case args of
   [s] -> runAsBsExpr s exprCallback
-  []  -> argErr "bsexpr"
+  []  -> argErr "expr"
   _   -> runAsBsExpr (T.objconcat args) exprCallback

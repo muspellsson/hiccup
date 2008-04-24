@@ -5,6 +5,7 @@ import qualified TclObj as T
 import VarName
 import BSExpr
 import Util
+import RToken (Cmd, tokCmdToCmd)
 import qualified MathOp as Math
 import qualified Data.Map as M
 import Expr.Util
@@ -22,7 +23,7 @@ funapply lu fn al = do
   lu (mkCmd fn args)
  where mkCmd a b = FunRef (a,b)
 
-data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj])
+data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval Cmd
 type Callback m = (CBData -> m T.TclObj)
 
 getOpFun !op = case op of
@@ -31,6 +32,7 @@ getOpFun !op = case op of
     OpTimes -> Math.times
     OpMinus -> Math.minus
     OpDiv -> Math.divide 
+    OpExp -> Math.pow
     OpEql -> up Math.equals
     OpNeql -> up Math.notEquals
     OpGt -> up Math.greaterThan
@@ -63,7 +65,7 @@ runBSExpr exp lu =
        getItem (AStr s) = return $! T.fromBStr s
        getItem (AVar vn) = getVar vn
        getItem (AFun fn e) = run e >>= \r -> callFun fn [r]
-       getItem (ACom _) = fail "not quite yet"
+       getItem (ACom cmd) = lu (CmdEval (tokCmdToCmd cmd))
 
 runExpr :: (Monad m) => TExp -> Callback m -> m T.TclObj
 runExpr exp lu = 
@@ -99,8 +101,8 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
       ]
      where eql a b = (runExpr a (return . make)) ~=? Just b
-           make (VarRef _)  = T.fromBStr "ERROR"
            make (FunRef _) = T.fromStr "PROC"
+           make _          = T.fromBStr "ERROR"
      
     varEvalTests = TestList [
         "$num -> 4" ~: (TVar "num") `eql` (mint 4),
@@ -113,3 +115,4 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
            lu :: (Monad m) => Callback m
            lu (VarRef (NSQual _ (VarName v _)))  = M.lookup v table
            lu (FunRef _) = return $ T.fromStr "PROC"
+           lu (CmdEval _) = return $ T.fromStr "CMD"

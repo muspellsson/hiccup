@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, subst, callProc, coreTests) where
+module Core (evalTcl, doCond, subst, runCmd, callProc, coreTests) where
 
 import Common
 import qualified TclObj as T
