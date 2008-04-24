@@ -13,26 +13,15 @@ module MathOp(
 
 import qualified TObj as T
 
-data NPair = Ints !Int !Int | Doubles !Double !Double deriving (Eq,Show)
-
--- TODO: Inline getNumerics manually and get rid of NPair?
-getNumerics :: (T.ITObj t) => t -> t -> Maybe NPair
-getNumerics !x !y =
-   case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! Ints i1 i2
-       _ -> case (T.asDouble x, T.asDouble y) of
-               (Just d1, Just d2) -> return $! Doubles d1 d2
-               _ -> fail $ "expected numeric"
-{-# INLINE getNumerics #-}
-
 numop name iop dop !x !y = 
-   case getNumerics x y of
-       Just (Ints i1 i2)  -> return $! (T.fromInt (i1 `iop` i2))
-       Just (Doubles d1 d2) -> return $! T.fromDouble (d1 `dop` d2)
-       _ -> fail $ "can't use non-numeric string as operand of " ++ show name
+   case (T.asInt x, T.asInt y) of
+       (Just i1, Just i2) -> return $! T.fromInt (i1 `iop` i2)
+       _ -> case (T.asDouble x, T.asDouble y) of
+             (Just d1, Just d2) -> return $! T.fromDouble (d1 `dop` d2)
+             _ -> fail $ "can't use non-numeric string as operand of " ++ show name
 {-# INLINE numop #-}
 
-plus, minus, times, divide :: (Monad m, T.ITObj t) => t -> t -> m t
+plus, minus, times, divide :: (Monad m, T.ITObj t, T.ITObj t2, T.ITObj t3) => t -> t2 -> m t3
 plus = numop "+" (+) (+) 
 minus = numop "-" (-) (-)
 times = numop "*" (*) (*)
