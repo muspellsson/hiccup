@@ -184,7 +184,8 @@ trueValues = map pack ["1", "true", "yes", "on"]
 {-# INLINE (.==) #-}
 
 objconcat :: [TclObj] -> TclObj
-objconcat = mkTclBStr . (`joinWith` ' ') . map (trim . asBStr) 
+objconcat [o] = o
+objconcat al = mkTclBStr . (`joinWith` ' ') . map (trim . asBStr)  $ al
 
 -- # TESTS # --
 

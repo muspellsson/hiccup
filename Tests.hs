@@ -1,6 +1,5 @@
 module Tests where
 import BSParse (bsParseTests)
-import BSExpr (bsExprTests)
 import TclParse (tclParseTests)
 import Hiccup (hiccupTests)
 import TclObj (tclObjTests)
@@ -15,8 +14,8 @@ import Expr (exprTests)
 import Test.HUnit 
 
 allTests = TestList [ bsParseTests, tclParseTests, utilTests, hiccupTests, tclObjTests, commonTests, 
-                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprTests,
-                      bsExprTests  ]
+                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprTests
+                      ]
 runUnit = runTestTT allTests
 
 main = runUnit

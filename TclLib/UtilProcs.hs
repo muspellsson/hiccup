@@ -4,17 +4,16 @@ module TclLib.UtilProcs ( utilProcs ) where
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
-import Core (evalTcl, subst, runCmd, callProc)
+import Core (evalTcl, runCmd, callProc)
 import Common
 import Util (unpack)
-import Expr (runAsExpr, runAsBsExpr, CBData(..))
-import Data.List (intersperse)
+import Expr (runAsExpr, CBData(..))
 import qualified TclObj as T
 
 utilProcs = makeCmdList [
    ("time", procTime),
-   ("incr", procIncr), ("old_expr", procExpr), 
-   ("expr", procBsExpr),
+   ("incr", procIncr), 
+   ("expr", procExpr),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
 procIncr args = case args of
@@ -66,17 +65,12 @@ cmdUpdate args = case args of
  where upglobal f = do sl <- stackLevel
                        uplevel sl f
 
-procExpr args = do  
-  al <- mapM subst args 
-  let s = concat $ intersperse " " (map unpack al)
-  runAsExpr s exprCallback
+procExpr args = case args of
+  []  -> argErr "expr"
+  [s] -> runAsExpr s exprCallback
+  _   -> runAsExpr (T.objconcat args) exprCallback
 
 exprCallback v = case v of
     VarRef n     -> varGetNS n
     FunRef (n,a) -> callProc n a
     CmdEval cmd  -> runCmd cmd
-
-procBsExpr args = case args of
-  [s] -> runAsBsExpr s exprCallback
-  []  -> argErr "expr"
-  _   -> runAsBsExpr (T.objconcat args) exprCallback

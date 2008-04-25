@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Eval (runExpr, runBSExpr, Callback, CBData(..), exprEvalTests) where
+module Expr.Eval (runBSExpr, Callback, CBData(..), exprEvalTests) where
 import Expr.TExp
 import qualified TclObj as T
 import VarName
@@ -10,18 +10,6 @@ import qualified MathOp as Math
 import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
-
-objapply :: (Monad m) => Callback m -> (T.TclObj -> T.TclObj -> m T.TclObj) -> TExp -> TExp -> m T.TclObj
-objapply lu f x y = do
-  i1 <- runExpr x lu 
-  i2 <- runExpr y lu
-  f i1 i2
-{-# INLINE objapply #-}
-
-funapply lu fn al = do
-  args <- mapM (\v -> runExpr v lu) al
-  lu (mkCmd fn args)
- where mkCmd a b = FunRef (a,b)
 
 data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval Cmd
 type Callback m = (CBData -> m T.TclObj)
@@ -67,17 +55,6 @@ runBSExpr exp lu =
        getItem (AFun fn e) = run e >>= \r -> callFun fn [r]
        getItem (ACom cmd) = lu (CmdEval (tokCmdToCmd cmd))
 
-runExpr :: (Monad m) => TExp -> Callback m -> m T.TclObj
-runExpr exp lu = 
-  case exp of
-    (TOp op a b) -> objap (getOpFun op) a b
-    (TUnOp OpNot v) -> runExpr v lu >>= return . T.fromBool . not . T.asBool
-    (TUnOp OpNeg v) -> runExpr v lu >>= procNegate
-    (TVal v) -> return $! v
-    (TVar n) -> lu (VarRef (parseVarName n))
-    (TFun fn al) -> funapply lu fn al
- where objap = objapply lu
-
 procNegate v = do
    i <- T.asInt v
    return $ T.fromInt (negate i)
@@ -100,17 +77,18 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
         "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
       ]
-     where eql a b = (runExpr a (return . make)) ~=? Just b
+     where eql a b = (runBSExpr a (return . make)) ~=? Just b
            make (FunRef _) = T.fromStr "PROC"
            make _          = T.fromBStr "ERROR"
-     
+    
+    var v = Item (AVar (parseVarName v))
     varEvalTests = TestList [
-        "$num -> 4" ~: (TVar "num") `eql` (mint 4),
-        ((TVar "num") + (tInt 3)) `eql` (mint 7),
-        ((tInt 4) + ((TVar "num") - (tInt 1))) `eql` (mint 7),
-        "$boo == \"bean\" -> true" ~: ((TVar "boo") `eq` (tStr "bean")) `eql` T.tclTrue
+        "$num -> 4" ~: (var "num") `eql` (mint 4),
+        ((var "num") + (tInt 3)) `eql` (mint 7),
+        ((tInt 4) + ((var "num") - (tInt 1))) `eql` (mint 7),
+        "$boo == \"bean\" -> true" ~: ((var "boo") `eq` (tStr "bean")) `eql` T.tclTrue
       ]
-     where eql a b = (runExpr a lu) ~=? Just b
+     where eql a b = (runBSExpr a lu) ~=? Just b
            table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]
            lu :: (Monad m) => Callback m
            lu (VarRef (NSQual _ (VarName v _)))  = M.lookup v table

@@ -13,20 +13,27 @@ import VarName
 import Util hiding (orElse)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
-import Expr.TExp (Op(..), UnOp(..))
+import Expr.TExp
 import Test.HUnit 
 
 class Exprable e where
   asExpr :: (Monad m) => e -> m Expr
-
-
-data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
 
 consumed :: Parser t -> Parser BString
 consumed p s = do 
     (_,r) <- p s 
     let lendiff = B.length s - B.length r
     return (B.take lendiff s, r)
+
+
+data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
+data Atom = AStr !BString | ANum !TNum | AVar !(NSQual VarName)
+           | AFun !BString Expr | ACom TokCmd deriving (Eq,Show)
+
+data Expr = Item Atom 
+          | BinApp !Op Expr Expr  
+          | UnApp !UnOp Expr 
+          | Paren Expr deriving (Eq,Show)
 
 parseNum :: Parser TNum
 parseNum s = do
@@ -42,11 +49,6 @@ parseInt s = case B.readInt s of
                 Nothing -> fail "expected int"
 
 
-data Atom = AStr !BString | ANum !TNum | AVar !(NSQual VarName)
-           | AFun !BString Expr | ACom TokCmd deriving (Eq,Show)
-
-data Expr = Item Atom | BinApp !Op Expr Expr | UnApp !UnOp Expr | Paren Expr deriving (Eq,Show)
-
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
                    ,[("==",OpEql), ("!=",OpNeql)]
@@ -59,9 +61,9 @@ operators = mkops [
   where mkop p (s,o) = OpDef s o p 
         mkops = concatMap (\(p,vl) -> map (mkop p) vl) . zip [0..]
 
-getPrec = opPrec . getOp
 
 higherPrec op1 op2 = getPrec op1 >= getPrec op2
+ where getPrec = opPrec . getOp
 
 getOp op = case M.lookup op opsByOper of
             Just v -> v
@@ -113,7 +115,7 @@ parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
 parseExpr = eatSpaces .>> expTerm
  where expTerm str = do
-        (i1,r) <- (parseItem `orElse` ((paren parseExpr) `wrapWith` Paren)) str
+        (i1,r) <- parseItem str
         (pjoin (\op i2 -> fixApp i1 op i2) parseOp parseExpr) `orElse` (emit i1) $ r 
 
 

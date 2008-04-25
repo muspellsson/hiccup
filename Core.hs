@@ -1,10 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, subst, runCmd, callProc, coreTests) where
+module Core (evalTcl, doCond, runCmd, callProc, coreTests) where
 
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 import RToken
+import qualified Expr as E
 import Util
 import VarName (arrName, NSQual(..))
 
@@ -65,29 +66,21 @@ doCall !pn !mproc args = do
      Just proc -> proc `applyTo` args 
 {-# INLINE doCall #-}
 
-doCond :: T.TclObj -> TclM Bool
-doCond obj = do
+doCond obj = (E.runAsExpr obj exprCallback >>= return . T.asBool) `orElse` oldCond obj
+
+exprCallback v = case v of
+    E.VarRef n     -> varGetNS n
+    E.FunRef (n,a) -> callProc n a
+    E.CmdEval cmd  -> runCmd cmd
+
+oldCond :: T.TclObj -> TclM Bool
+oldCond obj = do
       p <- asParsed obj
       case p of
         [x]      -> do r <- runCmd x
                        return $! T.asBool r
         _        -> tclErr "Too many statements in conditional"
 {-# INLINE doCond #-}
-
-getSubst s = do 
-    case asParsed s of
-      Just cmds -> do
-         let toks = concatMap uncmd cmds
-         if all noInterp toks 
-           then return (Left (T.asBStr s))
-           else return (Right toks)
-      Nothing   -> tclErr "subst failed: currently, doesn't work on stuff that we can't tokenize" -- TODO
- where uncmd (Right n,args) = (n:args)
-       uncmd (Left (NSQual nst n), args) = if nst == Nothing then ((Lit n):args) else error (show (nst,n))
-
-subst s = getSubst s >>= doeval
-  where doeval (Right t) = evalRTokens t [] >>= return . B.concat . map T.asBStr
-        doeval (Left s) = return s
 
 coreTests = TestList []
 

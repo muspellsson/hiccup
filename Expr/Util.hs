@@ -1,34 +1,29 @@
 module Expr.Util where
 
-import qualified TclObj as T
 import Expr.TExp
-import Util 
+import BSExpr
 
-data TExp = TOp !Op TExp TExp | TUnOp UnOp TExp | TVar BString 
-            | TFun BString [TExp] | TVal T.TclObj 
-   deriving (Show,Eq)
+tInt i = Item (ANum (TInt i))
+tFloat f = Item (ANum (TDouble f))
+tStr s = Item (AStr s)
 
-tInt i = TVal (T.fromInt i)
-tStr s = TVal (T.fromStr s)
-tFloat f = TVal (T.fromDouble f)
+(.&&) = BinApp OpAnd
+(.||) = BinApp OpOr
 
-(.&&) = TOp OpAnd
-(.||) = TOp OpOr
+(.<) = BinApp OpLt
+(.<=) = BinApp OpLte
+(.>) = BinApp OpGt
+(.>=) = BinApp OpGte
+(.==) = BinApp OpEql
 
-(.<) = TOp OpLt
-(.<=) = TOp OpLte
-(.>) = TOp OpGt
-(.>=) = TOp OpGte
-(.==) = TOp OpEql
+eq = BinApp OpStrEq
+ne = BinApp OpStrNe
 
-eq = TOp OpStrEq
-ne = TOp OpStrNe
-
-instance Num TExp where
-  a + b = TOp OpPlus a b
-  (-) = TOp OpMinus
-  (*) = TOp OpTimes
+instance Num Expr where
+  a + b = BinApp OpPlus a b
+  (-) = BinApp OpMinus
+  (*) = BinApp OpTimes
   abs = undefined
   signum = undefined
   negate = undefined
-  fromInteger i =  TVal (T.fromInt (fromIntegral i))
+  fromInteger i =  tInt (fromIntegral i)

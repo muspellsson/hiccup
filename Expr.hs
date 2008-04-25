@@ -1,13 +1,11 @@
-module Expr (runAsExpr, runAsBsExpr, CBData(..), exprTests) where
+module Expr (runAsExpr, CBData(..), exprTests) where
 
 import Test.HUnit
-import Expr.Parse (expr, exprParseTests)
-import BSExpr (Exprable(..))
-import Expr.Eval (runExpr, runBSExpr, CBData(..), exprEvalTests)
+import BSExpr (Exprable(..), bsExprTests)
+import Expr.Eval (runBSExpr, CBData(..), exprEvalTests)
 
 
-runAsExpr s f = expr s >>= \e -> runExpr e f
+runAsExpr o lu = asExpr o >>= \ex -> runBSExpr ex lu
+{-# INLINE runAsExpr #-}
 
-runAsBsExpr o lu = asExpr o >>= \ex -> runBSExpr ex lu
-
-exprTests = TestList [ exprParseTests, exprEvalTests ]
+exprTests = TestList [ exprEvalTests, bsExprTests ]
