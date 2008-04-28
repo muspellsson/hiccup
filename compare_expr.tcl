@@ -3,6 +3,9 @@
 puts "expr:"
 puts [time { set x 0; while { expr { ($x + 1) < 15 * 20 + 5 } } { incr x } } 200]
 
+puts "expr real:"
+puts [time { set x 0; while { ($x + 1) < 15 * 20 + 5  } { incr x } } 200]
+
 puts "expr memo:"
 set code { ($x + 1) < 15 * 20 + 5 } 
 puts [time { set x 0; while { expr $code } { incr x } } 200]
@@ -10,12 +13,15 @@ puts [time { set x 0; while { expr $code } { incr x } } 200]
 puts "eval:"
 puts [time { set x 0; while { eval { < [+ 1 $x]  [+ [* 15 20] 5] } } { incr x } } 200]
 
+puts "eval real:"
+puts [time { set x 0; while { < [+ 1 $x]  [+ [* 15 20] 5] } { incr x } } 200]
+
 set x 11
 puts "expr simple:"
-puts [time { expr { $x <= 4 } } 20000]
+puts [time { expr { $x <= 45 } } 25000]
 
 puts "eval simple:"
-puts [time { eval { <= $x 4 } } 20000]
+puts [time { eval { <= $x 45 } } 25000]
 
 exit
 

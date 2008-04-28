@@ -14,6 +14,7 @@ import Test.HUnit
 data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval Cmd
 type Callback m = (CBData -> m T.TclObj)
 
+
 getOpFun !op = case op of
     OpLt -> up Math.lessThan
     OpPlus -> Math.plus
@@ -34,26 +35,24 @@ getOpFun !op = case op of
        sup f a b = return (T.fromBool (f a b))
 
 runBSExpr :: (Monad m) => Expr -> Callback m -> m T.TclObj
-runBSExpr exp lu = 
-  case exp of
-    (BinApp op a b) -> objap (getOpFun op) a b
-    (UnApp OpNot v) -> run v >>= return . T.fromBool . not . T.asBool
-    (UnApp OpNeg v) -> run v >>= procNegate
-    (Paren e)       -> run e
-    (Item v) -> getItem v
- where objap f !x !y = do
-         r1 <- run x 
-         r2 <- run y 
-         f r1 r2
-       run v = runBSExpr v lu
-       getVar vn = lu (VarRef vn)
+runBSExpr exp lu = run exp
+ where run e = case e of
+                Item v        -> getItem v
+                BinApp op a b -> do 
+                        va <- run a
+                        vb <- run b
+                        (getOpFun op) va vb
+                UnApp OpNot v -> run v >>= return . T.fromBool . not . T.asBool
+                UnApp OpNeg v -> run v >>= procNegate
+                Paren e       -> run e
        callFun fn args = lu (FunRef (fn, args))
-       getItem (ANum (TInt i)) = return $! T.fromInt i
-       getItem (ANum (TDouble d)) = return $! T.fromDouble d
-       getItem (AStr s) = return $! T.fromBStr s
-       getItem (AVar vn) = getVar vn
-       getItem (AFun fn e) = run e >>= \r -> callFun fn [r]
-       getItem (ACom cmd) = lu (CmdEval (tokCmdToCmd cmd))
+       getItem item = case item of
+                        ANum (TInt i)    -> return $! T.fromInt i
+                        ANum (TDouble d) -> return $! T.fromDouble d
+                        AStr s    -> return $! T.fromBStr s
+                        AVar vn   -> lu (VarRef vn)
+                        AFun fn e -> run e >>= \r -> callFun fn [r]
+                        ACom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
 
 procNegate v = do
    i <- T.asInt v

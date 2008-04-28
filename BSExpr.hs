@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module BSExpr (Atom(..),Expr(..)
-       ,Exprable(..)
-       ,TNum(..)
+module BSExpr (
+       Exprable(..)
+       ,Atom(..)
+       ,Expr(..)
        ,parseFullExpr
        ,parseExpr
        ,exprToLisp
@@ -25,15 +26,6 @@ consumed p s = do
     let lendiff = B.length s - B.length r
     return (B.take lendiff s, r)
 
-
-data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
-data Atom = AStr !BString | ANum !TNum | AVar !(NSQual VarName)
-           | AFun !BString Expr | ACom TokCmd deriving (Eq,Show)
-
-data Expr = Item Atom 
-          | BinApp !Op Expr Expr  
-          | UnApp !UnOp Expr 
-          | Paren Expr deriving (Eq,Show)
 
 parseNum :: Parser TNum
 parseNum s = do

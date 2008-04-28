@@ -66,11 +66,11 @@ cmdUpdate args = case args of
                        uplevel sl f
 
 procExpr args = case args of
-  []  -> argErr "expr"
   [s] -> runAsExpr s exprCallback
+  []  -> argErr "expr"
   _   -> runAsExpr (T.objconcat args) exprCallback
 
-exprCallback v = case v of
+exprCallback !v = case v of
     VarRef n     -> varGetNS n
     FunRef (n,a) -> callProc n a
     CmdEval cmd  -> runCmd cmd
