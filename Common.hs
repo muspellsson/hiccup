@@ -206,7 +206,6 @@ getFrame = do st <- gets tclStack
               case st of
                  (fr:_) -> return $! fr
                  _      -> tclErr "stack badness"
-{-# INLINE getFrame  #-}
 
 io :: IO a -> TclM a
 io = liftIO
