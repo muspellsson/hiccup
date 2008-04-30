@@ -49,9 +49,9 @@ procGets args = case args of
           [ch,vname] -> do h <- getReadable ch
                            eof <- io (hIsEOF h)
                            if eof
-                             then varSet (T.asBStr vname) (T.empty) >> return (T.mkTclInt (-1))
+                             then varSetNS (T.asVarName vname) (T.empty) >> return (T.mkTclInt (-1))
                              else do s <- io (B.hGetLine h)
-                                     varSet (T.asBStr vname) (T.mkTclBStr s)
+                                     varSetNS (T.asVarName vname) (T.mkTclBStr s)
                                      return $ T.mkTclInt (B.length s)
           _  -> argErr "gets"
 

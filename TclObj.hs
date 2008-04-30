@@ -26,6 +26,7 @@ module TclObj (
  ,asSeq
  ,asList
  ,asDouble
+ ,asVarName
  ,(.==)
  ,strEq
  ,strNe
@@ -42,6 +43,8 @@ import BSExpr (parseFullExpr, Expr, Exprable(..))
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
+
+import VarName (parseVarName)
 
 import Test.HUnit
 
@@ -186,6 +189,9 @@ trueValues = map pack ["1", "true", "yes", "on"]
 objconcat :: [TclObj] -> TclObj
 objconcat [o] = o
 objconcat al = mkTclBStr . (`joinWith` ' ') . map (trim . asBStr)  $ al
+
+asVarName a = parseVarName . asBStr $ (a :: TclObj)
+{-# INLINE asVarName #-}
 
 -- # TESTS # --
 

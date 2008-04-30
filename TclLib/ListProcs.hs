@@ -54,7 +54,7 @@ procLassign args = case args of
                                 zipWithM_ setter varnames (src ++ repeat T.empty)
                                 return (T.mkTclList rest)
   _ -> argErr "lassign"
- where setter n v = varSet (T.asBStr n) v
+ where setter n v = varSetNS (T.asVarName n) v
 
 procJoin args = case args of
    [lst]     -> dojoin lst (pack " ")

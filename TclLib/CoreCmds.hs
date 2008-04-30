@@ -23,8 +23,8 @@ coreCmds = makeCmdList [
 
 
 procSet args = case args of
-     [s1,s2] -> varSet (T.asBStr s1) s2
-     [s1]    -> varGet (T.asBStr s1)
+     [s1,s2] -> varSetNS (T.asVarName s1) s2
+     [s1]    -> varGetNS (T.asVarName s1)
      _       -> argErr "set"
 
 procUnset args = case args of
@@ -61,10 +61,10 @@ procUpLevel args = case args of
 
 procCatch args = case args of
            [s]        -> (evalTcl s >> return T.tclFalse) `catchError` (retInt . errCode)
-           [s,result] -> (evalTcl s >>= varSet (T.asBStr result) >> return T.tclFalse) `catchError` (retReason result)
+           [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
  where retReason v e = case e of
-                         EDie s -> varSet (T.asBStr v) (T.mkTclStr s) >> return T.tclTrue
+                         EDie s -> varSetNS (T.asVarName v) (T.mkTclStr s) >> return T.tclTrue
                          _      -> retInt . errCode $ e
        retInt = return . T.mkTclInt
 

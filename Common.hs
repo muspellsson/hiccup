@@ -16,9 +16,8 @@ module Common (TclM
        ,getCmdNS
        ,registerProc
        ,varGetNS
-       ,varGet
        ,varModify
-       ,varSet
+       ,varSetNS
        ,varSetHere
        ,varExists
        ,varUnset
@@ -581,10 +580,12 @@ withExistingNS f !nsref = do
   withScope fr f
 
 getFrameVars :: FrameRef -> TclM VarMap
-getFrameVars !frref = (frref `refExtract` frVars) >>= \r -> return $! r
+getFrameVars !frref = (frref `refExtract` frVars) -- >>= \r -> return $! r
+-- getFrameVars !frref = liftIO (readIORef frref >>= \x -> (return $! (frVars x)))
 {-# INLINE getFrameVars #-}
 
-getUpMap !frref = (frref `refExtract` upMap) >>= \r -> return $! r
+getUpMap !frref = (frref `refExtract` upMap) -- >>= \r -> return $! r
+-- getUpMap !frref = liftIO (readIORef frref >>= \x -> (return $! (upMap x)))
 {-# INLINE getUpMap #-}
 
 getNSFrame :: NSRef -> TclM FrameRef
@@ -601,7 +602,7 @@ readRef :: IORef a -> TclM a
 readRef !r = (liftIO . readIORef) r
 {-# INLINE readRef #-}
 
-refExtract !ref !f = readRef ref >>= \d -> let r = f d in r `seq` (return $! r)
+refExtract !ref !f = liftIO (readIORef ref >>= \x -> (return $! f x)) 
 {-# INLINE refExtract #-}
 
 currentNS = getCurrNS >>= readRef >>= return . nsName

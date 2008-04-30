@@ -28,7 +28,7 @@ processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
 interpVars = [("tcl_version" * (show hiccupVersion))]
   where (*) name val = (pack name, T.mkTclStr val)
 
-hiccupVersion = 0.43
+hiccupVersion = 0.45
 
 data Interpreter = Interpreter (IORef TclState)
 
@@ -70,9 +70,13 @@ procProc args = case args of
   [name,alst,body] -> do
     let pname = T.asBStr name
     params <- parseParams pname alst
-    registerProc pname (T.asBStr body) (procRunner params body)
+    proc <- mkProc params body
+    registerProc pname (T.asBStr body) proc
     ret
   _               -> argErr "proc"
+
+mkProc params body = do
+  return (procRunner params body)
 
 procRunner pl body args = do
   locals <- bindArgs pl args

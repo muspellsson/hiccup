@@ -58,9 +58,9 @@ procForEach args =
                ret
     _            -> argErr "foreach"
  where allowBreak f = f `eatErr` EBreak
-       doChunk vl block items = do zipWithM_ (\a b -> varSet (T.asBStr a) b) vl (items ++ repeat T.empty)
+       doChunk vl block items = do zipWithM_ (\a b -> varSetNS (T.asVarName a) b) vl (items ++ repeat T.empty)
                                    evalTcl block `eatErr` EContinue
-       doSingl v block i = do varSet (T.asBStr v) i
+       doSingl v block i = do varSetNS (T.asVarName v) i -- TODO: should this be varSetHere?
                               evalTcl block `eatErr` EContinue
 
 chunkBy lst n = let (a,r) = splitAt n lst

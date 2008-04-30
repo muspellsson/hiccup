@@ -74,9 +74,9 @@ string_range args = case args of
    _ -> argErr "string range"
 
 procAppend args = case args of
-            (v:vx) -> do val <- varGet (T.asBStr v) `ifFails` T.empty
+            (v:vx) -> do val <- varGetNS (T.asVarName v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
-                         varSet (T.asBStr v) cated
+                         varSetNS (T.asVarName v) cated
             _  -> argErr "append"
  where oconcat = T.mkTclBStr . B.concat . map T.asBStr
 

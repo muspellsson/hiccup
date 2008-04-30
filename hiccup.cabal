@@ -1,5 +1,5 @@
 Name:                hiccup
-Version:             0.43
+Version:             0.45
 Description:         Interpreter for a subset of tcl
 License:             GPL
 License-file:        LICENSE
@@ -17,7 +17,7 @@ extra-source-files:  example.tcl atests.tcl include.tcl
 Executable:          hiccup
 Other-Modules:       Hiccup, TclObj, VarName, Common, Util, Core, RToken, BSParse, EventMgr, ProcArgs, TclLib,
                      TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, TclChan,
-                     TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, Expr.Parse, Expr.Eval, Expr.TExp, 
+                     TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, BSExpr, Expr.Eval, Expr.TExp, 
                      Expr.Util, Match
 Main-is:             Main.hs
 ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W

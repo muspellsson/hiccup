@@ -14,6 +14,7 @@ emptyChanMap = CM Map.empty
 insertChan c (CM m) = CM (Map.insert (chanName c) c m)
 lookupChan n (CM m) = Map.lookup n m
 deleteChan c (CM m) = CM (Map.delete (chanName c) m)
+namesChan (CM m) = Map.keys m
 
 data TclChan = TclChan { chanHandle :: Handle, chanName :: BString } deriving (Eq,Show)
 
