@@ -6,7 +6,6 @@ import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import Core (evalTcl, runCmd, callProc)
 import Common
-import Util (unpack)
 import Expr (runAsExpr, CBData(..))
 import qualified TclObj as T
 

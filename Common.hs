@@ -580,12 +580,10 @@ withExistingNS f !nsref = do
   withScope fr f
 
 getFrameVars :: FrameRef -> TclM VarMap
-getFrameVars !frref = (frref `refExtract` frVars) -- >>= \r -> return $! r
--- getFrameVars !frref = liftIO (readIORef frref >>= \x -> (return $! (frVars x)))
+getFrameVars !frref = (frref `refExtract` frVars) 
 {-# INLINE getFrameVars #-}
 
-getUpMap !frref = (frref `refExtract` upMap) -- >>= \r -> return $! r
--- getUpMap !frref = liftIO (readIORef frref >>= \x -> (return $! (upMap x)))
+getUpMap !frref = (frref `refExtract` upMap) 
 {-# INLINE getUpMap #-}
 
 getNSFrame :: NSRef -> TclM FrameRef
