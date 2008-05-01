@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module BSExpr (
-       Exprable(..)
-       ,Atom(..)
+       Atom(..)
        ,Expr(..)
        ,parseFullExpr
        ,parseExpr
@@ -17,8 +16,6 @@ import qualified Data.Map as M
 import Expr.TExp
 import Test.HUnit 
 
-class Exprable e where
-  asExpr :: (Monad m) => e -> m Expr
 
 consumed :: Parser t -> Parser BString
 consumed p s = do 
@@ -71,13 +68,14 @@ opsByOper = M.fromList (map pairer operators)
 data OpDef = OpDef BString Op Int
 
 
-showExpr (Item (ANum i)) = show i
-showExpr (Item (AStr i)) = show i
-showExpr (Item (AFun s e)) = "(" ++ B.unpack s ++ " " ++ showExpr e ++ ")"
-showExpr (Item x) = show x
-showExpr (Paren e) = showExpr e
-showExpr (UnApp o e) = "(" ++ show o ++ " " ++ showExpr e ++ ")"
-showExpr (BinApp op a b) = showOpExpr (getOpName op) a b
+showExpr exp = case exp of
+         Item (ANum i) -> show i
+         Item (AStr i) -> show i
+         Item (AFun s e) -> "(" ++ B.unpack s ++ " " ++ showExpr e ++ ")"
+         Item x -> show x
+         Paren e -> showExpr e
+         UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
+         BinApp op a b -> showOpExpr (getOpName op) a b
 
 showOpExpr ops a b = "(" ++ ops ++ " " ++ showExpr a ++ " " ++ showExpr b ++ ")"
 

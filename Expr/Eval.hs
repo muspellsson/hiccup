@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Eval (runBSExpr, Callback, CBData(..), exprEvalTests) where
+module Expr.Eval (runExpr, Callback, CBData(..), exprEvalTests) where
 import Expr.TExp
 import qualified TclObj as T
 import VarName
@@ -34,8 +34,8 @@ getOpFun !op = case op of
  where up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 
-runBSExpr :: (Monad m) => Expr -> Callback m -> m T.TclObj
-runBSExpr exp lu = run exp
+runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj
+runExpr lu exp = run exp
  where run e = case e of
                 Item v        -> getItem v
                 BinApp op a b -> do 
@@ -76,7 +76,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
         "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
       ]
-     where eql a b = (runBSExpr a (return . make)) ~=? Just b
+     where eql a b = (runExpr (return . make) a) ~=? Just b
            make (FunRef _) = T.fromStr "PROC"
            make _          = T.fromBStr "ERROR"
     
@@ -87,7 +87,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         ((tInt 4) + ((var "num") - (tInt 1))) `eql` (mint 7),
         "$boo == \"bean\" -> true" ~: ((var "boo") `eq` (tStr "bean")) `eql` T.tclTrue
       ]
-     where eql a b = (runBSExpr a lu) ~=? Just b
+     where eql a b = (runExpr lu a) ~=? Just b
            table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]
            lu :: (Monad m) => Callback m
            lu (VarRef (NSQual _ (VarName v _)))  = M.lookup v table

@@ -28,7 +28,7 @@ string_Op name op args = case args of
    _   -> argErr $ "string " ++ name
 
 string_length args = case args of
-    [s] -> return $ T.mkTclInt (B.length (T.asBStr s))
+    [s] -> return $ T.fromInt (B.length (T.asBStr s))
     _   -> argErr "string length"
 
 string_compare args = case map T.asBStr args of
@@ -36,9 +36,9 @@ string_compare args = case map T.asBStr args of
     ["-nocase",s1,s2] -> return (ord2int (compare (downCase s1) (downCase s2)))
     _       -> argErr "string compare"
  where ord2int o = case o of
-            LT -> T.mkTclInt (-1)
-            GT -> T.mkTclInt 1
-            EQ -> T.mkTclInt 0
+            LT -> T.fromInt (-1)
+            GT -> T.fromInt 1
+            EQ -> T.fromInt 0
 
 string_match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
@@ -78,15 +78,15 @@ procAppend args = case args of
                          let cated = oconcat (val:vx)
                          varSetNS (T.asVarName v) cated
             _  -> argErr "append"
- where oconcat = T.mkTclBStr . B.concat . map T.asBStr
+ where oconcat = T.fromBStr . B.concat . map T.asBStr
 
 procSplit args = case args of
         [str]       -> dosplit (T.asBStr str)  (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
-                       in if B.null splitChars then return $ (T.mkTclList . map (T.mkTclBStr . B.singleton) . unpack) (T.asBStr str)
+                       in if B.null splitChars then return $ (T.mkTclList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
                                                else dosplit (T.asBStr str) splitChars
         _           -> argErr "split"
 
- where dosplit str chars = return $ T.mkTclList (map T.mkTclBStr (B.splitWith (\v -> v `B.elem` chars) str))
+ where dosplit str chars = return $ T.mkTclList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
 stringTests = TestList [ matchTests ]

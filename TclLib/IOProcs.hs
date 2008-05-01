@@ -25,7 +25,7 @@ cmdRead args = case args of
      [ch] -> do
         h <- getReadable ch
         c <- io $ B.hGetContents h
-        return $ c `seq` T.mkTclBStr c
+        return $ c `seq` T.fromBStr c
      _ -> argErr "read"
 
 procPuts args = case args of
@@ -49,10 +49,10 @@ procGets args = case args of
           [ch,vname] -> do h <- getReadable ch
                            eof <- io (hIsEOF h)
                            if eof
-                             then varSetNS (T.asVarName vname) (T.empty) >> return (T.mkTclInt (-1))
+                             then varSetNS (T.asVarName vname) (T.empty) >> return (T.fromInt (-1))
                              else do s <- io (B.hGetLine h)
-                                     varSetNS (T.asVarName vname) (T.mkTclBStr s)
-                                     return $ T.mkTclInt (B.length s)
+                                     varSetNS (T.asVarName vname) (T.fromBStr s)
+                                     return $ T.fromInt (B.length s)
           _  -> argErr "gets"
 
 getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
@@ -60,7 +60,7 @@ getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 procSource args = case args of
                   [s] -> do 
 		    let fn = T.asStr s 
-		    useFile fn (slurpFile fn) >>= evalTcl . T.mkTclBStr
+		    useFile fn (slurpFile fn) >>= evalTcl . T.fromBStr
                   _   -> argErr "source"
 
 checkReadable c = do r <- io (hIsReadable c)

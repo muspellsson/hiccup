@@ -39,7 +39,8 @@ import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
 import TObj
-import BSExpr (parseFullExpr, Expr, Exprable(..))
+import BSExpr (parseFullExpr)
+import Expr.TExp (Expr,Exprable(..))
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F

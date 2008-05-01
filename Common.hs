@@ -111,7 +111,7 @@ data TclCmdObj = TclCmdObj {
                    cmdIsProc :: Bool,
                    cmdBody :: BString,  
                    cmdOrigNS :: Maybe BString,
-                   cmdAction :: TclCmd }
+                   cmdAction :: !TclCmd }
 
 type ProcKey = BString
 data CmdMap = CmdMap { 
@@ -165,7 +165,7 @@ tclErr s = do
 
 setErrorInfo s = do
   glFr <- getGlobalNS >>= getNSFrame
-  varSet' (VarName (pack "errorInfo") Nothing) (T.mkTclStr s) glFr
+  varSet' (VarName (pack "errorInfo") Nothing) (T.fromStr s) glFr
 
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
@@ -239,7 +239,7 @@ evtAdd e t = do
   em <- gets tclEvents
   (tag,m) <- io $ Evt.addEvent e t em
   modify (\s -> s { tclEvents = m })
-  return (T.mkTclBStr tag)
+  return (T.fromBStr tag)
 
 evtGetDue = do
   em <- gets tclEvents
@@ -521,7 +521,7 @@ importNS force name = do
     nsr <- getNamespace nst
     exported <- getExports nsr n
     mapM (importProc nsr) exported
-    return . T.mkTclList . map T.mkTclBStr $ exported
+    return . T.mkTclList . map T.fromBStr $ exported
  where importProc nsr n = do
             np <- mkProcAlias nsr n 
             when (not force) $ do
@@ -625,7 +625,7 @@ ret = return T.empty
 {-# INLINE ret #-}
 
 treturn :: BString -> TclM RetVal
-treturn = return . T.mkTclBStr
+treturn = return . T.fromBStr
 {-# INLINE treturn #-}
 
 createFrame !vref = do

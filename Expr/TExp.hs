@@ -22,3 +22,5 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data UnOp = OpNot | OpNeg deriving (Eq,Show)
 
+class Exprable e where
+  asExpr :: (Monad m) => e -> m Expr

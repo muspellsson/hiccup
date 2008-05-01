@@ -31,7 +31,7 @@ procLindex args = case args of
        tryEnd s i = if i .== "end" then return ((S.length s) - 1) else return (-1)
 
 procLlength args = case args of
-        [lst] -> T.asSeq lst >>= return . T.mkTclInt . S.length
+        [lst] -> T.asSeq lst >>= return . T.fromInt . S.length
         _     -> argErr "llength"
 
 procLset args = case args of
@@ -62,7 +62,7 @@ procJoin args = case args of
    _         -> argErr "join"
  where dojoin ll sep = do
          lst <- T.asList ll
-         return $ T.mkTclBStr (joinWithBS (map T.asBStr lst) sep)
+         return $ T.fromBStr (joinWithBS (map T.asBStr lst) sep)
 
 procConcat = return . T.objconcat
 
@@ -76,7 +76,7 @@ cmdLsearch args = case args of
        [lsto,pat] -> do 
               let p = T.asBStr pat
               ilst <- liftM (zip [0..]) (T.asList lsto)
-              return $ T.mkTclInt $ findIt p ilst
+              return $ T.fromInt $ findIt p ilst
        _         -> argErr "lsearch"
  where findIt _ [] = -1
        findIt p ((i,e):xs) = if globMatch p (T.asBStr e) then i else findIt p xs
