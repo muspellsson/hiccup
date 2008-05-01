@@ -1,4 +1,4 @@
-module RToken (Cmd, RToken(..), noInterp, singleTok, tryParsed, Parseable, Parsed, 
+module RToken (Cmd, RToken(..), singleTok, tryParsed, Parseable, Parsed, 
   tokCmdToCmd,
   asParsed, rtokenTests ) where
 
@@ -17,15 +17,6 @@ data RToken = Lit !BString | LitInt !Int | CatLst [RToken]
               | CmdTok !Cmd | ExpTok RToken
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString RToken 
               | Block !BString TokResult ExprResult deriving (Eq,Show)
-
-
-noInterp tok = case tok of
-   (CmdTok _) -> False
-   (VarRef _) -> False
-   (ArrRef _ _ _) -> False
-   (ExpTok t) -> noInterp t
-   (CatLst l) -> all noInterp l
-   _          -> True
 
 
 -- Bit hacky, but better than no literal handling

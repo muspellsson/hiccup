@@ -10,22 +10,22 @@ import Expr (runAsExpr, CBData(..))
 import qualified TclObj as T
 
 utilProcs = makeCmdList [
-   ("time", procTime),
-   ("incr", procIncr), 
-   ("expr", procExpr),
+   ("time", cmdTime),
+   ("incr", cmdIncr), 
+   ("expr", cmdExpr),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
-procIncr args = case args of
+cmdIncr args = case args of
          [vname]     -> incr vname 1
          [vname,val] -> T.asInt val >>= incr vname
          _           -> argErr "incr"
 
 incr :: T.TclObj -> Int -> TclM T.TclObj
-incr n !i =  varModify (T.asBStr n) $
+incr n !i = varModify (T.asVarName n) $
                  \v -> do ival <- T.asInt v
                           return $! (T.mkTclInt (ival + i))
 
-procTime args =
+cmdTime args =
    case args of
      [code]     -> do tspan <- dotime code
                       return (T.mkTclStr (show tspan))
@@ -64,7 +64,7 @@ cmdUpdate args = case args of
  where upglobal f = do sl <- stackLevel
                        uplevel sl f
 
-procExpr args = case args of
+cmdExpr args = case args of
   [s] -> runAsExpr s exprCallback
   []  -> argErr "expr"
   _   -> runAsExpr (T.objconcat args) exprCallback

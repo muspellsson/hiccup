@@ -38,7 +38,7 @@ ns_eval args = case args of
 
 ns_parent args = case args of
           [] -> parentNS Nothing >>= treturn
-          [ns] -> parentNS (parseNSTag (T.asBStr ns)) >>= treturn
+          [ns] -> parentNS (Just (parseNSTag (T.asBStr ns))) >>= treturn
           _  -> argErr "namespace parent"
 
 ns_export :: TclCmd
@@ -61,7 +61,7 @@ ns_origin args = case args of
 
 ns_children args = case args of
           [] -> childrenNS Nothing >>= return . T.mkTclList . map T.mkTclBStr
-          [nsn] -> childrenNS (parseNSTag (T.asBStr nsn)) >>= return . T.mkTclList . map T.mkTclBStr
+          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.mkTclList . map T.mkTclBStr
           _  -> argErr "namespace children"
 
 ns_exists args = case args of
@@ -74,8 +74,7 @@ ns_delete args = case args of
 
 ns_tail args = case args of
    [s] -> case parseNSTag (T.asBStr s) of
-           Nothing -> ret
-           Just v -> return . T.mkTclBStr $ (nsTail v)
+           v -> return . T.mkTclBStr $ (nsTail v)
    _   -> argErr "namespace tail"
 
 ns_path args = case args of

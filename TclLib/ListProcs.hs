@@ -35,8 +35,8 @@ procLlength args = case args of
         _     -> argErr "llength"
 
 procLset args = case args of
-        [name,val] -> varModify (T.asBStr name) (\_ -> return val)
-        [name,ind,val] ->  varModify (T.asBStr name) $
+        [name,val] -> varModify (T.asVarName name) (\_ -> return val)
+        [name,ind,val] ->  varModify (T.asVarName name) $
                            \old -> do
                                items <- T.asSeq old
                                if T.isEmpty ind 
@@ -67,7 +67,7 @@ procJoin args = case args of
 procConcat = return . T.objconcat
 
 procLappend args = case args of
-        (n:news) -> varModify (T.asBStr n)  $
+        (n:news) -> varModify (T.asVarName n)  $
                 \old -> do items <- T.asSeq old
                            return $ T.mkTclList' (items >< (S.fromList news))
         _        -> argErr "lappend"

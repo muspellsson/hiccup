@@ -81,8 +81,8 @@ newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
 
 data Namespace = TclNS {
          nsName :: BString,
-         nsCmds :: CmdMap,
-         nsFrame :: FrameRef,
+         nsCmds :: !CmdMap,
+         nsFrame :: !FrameRef,
          nsExport :: [BString],
          nsParent :: Maybe NSRef,
          nsChildren :: Map.Map BString NSRef } 
@@ -93,7 +93,7 @@ type NSRef = IORef Namespace
 
 data TclFrame = TclFrame { 
       frVars :: !VarMap, 
-      upMap :: Map.Map BString (FrameRef,BString), 
+      upMap :: !(Map.Map BString (FrameRef,BString)), 
       frNS :: NSRef,
       frTag :: Int  }
 
@@ -192,7 +192,7 @@ makeState' chans vlist cmdlst = do
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsCmdMap nsr = (io . readIORef) nsr >>= \v -> return $! (nsCmds v)
+getNsCmdMap !nsr = (io . readIORef) nsr >>= \v -> return $! (nsCmds v)
 {-# INLINE getNsCmdMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
@@ -329,9 +329,7 @@ varSet' vn v frref = do
          changeVar newVal
 
 
-varModify :: BString -> (T.TclObj -> TclM T.TclObj) -> TclM RetVal
-varModify !n f = do 
-  let vn = parseVarName n
+varModify !vn f = do 
   val <- varGetNS vn
   res <- f val
   varSetNS vn res
@@ -455,7 +453,7 @@ upvar n d s = do
 {-# INLINE upvar #-}
 
 deleteNS name = do 
- nst <- parseNSTag name 
+ let nst = parseNSTag name 
  ns <- getNamespace' nst >>= readRef
  case nsParent ns of
    Nothing -> return ()
@@ -472,7 +470,9 @@ getNamespace nst = case nst of
 -- TODO: Unify namespace getters
 getNamespace' (NS gq nsl) = do
     base <- if gq then getGlobalNS else getCurrNS 
-    foldM getKid base nsl
+    case nsl of
+      [] -> return $! base
+      _  -> foldM getKid base nsl
  where getKid !nsref !k = do 
           kids <- nsref `refExtract`  nsChildren
           case Map.lookup k kids of
@@ -489,7 +489,7 @@ getOrCreateNamespace (NS gq nsl) = do
              Nothing -> io (mkEmptyNS k nsref)
              Just v  -> return $! v
 
-existsNS ns = (parseNSTag ns >>= getNamespace' >> return True) `ifFails` False
+existsNS ns = (getNamespace' (parseNSTag ns) >> return True) `ifFails` False
 
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
@@ -572,7 +572,7 @@ mkEmptyNS name parent = do
 
 withNS :: BString -> TclM a -> TclM a
 withNS name f = do
-     newCurr <- parseNSTag name >>= getOrCreateNamespace
+     newCurr <- getOrCreateNamespace (parseNSTag name)
      withExistingNS f newCurr
 
 withExistingNS f !nsref = do

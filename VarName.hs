@@ -24,7 +24,7 @@ import Test.HUnit
 
 data NSQual a = NSQual !(Maybe NSTag) !a deriving (Eq,Show)
 
-data NSTag = NS !Bool ![BString] deriving (Eq,Show,Ord)
+data NSTag = NS !Bool [BString] deriving (Eq,Show,Ord)
 
 data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (Eq,Show)
 
@@ -49,7 +49,7 @@ isGlobalQual _               = False
 
 noNsQual nst = case nst of
          Nothing              -> True
-         (Just (NS False [])) -> True
+         Just (NS False [])   -> True
          _                    -> False
 {-# INLINE noNsQual #-}
 
@@ -57,22 +57,23 @@ asGlobal (Just (NS _ lst)) = Just (NS True lst)
 asGlobal Nothing           = Just (NS True [])
 
 parseNSQual ns = case parseNSTag ns of
-                  Nothing -> NSQual Nothing ""
-                  Just (NS False [s]) -> NSQual Nothing s
-                  Just (NS gq []) -> NSQual (Just (NS gq [])) ""
-                  Just (NS gq nsl) -> NSQual (Just (NS gq (init nsl))) (last nsl)
+                  NS False [s] -> NSQual Nothing s
+                  NS gq []     -> NSQual (Just (NS gq [])) ""
+                  NS gq nsl    -> NSQual (Just (NS gq (init nsl))) (last nsl)
 {-# INLINE parseNSQual #-}
 
 	       
 parseNSTag ns = toNSTag (ns `splitWith` nsSep) where
-   toNSTag nl = if isAbs then return (NS True (tail nl))
-                         else return (NS False nl)
-   isAbs = nsSep == B.take 2 ns 
+   toNSTag nl = if isAbs then NS True (tail nl)
+                         else NS False nl
+   isAbs = nsSep `B.isPrefixOf` ns
               
 parseVarName name = 
    case parseArrRef name of
-     (str,ind) -> case parseNSQual str of
-                    NSQual nst n -> NSQual nst (VarName n ind)
+     (str,ind) -> if B.notElem ':' str
+                     then NSQual Nothing (VarName str ind) 
+                     else case parseNSQual str of
+                             NSQual nst n -> NSQual nst (VarName n ind)
 {-# INLINE parseVarName #-}
 
 parseProc :: BString -> NSQual BString
@@ -93,9 +94,7 @@ parseArrRef str = case B.elemIndex '(' str of
 nsTail (NS _ []) = error "Malformed NSTag"
 nsTail (NS _ nsl) = last nsl
 
-nsTail_ x = case parseNSTag x of
-              Nothing -> error "FAIL"
-              Just v -> nsTail v
+nsTail_ x = nsTail (parseNSTag x)
 
 
 nsQualifiers str = case findSubstrings nsSep str of
@@ -111,7 +110,7 @@ splitWith str sep =
  where slen              = B.length sep 
        extract [] !s     = [s]
        extract (i:ix) !s = let (b,a) = B.splitAt i s 
-                          in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
+                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
 {-# INLINE splitWith #-}
  
 varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS, testNSTail, 
@@ -144,7 +143,7 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
      ,"::foo::boo" `parses_to` NS True ["foo", "boo"] 
      ,"woo::foo::boo" `parses_to` NS False ["woo", "foo", "boo"] 
    ]
-    where parses_to a nst = ("parseNSTag " ++ show a) ~: (Just nst) ~=? parseNSTag a 
+    where parses_to a nst = ("parseNSTag " ++ show a) ~: nst ~=? parseNSTag a 
 
   testParseVarName = TestList [
       parseVarName "x" ~=? NSQual Nothing (VarName "x" Nothing)
@@ -178,9 +177,7 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
 
   testInvert = TestList (map tryInvert vals)
     where vals = map bp ["boo", "::boo", "::", "::a::b", "a::b", ""]
-          tryInvert v = v ~=? toBStr (up (parseNSTag v))
-          up (Just x) = x
-          up _        = error "Error in testInvert"
+          tryInvert v = v ~=? toBStr ((parseNSTag v))
 
   testArr = TestList [
      "december" `should_be` Nothing
