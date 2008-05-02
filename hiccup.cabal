@@ -20,7 +20,7 @@ Other-Modules:       Hiccup, TclObj, VarName, Common, Util, Core, RToken, BSPars
                      TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, BSExpr, Expr.Eval, Expr.TExp, 
                      Expr.Util, Match
 Main-is:             Main.hs
-ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W
+ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W -fglasgow-exts
 ghc-prof-options:    -auto-all -prof
 Extensions:          BangPatterns
 

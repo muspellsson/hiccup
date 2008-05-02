@@ -192,7 +192,8 @@ makeState' chans vlist cmdlst = do
 
 getStack = gets tclStack
 {-# INLINE getStack  #-}
-getNsCmdMap !nsr = (io . readIORef) nsr >>= \v -> return $! (nsCmds v)
+
+getNsCmdMap !nsr = liftIO (readIORef nsr >>= \v -> return $! (nsCmds v))
 {-# INLINE getNsCmdMap #-}
 
 putStack s = modify (\v -> v { tclStack = s })
@@ -590,7 +591,7 @@ getNSFrame :: NSRef -> TclM FrameRef
 getNSFrame !nsref = nsref `refExtract` nsFrame 
 
 
-getCurrNS = getFrame >>= liftIO . readIORef >>= \f -> return $! (frNS f)
+getCurrNS = getFrame >>= \fr -> liftIO (readIORef fr >>= \f -> return $! (frNS f))
 {-# INLINE getCurrNS #-}
 
 getGlobalNS = gets tclGlobalNS
@@ -619,6 +620,7 @@ ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
    p
    return $! r
+{-# INLINE ensure #-}
 
 ret :: TclM RetVal
 ret = return T.empty
