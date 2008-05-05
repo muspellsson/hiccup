@@ -6,6 +6,8 @@ module MathOp(
         divide,
         equals,
         notEquals,
+        opNegate,
+        opNot,
         lessThan,
         lessThanEq,
         greaterThan,
@@ -71,3 +73,11 @@ tclCompare a b =
                   (Just d1, Just d2) -> compare d1 d2
 		  _ -> compare (T.asBStr a) (T.asBStr b)
 {-# INLINE tclCompare #-}
+
+opNegate :: (Monad m, T.ITObj t) => t -> m t
+opNegate v = do
+   i <- T.asInt v
+   return $ T.fromInt (negate i)
+
+opNot :: (Monad m, T.ITObj t) => t -> m t
+opNot = return . T.fromBool . not . T.asBool
