@@ -5,6 +5,7 @@ import qualified TclObj as T
 import VarName
 import BSExpr
 import Util
+import qualified TObj as T
 import RToken (Cmd, tokCmdToCmd)
 import qualified MathOp as Math
 import qualified Data.Map as M
@@ -34,29 +35,70 @@ getOpFun !op = case op of
  where up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 
-runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj
-runExpr lu exp = run exp
+compileExpr :: (Monad m, T.ITObj t) => Expr -> CExpr t m
+compileExpr = comp
+ where comp e = case e of
+                Item v        -> CItem v
+                DepItem (DFun f ex) -> DItem (DFun f (compileExpr ex))
+                DepItem (DVar vn)   -> DItem (DVar vn)
+                DepItem (DCom cmd)   -> DItem (DCom cmd)
+                BinApp op a b -> CApp2 (getOpFun op) (comp a) (comp b)
+                UnApp OpNot v -> CApp opNot (comp v)
+                UnApp OpNeg v -> CApp opNegate (comp v)
+                Paren e       -> comp e
+
+runCExpr lu exp = run exp
  where run e = case e of
-                Item v        -> getItem v
-                BinApp op a b -> do 
-                        va <- run a
-                        vb <- run b
-                        (getOpFun op) va vb
-                UnApp OpNot v -> run v >>= return . T.fromBool . not . T.asBool
-                UnApp OpNeg v -> run v >>= procNegate
-                Paren e       -> run e
+                 CItem v -> getItem v
+                 DItem v -> getDep v
+                 CApp2 f a b -> do
+                            va <- run a
+                            vb <- run b
+                            f va vb
+                 CApp f a -> run a >>= f
        callFun fn args = lu (FunRef (fn, args))
+       getDep item = case item of
+                        DVar vn   -> lu (VarRef vn)
+                        DFun fn e -> runCExpr lu e >>= \r -> callFun fn [r]
+                        DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
        getItem item = case item of
                         ANum (TInt i)    -> return $! T.fromInt i
                         ANum (TDouble d) -> return $! T.fromDouble d
                         AStr s    -> return $! T.fromBStr s
-                        AVar vn   -> lu (VarRef vn)
-                        AFun fn e -> run e >>= \r -> callFun fn [r]
-                        ACom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
 
-procNegate v = do
+
+runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj
+runExpr lu e = runCExpr lu (compileExpr e)
+
+runExpr2 :: (Monad m) => Callback m -> Expr -> m T.TclObj
+runExpr2 lu exp = run exp
+ where run e = case e of
+                Item v        -> getItem v
+                DepItem v     -> getDep v
+                BinApp op a b -> do 
+                        va <- run a
+                        vb <- run b
+                        (getOpFun op) va vb
+                UnApp OpNot v -> run v >>= opNot
+                UnApp OpNeg v -> run v >>= opNegate
+                Paren e       -> run e
+       callFun fn args = lu (FunRef (fn, args))
+       getDep item = case item of
+                        DVar vn   -> lu (VarRef vn)
+                        DFun fn e -> run e >>= \r -> callFun fn [r]
+                        DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
+       getItem item = case item of
+                        ANum (TInt i)    -> return $! T.fromInt i
+                        ANum (TDouble d) -> return $! T.fromDouble d
+                        AStr s    -> return $! T.fromBStr s
+
+opNegate :: (Monad m, T.ITObj t) => t -> m t
+opNegate v = do
    i <- T.asInt v
    return $ T.fromInt (negate i)
+
+opNot :: (Monad m, T.ITObj t) => t -> m t
+opNot = return . T.fromBool . not . T.asBool
 
 procBool f a b = do 
    let ab = T.asBool a
@@ -80,7 +122,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
            make (FunRef _) = T.fromStr "PROC"
            make _          = T.fromBStr "ERROR"
     
-    var v = Item (AVar (parseVarName v))
+    var v = DepItem (DVar (parseVarName v))
     varEvalTests = TestList [
         "$num -> 4" ~: (var "num") `eql` (mint 4),
         ((var "num") + (tInt 3)) `eql` (mint 7),

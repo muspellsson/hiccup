@@ -71,8 +71,8 @@ data OpDef = OpDef BString Op Int
 showExpr exp = case exp of
          Item (ANum i) -> show i
          Item (AStr i) -> show i
-         Item (AFun s e) -> "(" ++ B.unpack s ++ " " ++ showExpr e ++ ")"
-         Item x -> show x
+         DepItem (DFun s e) -> "(" ++ B.unpack s ++ " " ++ showExpr e ++ ")"
+         DepItem x -> show x
          Paren e -> showExpr e
          UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
          BinApp op a b -> showOpExpr (getOpName op) a b
@@ -83,14 +83,17 @@ exprToLisp s = case parseExpr (B.pack s) of
                 Left r -> r
                 Right (a,_) -> showExpr a
 
-parseAtom = choose [str,var,cmd,num,bool,fun]
+parseDep = choose [var,cmd,fun]
+ where dep f w = (eatSpaces .>> f) `wrapWith` w
+       var = dep doVarParse (DVar . parseVarName)
+       cmd = dep parseSub DCom
+       fun = dep (pjoin (,) (getPred1 wordChar "function name") (paren parseExpr)) (\(x,y) -> DFun x y)
+
+parseAtom = choose [str,num,bool]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
         str = atom parseStr AStr
         num = atom parseNum ANum
-        var = atom doVarParse (AVar . parseVarName)
-        cmd = atom parseSub ACom
         bool = atom parseBool (ANum . TInt)
-        fun = atom (pjoin (,) (getPred1 wordChar "function name") (paren parseExpr)) (\(x,y) -> AFun x y)
 
 parseBool = (strChoose ["true","on"] .>> emit 1) `orElse` (strChoose ["false", "off"] .>> emit 0)
   where strChoose = choose . map parseLit
@@ -99,7 +102,10 @@ parseUnOp = notop `orElse` negop
   where negop = pchar '-' `wrapWith` (const OpNeg)
         notop = pchar '!' `wrapWith` (const OpNot)
 
-parseItem = (parseAtom `wrapWith` Item) `orElse` ((paren parseExpr) `wrapWith` Paren) `orElse` (pjoin UnApp parseUnOp parseItem)
+parseItem = (parseAtom `wrapWith` Item) 
+             `orElse` (parseDep `wrapWith` DepItem)
+             `orElse` ((paren parseExpr) `wrapWith` Paren) 
+             `orElse` (pjoin UnApp parseUnOp parseItem)
 
 parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
@@ -125,7 +131,7 @@ parseOp = eatSpaces .>> choose plist
        plist = map op2parser operators
 
 
-bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, exprTests] where
+bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, depTests, exprTests] where
   int i = Item (ANum (TInt i))
   dub d = Item (ANum (TDouble d))
   str s = Item (AStr s)
@@ -135,17 +141,21 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, ex
      "11" `should_be` (ANum (TInt 11))
      ,"true" `should_be` (ANum (TInt 1))
      ,"false" `should_be` (ANum (TInt 0))
-     ,"sin(4)" `should_be` (AFun "sin" (int 4))
-     ,"$candy" `should_be` (AVar (NSQual Nothing (VarName "candy" Nothing)))
      ,"\"what\"" `should_be` (AStr "what")
-     ,"[incr x]" `should_be` (ACom (Word "incr", [Word "x"])) 
    ] where should_be = should_be_ parseAtom
+
+  depTests = TestList [
+     "$candy" `should_be` (DVar (NSQual Nothing (VarName "candy" Nothing)))
+     ,"sin(4)" `should_be` (DFun "sin" (int 4))
+     ,"[incr x]" `should_be` (DCom (Word "incr", [Word "x"])) 
+   
+   ] where should_be = should_be_ parseDep
 
   itemTests = TestList [
      "11" `should_be` (int 11)
      ,"!0" `should_be` (UnApp OpNot (int 0))
      ,"--4" `should_be` (UnApp OpNeg (int (-4)))
-     ,"![is_done]" `should_be` (UnApp OpNot (Item (ACom (Word "is_done", []))))
+     ,"![is_done]" `should_be` (UnApp OpNot (DepItem (DCom (Word "is_done", []))))
    ] where should_be = should_be_ parseItem
  
   exprTests = TestList [

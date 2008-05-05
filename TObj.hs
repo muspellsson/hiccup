@@ -14,3 +14,5 @@ class ITObj o where
   fromBStr :: BString -> o
   fromStr :: String -> o
   fromBool :: Bool -> o
+  strEq :: o -> o -> Bool
+  strNe :: o -> o -> Bool

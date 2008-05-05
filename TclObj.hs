@@ -28,8 +28,6 @@ module TclObj (
  ,asDouble
  ,asVarName
  ,(.==)
- ,strEq
- ,strNe
  ,trim
  ,objconcat
  ,tclObjTests ) where
@@ -71,12 +69,6 @@ fromBlock s p e = TclBStr s (maybeInt s) p e
 maybeInt s = case BS.readInt (dropSpaces s) of
                 Nothing    -> Nothing
                 Just (i,r) -> if BS.null r || BS.null (dropSpaces r) then Just i else Nothing
-
-strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
-strEq o1            o2            = asBStr o1 == asBStr o2 
-
-strNe (TclInt i1 _) (TclInt i2 _) = i1 /= i2
-strNe o1            o2            = asBStr o1 /= asBStr o2 
 
 
 mkTclInt !i = TclInt i bsval
@@ -164,6 +156,11 @@ instance ITObj TclObj where
   fromStr = mkTclStr
   fromBool !b = if b then tclTrue else tclFalse
   {-# INLINE fromBool #-}
+  strEq (TclInt i1 _) (TclInt i2 _) = i1 == i2
+  strEq o1            o2            = asBStr o1 == asBStr o2 
+
+  strNe (TclInt i1 _) (TclInt i2 _) = i1 /= i2
+  strNe o1            o2            = asBStr o1 /= asBStr o2 
 
 instance Parseable TclObj where
   asParsed (TclBStr _ _ (Left f) _)  = fail f

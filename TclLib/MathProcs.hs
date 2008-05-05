@@ -5,6 +5,7 @@ module TclLib.MathProcs (mathCmds,
 
 import Common
 import qualified TclObj as T
+import qualified TObj as T
 import Control.Monad
 import System.Random
 import MathOp
