@@ -8,12 +8,15 @@ module MathOp(
         notEquals,
         opNegate,
         opNot,
+        leftShift,
+        rightShift,
         lessThan,
         lessThanEq,
         greaterThan,
         greaterThanEq, pow, squarert, absfun) where
 
 import qualified TObj as T
+import Data.Bits
 
 numop name iop dop !x !y = 
    case (T.asInt x, T.asInt y) of
@@ -81,3 +84,14 @@ opNegate v = do
 
 opNot :: (Monad m, T.ITObj t) => t -> m t
 opNot = return . T.fromBool . not . T.asBool
+
+rightShift, leftShift :: (Monad m, T.ITObj t) => t  -> t -> m t
+rightShift = shiftFun shiftR
+leftShift  = shiftFun shiftL
+
+shiftFun f a b = 
+    case (T.asInt a, T.asInt b) of
+        (Just i1, Just i2) -> if i1 < 0 || i2 < 0 
+                                then fail "negative shift argument"
+                                else return . T.fromInt $ i1 `f` i2
+        _                  -> fail "expected integer operand"

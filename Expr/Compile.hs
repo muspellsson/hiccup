@@ -36,6 +36,8 @@ getOpFun !op = case op of
     OpStrNe -> sup T.strNe
     OpAnd -> procBool (&&)
     OpOr -> procBool (||)
+    OpLShift -> Math.leftShift
+    OpRShift -> Math.rightShift
  where up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 

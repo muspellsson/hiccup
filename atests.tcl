@@ -175,6 +175,17 @@ test "expr fun parse" {
   checkthat [expr { 3 + -(-3) }] == 6
 }
 
+test "expr shift" {
+  checkthat [expr { 3 << 4 }] == 48
+  checkthat [expr { 2 << 0 }] == 2
+  checkthat [expr { 1 << 8 }] == 256
+
+  checkthat [expr { 3 >> 2 }] == 0
+  checkthat [expr { 3 >> 1 }] == 1
+
+  assert_err { expr { 3 << -2 } }
+}
+
 test "double compare" {
   checkthat [< 0.3 0.9] 
   checkthat [<= 0.3 0.9] 

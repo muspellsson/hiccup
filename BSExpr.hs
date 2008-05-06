@@ -41,6 +41,7 @@ parseInt s = case B.readInt s of
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
                    ,[("==",OpEql), ("!=",OpNeql)]
+                   ,[("<<", OpLShift), (">>", OpRShift)]
                    ,[("<=", OpLte), (">=", OpGte), ("<",OpLt), (">",OpGt)]
                    ,[("eq",OpStrEq), ("ne",OpStrNe)]
                    ,[("+",OpPlus), ("-",OpMinus)]

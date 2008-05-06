@@ -7,7 +7,6 @@ import VarName
 import BSExpr
 import Util
 import RToken (Cmd, tokCmdToCmd)
-import qualified MathOp as Math
 import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
@@ -37,10 +36,7 @@ runCExpr lu exp = run exp
 
 
 runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj
-runExpr lu e = runCExpr lu (compileExpr e)
-
-runExpr2 :: (Monad m) => Callback m -> Expr -> m T.TclObj
-runExpr2 lu exp = run exp
+runExpr lu exp = run exp
  where run e = case e of
                 Item v        -> getItem v
                 DepItem v     -> getDep v
@@ -48,7 +44,7 @@ runExpr2 lu exp = run exp
                         va <- run a
                         vb <- run b
                         (getOpFun op) va vb
-                UnApp op v -> run v >>= (getUnFun op)
+                UnApp op v -> run v >>= getUnFun op
                 Paren e       -> run e
        callFun fn args = lu (FunRef (fn, args))
        getDep item = case item of

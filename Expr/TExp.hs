@@ -22,7 +22,7 @@ data Expr = Item Atom
 
 data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq | OpAnd |
-          OpOr | OpExp
+          OpOr | OpExp | OpLShift | OpRShift
   deriving (Show,Eq,Ord,Enum, Bounded)
 
 data CExpr a m = CApp2 (a -> a -> m a) (CExpr a m) (CExpr a m) | CItem Atom 
