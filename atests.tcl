@@ -186,6 +186,13 @@ test "expr shift" {
   assert_err { expr { 3 << -2 } }
 }
 
+
+test "expr precedence" {
+  checkthat [expr { 3 << 1 < 4 }] == 0
+
+  checkthat [expr { 2 ** 3 * 2 }] == 16
+}
+
 test "double compare" {
   checkthat [< 0.3 0.9] 
   checkthat [<= 0.3 0.9] 

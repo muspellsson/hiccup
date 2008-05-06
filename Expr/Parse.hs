@@ -10,6 +10,8 @@ module Expr.Parse (
 import BSParse
 import TclParse
 import VarName
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import Util hiding (orElse)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
@@ -41,12 +43,12 @@ parseInt s = case B.readInt s of
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
                    ,[("==",OpEql), ("!=",OpNeql)]
-                   ,[("<<", OpLShift), (">>", OpRShift)]
                    ,[("<=", OpLte), (">=", OpGte), ("<",OpLt), (">",OpGt)]
                    ,[("eq",OpStrEq), ("ne",OpStrNe)]
+                   ,[("<<", OpLShift), (">>", OpRShift)]
                    ,[("+",OpPlus), ("-",OpMinus)]
-                   ,[("**", OpExp)]
                    ,[("*", OpTimes), ("/", OpDiv)] 
+                   ,[("**", OpExp)]
                    ]
   where mkop p (s,o) = OpDef s o p 
         mkops = concatMap (\(p,vl) -> map (mkop p) vl) . zip [0..]
@@ -129,7 +131,7 @@ paren p = (pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
 parseOp = eatSpaces .>> choose plist
  where sop s v = parseLit s .>> emit v
        op2parser (OpDef s o _) = sop s o
-       plist = map op2parser operators
+       plist = map op2parser (reverse (sortBy (comparing (B.length . opName)) operators))
 
 
 bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, depTests, exprTests] where
@@ -167,6 +169,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"2 * 3.5" `should_be` (app2 (int 2) OpTimes (dub 3.5))
      ,"1 == \"1\"" `should_be` (app2 (int 1) OpEql (str "1"))
      ,"1 + 1 != \"1\"" `should_be` (app2 (app2 (int 1) OpPlus (int 1)) OpNeql (str "1"))
+     ,"2 << 1 < 5" `should_be` (app2 (app2 (int 2) OpLShift (int 1)) OpLt (int 5))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
   
   numTests = TestList [
