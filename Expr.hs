@@ -1,7 +1,7 @@
 module Expr (runAsExpr, CBData(..), exprTests) where
 
 import Test.HUnit
-import BSExpr (bsExprTests)
+import Expr.Parse (bsExprTests)
 import Expr.Eval (runExpr, CBData(..), exprEvalTests)
 import Expr.TExp (asExpr)
 

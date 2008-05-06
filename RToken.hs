@@ -6,7 +6,7 @@ import qualified Data.ByteString.Char8 as B
 import TclParse (TclWord(..), doInterp, runParse, TokCmd)
 import Util (BString,pack)
 import VarName
-import BSExpr
+import Expr.Parse
 import Test.HUnit
 
 type Parsed = [Cmd]

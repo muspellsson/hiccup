@@ -1,7 +1,7 @@
 module Expr.Util where
 
 import Expr.TExp
-import BSExpr
+import Expr.Parse
 
 tInt i = Item (ANum (TInt i))
 tFloat f = Item (ANum (TDouble f))

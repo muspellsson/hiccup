@@ -37,7 +37,7 @@ import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
 import TObj
-import BSExpr (parseFullExpr)
+import Expr.Parse (parseFullExpr)
 import Expr.TExp (Expr,Exprable(..))
 import Util
 import qualified Data.Sequence as S
@@ -171,7 +171,7 @@ instance Parseable TclObj where
   {-# INLINE asParsed #-}
 
 instance Exprable TclObj where
-  asExpr (TclBStr s _ _ (Left err)) = fail err
+  asExpr (TclBStr _ _ _ (Left err)) = fail err
   asExpr (TclBStr _ _ _ (Right ex)) = return ex
   asExpr _ =  fail "only blocks for now"
 

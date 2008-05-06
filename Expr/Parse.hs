@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module BSExpr (
+module Expr.Parse (
        Atom(..)
        ,Expr(..)
        ,parseFullExpr

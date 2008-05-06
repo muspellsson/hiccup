@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Expr.Eval (runExpr, Callback, CBData(..), exprEvalTests) where
 import Expr.TExp
+import Expr.Parse
 import Expr.Compile
 import qualified TclObj as T
 import VarName
-import BSExpr
 import Util
 import RToken (Cmd, tokCmdToCmd)
 import qualified Data.Map as M
