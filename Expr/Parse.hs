@@ -62,13 +62,11 @@ getOp op = case M.lookup op opsByOper of
             Nothing -> error "wtf"
 
 getOpName = B.unpack . opName . getOp
-opName (OpDef n _ _) = n
-opPrec (OpDef _ _ p) = p
 opsByOper = M.fromList (map pairer operators)
-  where pairer a@(OpDef _ o _) = (o,a)
+  where pairer a = (opCode a,a)
 
 
-data OpDef = OpDef BString Op Int
+data OpDef = OpDef { opName :: BString, opCode :: Op, opPrec :: Int }
 
 
 showExpr exp = case exp of

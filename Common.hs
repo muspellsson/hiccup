@@ -264,14 +264,16 @@ getNsEpoch nst = do
 getCmd !pname = getCmdNS (parseProc pname)
 -- TODO: Special case for globals and locals when we're in the global NS?
 getCmdNS (NSQual nst n) = do
-  res <- (getNamespace nst >>= getCmdNorm n) `ifFails` Nothing
-  if isNothing res && not (isGlobalQual nst)
-    then do ns2 <- if noNsQual nst then getGlobalNS else getNamespace (asGlobal nst)
-            getCmdNorm n ns2
-    else return $! res
+  res <- tryHere `ifFails` Nothing
+  case res of
+    Nothing -> tryGlobal
+    _       -> return $! res
  where
-  isNothing Nothing = True
-  isNothing _       = False
+  tryHere = getNamespace nst >>= getCmdNorm n
+  tryGlobal = if not (isGlobalQual nst)
+               then do ns2 <- if noNsQual nst then getGlobalNS else getNamespace (asGlobal nst)
+                       getCmdNorm n ns2
+               else return Nothing
 {-# INLINE getCmdNS #-}
 
 getCmdNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
@@ -408,7 +410,6 @@ varLookup !name !frref = do
    case isUpped of
       Nothing    -> getFrameVars frref >>= \m -> return $! (Map.lookup name m)
       Just (f,n) -> varLookup n f
-{-# INLINE varLookup #-}
 
 varGet :: BString -> TclM RetVal
 varGet !n = varGetNS (parseVarName n)
