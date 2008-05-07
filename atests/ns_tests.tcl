@@ -17,13 +17,15 @@ test "namespace parent" {
 }
 
 test "namespace children" {
+
   namespace eval boo55 {
     proc nothing {} {}
+    checkthat [namespace children] == {}
   }
 
-  checkthat [lsearch [namespace children] boo55] != -1
+  checkthat [lsearch [namespace children] ::boo55] != -1
   finalize { ns boo55 }
-  checkthat [lsearch [namespace children] boo55] == -1
+  checkthat [lsearch [namespace children] ::boo55] == -1
 }
 
 test "namespace children ?ns?" {
@@ -31,9 +33,9 @@ test "namespace children ?ns?" {
     proc nothing {} {}
   }
 
-  checkthat [lsearch [namespace children foo] boo55] != -1
+  checkthat [lsearch [namespace children foo] ::foo::boo55] != -1
   finalize { ns foo::boo55 }
-  checkthat [lsearch [namespace children foo] boo55] == -1
+  checkthat [lsearch [namespace children foo] ::foo::boo55] == -1
 }
 
 test "namespace proc 1" {

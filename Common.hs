@@ -145,16 +145,18 @@ mkProcAlias nsr pn = do
   
 data CmdList = CmdList { unCmdList :: [(String, TclCmd)] }
 makeCmdList = makeNsCmdList ""
-makeNsCmdList _ = CmdList
+makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
 
 mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
 
+cmdList2CmdMap = makeCmdMap . unCmdList
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
 makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
- where toTclCmdObj (n,v) = (n, TclCmdObj n False (errStr n) Nothing v)
-       errStr n = pack $ show n ++ " isn't a procedure"
+
+toTclCmdObj (n,v) = (n, TclCmdObj n False (errStr n) Nothing v)
+ where errStr n = pack $ show n ++ " isn't a procedure"
 
 
 
@@ -175,21 +177,25 @@ makeState = makeState' baseChans
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans vlist cmdlst = do 
-    fr <- createFrame (makeVarMap vlist)
-    gns <- globalNS fr
-    ns <- newIORef (gns { nsCmds = makeCmdMap (unCmdList cmdlst) })
-    setFrNS fr ns
-    addChildNS ns (pack "") ns
-    return $! TclState { tclChans = chans,
+    (fr,nsr) <- makeGlobal
+    addCmds nsr (cmdList2CmdMap cmdlst)
+    addChildNS nsr (pack "") nsr
+    st <- return $! TclState { tclChans = chans,
                          tclEvents = Evt.emptyMgr,
                          tclStack = [fr], 
-                         tclGlobalNS = ns } 
- where globalNS fr = do 
-        return $ TclNS { nsName = nsSep, 
+                         tclGlobalNS = nsr } 
+    (_,res) <- runTclM (withNS (pack "tcl::mathop") (return ())) st
+    return res
+ where makeGlobal = do 
+           fr <- createFrame (makeVarMap vlist) 
+           nsr <- globalNS fr
+           setFrNS fr nsr
+           return (fr, nsr)
+       globalNS fr = newIORef $ TclNS { nsName = nsSep, 
                          nsCmds = emptyCmdMap, nsFrame = fr, 
                          nsExport = [],
                          nsParent = Nothing, nsChildren = Map.empty }
-
+       addCmds nsr (CmdMap _ cm) = changeCmds nsr (\m -> Map.union m cm)
 getStack = gets tclStack
 {-# INLINE getStack  #-}
 
@@ -288,19 +294,18 @@ getCmdNorm !i !nsr = do
 
 rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
- where rmFromNS nsref = io $ changeProcs nsref (Map.delete n) 
+ where rmFromNS nsref = io $ changeCmds nsref (Map.delete n) 
 
 
 registerProc name body pr = 
-    let (NSQual nst n) = parseProc name
-    in registerCmd nst n (TclCmdObj n True body Nothing pr)
+    let pn@(NSQual _ n) = parseProc name
+    in registerCmd pn (TclCmdObj n True body Nothing pr)
 
-registerCmd nst k newProc = getNamespace nst >>= regInNS
+registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
-                   io $ changeProcs nsr (pmInsert (setOrigin fn newProc))
-                   return ()
+                   io $ changeCmds nsr (pmInsert (setOrigin fn newProc))
   setOrigin fn x = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
 
 varSet :: BString -> T.TclObj -> TclM RetVal
@@ -531,7 +536,7 @@ importNS force name = do
                  case oldp of
                     Nothing -> return ()
                     Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            registerCmd Nothing n np
+            registerCmd (NSQual Nothing n) np
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
@@ -615,7 +620,8 @@ parentNS nst = do
 
 childrenNS nst = do
   ns <- getNamespace nst >>= readRef
-  (return . Map.keys . nsChildren) ns
+  let prename = if nsSep `B.isSuffixOf` (nsName ns) then nsName ns else B.append (nsName ns) nsSep
+  (return . map (B.append prename) . Map.keys . nsChildren) ns
 
 ensure action p = do
    r <- action `catchError` (\e -> p >> throwError e)
@@ -649,9 +655,9 @@ changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq`
 insertVar fr k v = changeVars fr (Map.insert k v)
 {-# INLINE insertVar #-}
 
-changeProcs nsr fun = do 
+changeCmds nsr fun = do 
            ns <- readIORef nsr 
-           modKids (\x -> changeProcs x id) ns
+           modKids (\x -> changeCmds x id) ns
            writeIORef nsr (updateNS ns)
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
        updateNS ns = ns { nsCmds = update (nsCmds ns) }
