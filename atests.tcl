@@ -1056,6 +1056,9 @@ test "apply" {
   checkthat [apply $plus1 3] == 4
 
   checkthat [apply {v {expr $v}} {3*3}] == 9
+
+  checkthat [apply {{a b} { + $a $b}} 2 3] == 5
+  assert_err { apply {{a b} { + $a $b}} 2 }
 }
 
 run_tests
