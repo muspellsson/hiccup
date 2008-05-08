@@ -13,7 +13,8 @@ module MathOp(
         lessThan,
         lessThanEq,
         greaterThan,
-        greaterThanEq, pow, squarert, absfun) where
+        greaterThanEq, pow, squarert, absfun,
+        tmax ) where
 
 import qualified TObj as T
 import Data.Bits
@@ -26,13 +27,15 @@ numop name iop dop !x !y =
              _ -> fail $ "can't use non-numeric string as operand of " ++ show name
 {-# INLINE numop #-}
 
-plus, minus, times, divide :: (Monad m, T.ITObj t, T.ITObj t2, T.ITObj t3) => t -> t2 -> m t3
+plus, minus, times, divide, tmax :: (Monad m, T.ITObj t, T.ITObj t2, T.ITObj t3) => t -> t2 -> m t3
 plus = numop "+" (+) (+) 
 minus = numop "-" (-) (-)
 times = numop "*" (*) (*)
 divide = numop "/" div (/)
 {-# INLINE plus #-}
 {-# INLINE minus #-}
+
+tmax = numop "max" max max
 
 squarert x = do
     case T.asInt x of

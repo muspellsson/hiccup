@@ -15,11 +15,11 @@ mathCmds = makeCmdList $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
-    ("==", procEql), ("!=", procNotEql), 
+    ("==", procEql), ("!=", cmdNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
     mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
-    ("rand", procRand), ("srand", procSrand),
-    ("!", procNot)]
+    ("rand", cmdRand), ("srand", procSrand),
+    ("!", cmdNot), ("max", many1 tmax)]
 
 mkcmd n f = (n,inner)
  where inner args = case args of
@@ -36,7 +36,9 @@ mathSrand v = do
  io (setStdGen (mkStdGen i))
  ret
 
-procRand _ = mathRand
+cmdRand args = case args of
+        [] ->  mathRand
+        _  ->  tclErr "too many arguments to math function"
 
 mathRand = io randomIO >>= return . T.fromDouble
 
@@ -53,6 +55,13 @@ m1 f args = case args of
                               else tclErr "too few arguments to math function"
 {-# INLINE m1 #-}
 
+many1 !f args = case args of
+  [a,b]  -> f a b
+  (x:xs) -> foldM f x args
+  _      -> tclErr "too few arguments to math function"
+{-# INLINE many1 #-}
+
+
 many !f !i args = case args of
   [a,b] -> f a b
   _ -> foldM f (T.fromInt i) args
@@ -64,8 +73,8 @@ m2 f args = case args of
                               else tclErr "too few arguments to math function"
 {-# INLINE m2 #-}
 
-procNot args = case args of
-  [x] -> return $! T.fromBool . not . T.asBool $ x
+cmdNot args = case args of
+  [x] -> opNot x
   _   -> argErr "!"
 
 
@@ -89,7 +98,7 @@ procEql args = case args of
    _     -> argErr "=="
 
 
-procNotEql args = case args of
+cmdNotEql args = case args of
       [a,b] -> case (T.asInt a, T.asInt b) of
                   (Just ia, Just ib) -> return $! T.fromBool (ia /= ib)
                   _                  -> procNe [a,b]

@@ -72,7 +72,7 @@ data OpDef = OpDef { opName :: BString, opCode :: Op, opPrec :: Int }
 showExpr exp = case exp of
          Item (ANum i) -> show i
          Item (AStr i) -> show i
-         DepItem (DFun s e) -> "(" ++ B.unpack s ++ " " ++ showExpr e ++ ")"
+         DepItem (DFun s e) -> "(" ++ B.unpack s ++ " " ++ concatMap showExpr e ++ ")"
          DepItem x -> show x
          Paren e -> showExpr e
          UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
@@ -88,7 +88,8 @@ parseDep = choose [var,cmd,fun]
  where dep f w = (eatSpaces .>> f) `wrapWith` w
        var = dep doVarParse (DVar . parseVarName)
        cmd = dep parseSub DCom
-       fun = dep (pjoin (,) (getPred1 wordChar "function name") (paren parseExpr)) (\(x,y) -> DFun x y)
+       fun = dep (pjoin DFun fname (paren (commaSep parseExpr))) id
+       fname = getPred1 wordChar "function name"
 
 parseAtom = choose [str,num,bool]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
@@ -147,7 +148,9 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
 
   depTests = TestList [
      "$candy" `should_be` (DVar (NSQual Nothing (VarName "candy" Nothing)))
-     ,"sin(4)" `should_be` (DFun "sin" (int 4))
+     ,"rand()" `should_be` (DFun "rand" [])
+     ,"sin(4)" `should_be` (DFun "sin" [int 4])
+     ,"pow(2,3)" `should_be` (DFun "pow" [int 2, int 3])
      ,"[incr x]" `should_be` (DCom (Word "incr", [Word "x"])) 
    
    ] where should_be = should_be_ parseDep

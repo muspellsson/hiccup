@@ -11,7 +11,7 @@ import Expr.TExp
 compileExpr fwr = comp
  where comp e = case e of
                 Item v        -> CItem v
-                DepItem (DFun f ex) -> DItem (DFun f (comp ex))
+                DepItem (DFun f ex) -> DItem (DFun f (map comp ex))
                 DepItem (DVar vn)   -> DItem (DVar vn)
                 DepItem (DCom cmd)   -> DItem (DCom (fwr cmd))
                 BinApp op a b -> CApp2 op (comp a) (comp b)

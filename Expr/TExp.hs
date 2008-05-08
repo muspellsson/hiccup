@@ -12,7 +12,7 @@ data Atom = AStr !BString | ANum !TNum
              deriving (Eq,Show)
 
 data Dep c a = DCom c
-         | DFun !BString a
+         | DFun !BString [a]
          | DVar !(NSQual VarName) deriving (Eq,Show)
 
 data Expr = Item Atom 

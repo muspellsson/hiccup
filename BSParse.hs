@@ -105,8 +105,9 @@ parseEof s = if B.null s
 sepBy1 :: Parser t -> Parser t2 -> Parser [t]
 sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
 
+
 commaSep :: Parser t -> Parser [t]
-commaSep = (`sepBy1` (eatSpaces .>> pchar ','))
+commaSep p = (p `sepBy1` (eatSpaces .>> pchar ',')) `orElse` (emit [])
 
 
 safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)

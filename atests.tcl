@@ -169,8 +169,8 @@ test "expr fun parse" {
   checkthat[expr { !true }] == 0
 
   assert_err { expr {} }
-  # TODO: Not yet
-  # assert_noerr { expr {[set x ""]} }
+  
+  assert_noerr { expr {[set x ""]} }
 
   checkthat [expr { 3 + -(-3) }] == 6
 }
@@ -191,6 +191,15 @@ test "expr precedence" {
   checkthat [expr { 3 << 1 < 4 }] == 0
 
   checkthat [expr { 2 ** 3 * 2 }] == 16
+}
+
+test "expr function params" {
+  checkthat [expr { pow(2,2) }] == 4
+
+  assert_err { expr { rand(44) } }
+  assert_noerr { expr { rand() } }
+
+  checkthat [expr { max(1,2,11,4,55) }] == 55
 }
 
 test "double compare" {

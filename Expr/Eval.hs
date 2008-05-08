@@ -28,7 +28,7 @@ runCExpr lu exp = run exp
        callFun fn args = lu (FunRef (fn, args))
        getDep item = case item of
                         DVar vn   -> lu (VarRef vn)
-                        DFun fn e -> runCExpr lu e >>= \r -> callFun fn [r]
+                        DFun fn e -> mapM run e >>= callFun fn 
                         DCom cmd  -> lu (CmdEval cmd)
 
 getItem item = case item of
@@ -51,7 +51,7 @@ runExpr lu exp = run exp
        callFun fn args = lu (FunRef (fn, args))
        getDep item = case item of
                         DVar vn   -> lu (VarRef vn)
-                        DFun fn e -> run e >>= \r -> callFun fn [r]
+                        DFun fn e -> mapM run e >>= callFun fn
                         DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
 
 
