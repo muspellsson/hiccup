@@ -4,6 +4,7 @@ module TclLib.UtilProcs ( utilProcs ) where
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
+import System.Posix.Process (getProcessID)
 import Core (evalTcl, runCmd, callProc)
 import Common
 import Expr (runAsExpr, CBData(..))
@@ -13,6 +14,7 @@ utilProcs = makeCmdList [
    ("time", cmdTime),
    ("incr", cmdIncr), 
    ("expr", cmdExpr),
+   ("pid", cmdPid),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
 cmdIncr args = case args of
@@ -24,6 +26,10 @@ incr :: T.TclObj -> Int -> TclM T.TclObj
 incr n !i = varModify (T.asVarName n) $
                  \v -> do ival <- T.asInt v
                           return $! (T.mkTclInt (ival + i))
+
+cmdPid args = case args of
+     [] -> io getProcessID >>= return . T.fromStr . show
+     _  -> argErr "pid"
 
 cmdTime args =
    case args of

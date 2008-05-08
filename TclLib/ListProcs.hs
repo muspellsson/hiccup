@@ -4,6 +4,7 @@ import Util
 import Match (globMatch)
 import Data.List (sortBy)
 import Data.Ord (comparing)
+import Data.ByteString.Char8 (isPrefixOf)
 import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad
@@ -14,6 +15,7 @@ listProcs = makeCmdList $
   [("list", procList),("lindex",procLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
+   ("lrange", cmdLrange),
    ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
 
 procList = return . T.mkTclList
@@ -127,3 +129,17 @@ cmdLrepeat args = case args of
               then fail "must have a count of at least 1"
               else return $ T.mkTclList (concat (replicate i (x:xs)))
     _ -> argErr "lrepeat"
+
+cmdLrange args = case args of
+   [lst,beg,e] -> do 
+          items <- T.asSeq lst
+          i1 <- asInd items beg
+          i2 <- asInd items e
+          return $ T.mkTclList' (S.take (i2 - i1 + 1) (S.drop i1 items))
+   _           -> argErr "lrange"
+ where asInd s v = case T.asInt v of
+                  Just i -> return i
+                  Nothing -> let strval = T.asBStr v
+                             in if strval `isPrefixOf` (pack "end") && not (bsNull strval)
+                               then return $ S.length s - 1
+                               else fail "invalid index"

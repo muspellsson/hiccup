@@ -147,3 +147,13 @@ test "lrepeat" {
 
   checkthat [llength [lrepeat 10 [lrepeat 10 a b]]] == 10
 }
+
+test "lrange" {
+    checkthat [lrange {1 2 3} 0 0] == 1
+    checkthat [lrange {1 2 3} 1 2] == [list 2 3]
+
+    checkthat [lrange {1 5} e e] == 5
+
+    assert_err { lrange {1 2} 1 "" }
+    assert_err { lrange {1 2} 1 ends }
+}
