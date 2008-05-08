@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Eval (runExpr, Callback, CBData(..), exprEvalTests) where
+module Expr.Eval (runExpr, runCExpr, Callback, CBData(..), exprEvalTests) where
 import Expr.TExp
 import Expr.Parse
 import Expr.Compile
@@ -15,6 +15,7 @@ data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval C
 type Callback m = (CBData -> m T.TclObj)
 
 
+runCExpr :: (Monad m) => Callback m -> CExpr Cmd -> m T.TclObj
 runCExpr lu exp = run exp
  where run e = case e of
                  CItem v -> getItem v
@@ -22,17 +23,18 @@ runCExpr lu exp = run exp
                  CApp2 f a b -> do
                             va <- run a
                             vb <- run b
-                            f va vb
-                 CApp f a -> run a >>= f
+                            (getOpFun f) va vb
+                 CApp f a -> run a >>= (getUnFun f)
        callFun fn args = lu (FunRef (fn, args))
        getDep item = case item of
                         DVar vn   -> lu (VarRef vn)
                         DFun fn e -> runCExpr lu e >>= \r -> callFun fn [r]
-                        DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
-       getItem item = case item of
-                        ANum (TInt i)    -> return $! T.fromInt i
-                        ANum (TDouble d) -> return $! T.fromDouble d
-                        AStr s           -> return $! T.fromBStr s
+                        DCom cmd  -> lu (CmdEval cmd)
+
+getItem item = case item of
+                 ANum (TInt i)    -> return $! T.fromInt i
+                 ANum (TDouble d) -> return $! T.fromDouble d
+                 AStr s           -> return $! T.fromBStr s
 
 
 runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj
@@ -51,10 +53,6 @@ runExpr lu exp = run exp
                         DVar vn   -> lu (VarRef vn)
                         DFun fn e -> run e >>= \r -> callFun fn [r]
                         DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
-       getItem item = case item of
-                        ANum (TInt i)    -> return $! T.fromInt i
-                        ANum (TDouble d) -> return $! T.fromDouble d
-                        AStr s    -> return $! T.fromBStr s
 
 
 exprEvalTests = TestList [evalTests, varEvalTests] where

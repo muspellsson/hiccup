@@ -1,19 +1,21 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Compile where
+module Expr.Compile (
+   compileExpr,
+   getUnFun,
+   getOpFun )  where
 
 import qualified MathOp as Math
 import qualified TObj as T
 import Expr.TExp
 
-compileExpr :: (Monad m, T.ITObj t) => Expr -> CExpr t m
-compileExpr = comp
+compileExpr fwr = comp
  where comp e = case e of
                 Item v        -> CItem v
-                DepItem (DFun f ex) -> DItem (DFun f (compileExpr ex))
+                DepItem (DFun f ex) -> DItem (DFun f (comp ex))
                 DepItem (DVar vn)   -> DItem (DVar vn)
-                DepItem (DCom cmd)   -> DItem (DCom cmd)
-                BinApp op a b -> CApp2 (getOpFun op) (comp a) (comp b)
-                UnApp op v -> CApp (getUnFun op) (comp v)
+                DepItem (DCom cmd)   -> DItem (DCom (fwr cmd))
+                BinApp op a b -> CApp2 op (comp a) (comp b)
+                UnApp op v -> CApp op (comp v)
                 Paren e       -> comp e
 
 getUnFun op = case op of

@@ -1,5 +1,6 @@
 module RToken (Cmd, RToken(..), singleTok, tryParsed, Parseable, Parsed, 
   tokCmdToCmd,
+  makeCExpr,
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -7,11 +8,13 @@ import TclParse (TclWord(..), doInterp, runParse, TokCmd)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
+import Expr.TExp (CExpr)
+import Expr.Compile
 import Test.HUnit
 
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
-type ExprResult = Either String Expr
+type ExprResult = Either String (CExpr Cmd)
 type Cmd = (Either (NSQual BString) RToken, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok !Cmd | ExpTok RToken
@@ -50,10 +53,12 @@ isEmpty (Lit x)    = B.null x
 isEmpty (CatLst l) = null l
 isEmpty _          = False
 
+makeCExpr = fromExpr . parseFullExpr
+
 compToken :: TclWord -> RToken
 compToken tw = case tw of
           (Word s)        -> compile s
-          (NoSub s res)   -> Block s (fromParsed res) (fromExpr (parseFullExpr s))
+          (NoSub s res)   -> Block s (fromParsed res) (makeCExpr s)
           (Expand t)      -> ExpTok (compToken t)
           (Subcommand c)  -> compCmd c
 
@@ -80,7 +85,7 @@ fromParsed m = case m of
 
 fromExpr m = case m of 
    Left w     -> Left $ "expr parse failed: " ++ w
-   Right (r,rs) -> if B.null rs then Right r else Left ("incomplete expr parse: " ++ show rs)
+   Right (r,rs) -> if B.null rs then Right (compileExpr toCmd r) else Left ("incomplete expr parse: " ++ show rs)
 
 toCmd :: TokCmd -> Cmd
 toCmd (x,xs) = (handleProc (compToken x), map compToken xs)

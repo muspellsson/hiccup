@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -XTypeSynonymInstances -XMultiParamTypeClasses #-}
 {-# LANGUAGE BangPatterns #-}
 module TclObj (
  TclObj
@@ -35,10 +36,9 @@ module TclObj (
 import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
-import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable)
+import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable, makeCExpr, Cmd)
 import TObj
-import Expr.Parse (parseFullExpr)
-import Expr.TExp (Expr,Exprable(..))
+import Expr.TExp (CExpr,Exprable(..))
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -50,13 +50,10 @@ import Test.HUnit
 data TclObj = TclInt !Int BString |
               TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
-              TclBStr !BString (Maybe Int) (Either String Parsed) (Either String Expr) deriving (Show,Eq)
+              TclBStr !BString (Maybe Int) (Either String Parsed) (Either String (CExpr Cmd)) deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
-mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) tryExpr
- where tryExpr = case parseFullExpr s of
-                    Right (e,_) -> Right e
-                    Left err    -> Left err
+mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) (makeCExpr s)
 {-# INLINE mkTclBStr #-}
 
 mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
@@ -170,10 +167,10 @@ instance Parseable TclObj where
   asParsed (TclList _ s) = asParsed s
   {-# INLINE asParsed #-}
 
-instance Exprable TclObj where
-  asExpr (TclBStr _ _ _ (Left err)) = fail err
-  asExpr (TclBStr _ _ _ (Right ex)) = return ex
-  asExpr _ =  fail "only blocks for now"
+instance Exprable TclObj Cmd where
+  asCExpr (TclBStr _ _ _ (Left err)) = fail err
+  asCExpr (TclBStr _ _ _ (Right ex)) = return ex
+  asCExpr _ =  fail "only blocks for now"
 
 fromList l = (map listEscape l)  `joinWith` ' '
 
