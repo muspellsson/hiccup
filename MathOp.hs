@@ -53,7 +53,8 @@ absfun x = case T.asInt x of
 
 pow x y = do
    case (T.asInt x, T.asInt y) of
-       (Just i1, Just i2) -> return $! (T.fromInt (i1^i2))
+       (Just i1, Just i2) -> if i2 >= 0 then return $! T.fromInt (i1^i2)
+                                        else return $! T.fromDouble ((fromIntegral i1) ** (fromIntegral i2))
        _ -> do 
            d1 <- T.asDouble x
            d2 <- T.asDouble y

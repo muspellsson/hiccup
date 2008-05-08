@@ -14,6 +14,7 @@ import Test.HUnit
 mathCmds = makeCmdList $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
+    ("int", m1 mathInt),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
     ("==", procEql), ("!=", cmdNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
@@ -30,6 +31,14 @@ procSrand args = case args of
  [v] -> mathSrand v
  []  -> tclErr "too few arguments to math function"
  _   -> tclErr "too many arguments to math function"
+
+mathInt v =  asI >>= return . T.fromInt
+ where asI = case T.asInt v of
+               Just i -> return $ i
+               Nothing -> case T.asDouble v of
+                             Just d -> return $ floor d
+                             Nothing -> tclErr "non-numeric operand to \"int\""
+   
 
 mathSrand v = do
  i <- T.asInt v 
@@ -57,7 +66,7 @@ m1 f args = case args of
 
 many1 !f args = case args of
   [a,b]  -> f a b
-  (x:xs) -> foldM f x args
+  (x:xs) -> foldM f x xs
   _      -> tclErr "too few arguments to math function"
 {-# INLINE many1 #-}
 
