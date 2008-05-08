@@ -1051,5 +1051,12 @@ test "odd procs" {
   finalize { proc 1 proc 55.55 }
 }
 
+test "apply" {
+  set plus1 { x {+ $x 1}}
+  checkthat [apply $plus1 3] == 4
+
+  checkthat [apply {v {expr $v}} {3*3}] == 9
+}
+
 run_tests
 # puts "([llength [info procs]] lingering procs)"

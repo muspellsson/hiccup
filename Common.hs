@@ -268,7 +268,7 @@ getNsEpoch nst = do
 -}
   
 getCmd !pname = getCmdNS (parseProc pname)
--- TODO: Special case for globals and locals when we're in the global NS?
+
 getCmdNS (NSQual nst n) = do
   res <- tryHere `ifFails` Nothing
   case res of
@@ -649,10 +649,10 @@ createFrameWithNS !nsref !vref = do
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
-changeVars !fr fun = io (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq` f { frVars = r } ))
+changeVars !fr fun = liftIO (modifyIORef fr (\f -> let r = fun (frVars f) in r `seq` f { frVars = r } ))
 {-# INLINE changeVars #-}
 
-insertVar fr k v = changeVars fr (Map.insert k v)
+insertVar fr !k !v = changeVars fr (Map.insert k v)
 {-# INLINE insertVar #-}
 
 changeCmds nsr fun = do 

@@ -1,13 +1,4 @@
 
-proc apply { fun args } {
-  set len [llength $fun]
-  if { [|| [< $len 2] [> $len 3]] } {
-    error "can't interpret \"$fun\" as anonymous funtion"
-  }
-
-  lassign $fun argList body ns
-}
-
 proc decr v {
   upvar $v loc
   incr loc -1

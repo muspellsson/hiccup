@@ -17,6 +17,7 @@ import Test.HUnit
 coreProcs = makeCmdList $
  [("proc", procProc),
   ("break", procRetv EBreak),
+  ("apply", cmdApply),
   ("continue", procRetv EContinue)]
 
 
@@ -66,6 +67,15 @@ procRetv c args = case args of
        st EBreak    = "break"
        st _         = "??"
 
+cmdApply args = case args of
+   (fn:alst) -> mklambda fn >>= \f -> f alst
+   _         -> argErr "apply"
+ where mklambda fn = do
+        lst <- T.asList fn
+        case lst of
+         [al,body] -> parseParams (pack "lambda") al >>= \p -> mkProc p body
+         _         -> fail "invalid lambda"
+
 procProc args = case args of
   [name,alst,body] -> do
     let pname = T.asBStr name
@@ -74,6 +84,8 @@ procProc args = case args of
     registerProc pname (T.asBStr body) proc
     ret
   _               -> argErr "proc"
+
+
 
 mkProc params body = do
   return (procRunner params body)
