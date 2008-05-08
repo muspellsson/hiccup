@@ -152,6 +152,10 @@ test "math test" {
   checkthat [pow 2 2] == 4
   checkthat [pow 2 10] == 1024
 
+  checkthat [expr { pow(2,-1) }] == 0.5
+  checkthat [expr { int(3.5) }] eq 3
+  checkthat [expr { int(3) }] eq 3
+
   checkthat [expr { sqrt(2 + 2) }] eq 2.0
   checkthat [+ 3.5 3.5] == 7.0
 
