@@ -19,7 +19,7 @@ mathCmds = makeCmdList $
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
     mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
     ("rand", cmdRand), ("srand", procSrand),
-    ("!", cmdNot), ("max", many1 tmax)]
+    ("!", cmdNot), ("max", many1 tmax), ("min", many1 tmin)]
 
 mkcmd n f = (n,inner)
  where inner args = case args of

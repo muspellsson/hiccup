@@ -200,6 +200,7 @@ test "expr function params" {
   assert_noerr { expr { rand() } }
 
   checkthat [expr { max(1,2,11,4,55) }] == 55
+  checkthat [expr { min(1,2,11,4,55) }] == 1
 }
 
 test "double compare" {
