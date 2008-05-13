@@ -48,28 +48,35 @@ string_match args = case map T.asBStr args of
 
 string_index args = case args of
                      [s,i] -> do let str = T.asBStr s
-                                 ind <- toInd str i
-                                 if ind >= (B.length str) || ind < 0 
+                                 let slen = B.length str
+                                 ind <- toInd slen i
+                                 if ind >= slen || ind < 0 
                                   then ret 
                                   else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
 
-toInd :: BString -> T.TclObj -> TclM Int
-toInd s i = (T.asInt i) `orElse` tryEnd s i
- where tryEnd s i = if i .== "end" 
-                       then return ((B.length s) - 1) 
-                       else do let (ip,is) = B.splitAt (B.length "end-") (T.asBStr i)
-                               if ip == "end-"
-                                  then case B.readInt is of
-                                            Just (iv,_) -> return ((B.length s) - (1+iv))
-                                            _           -> tclErr "bad index"
-                                  else tclErr "bad index"
+toInd :: (Monad m) => Int -> T.TclObj -> m Int
+toInd len i = case T.asInt i of
+                Nothing -> tryEnd
+                Just iv -> return iv
+ where ibs = T.asBStr i 
+       lastInd = len - 1
+       badIndex = fail "bad index"
+       tryEnd = if ibs `B.isPrefixOf` "end" 
+                  then return lastInd
+                  else do let (ip,is) = B.splitAt (B.length "end-") ibs
+                          if ip == "end-"
+                              then case B.readInt is of
+                                       Just (iv,_) -> return (lastInd - iv)
+                                       _           -> badIndex
+                              else badIndex
 
 string_range args = case args of
    [s,i1,i2] -> do 
        let str = T.asBStr s
-       ind1 <- toInd str i1
-       ind2 <- toInd str i2
+       let slen = B.length (T.asBStr s)
+       ind1 <- toInd slen i1
+       ind2 <- toInd slen i2
        treturn $ B.drop ind1 (B.take (ind2+1) str)
    _ -> argErr "string range"
 
@@ -89,4 +96,17 @@ procSplit args = case args of
 
  where dosplit str chars = return $ T.mkTclList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
-stringTests = TestList [ matchTests ]
+stringTests = TestList [ matchTests, toIndTests ]
+
+
+toIndTests = TestList [
+     (someLen, T.fromStr "10") `should_be` 10
+     ,(someLen, T.fromStr "end") `should_be` lastInd
+     ,(someLen, T.fromStr "e") `should_be` lastInd
+     ,(someLen, T.fromStr "en") `should_be` lastInd
+     ,(someLen, T.fromStr "end-1") `should_be` (lastInd - 1)
+     ,(someLen, T.fromStr "e-4") `should_fail` ()
+  ] where should_be (l,i) b =  ((toInd l i) :: Either String Int)  ~=? (Right b)
+          should_fail (l,i) _ =  ((toInd l i) :: Either String Int)  ~=? (Left "bad index")
+          someLen = 5
+          lastInd = someLen - 1
