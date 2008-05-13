@@ -15,7 +15,8 @@ import Test.HUnit
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
 type ExprResult = Either String (CExpr Cmd)
-type Cmd = (Either (NSQual BString) RToken, [RToken])
+type CmdName = Either (NSQual BString) RToken
+type Cmd = (CmdName, [RToken])
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok !Cmd | ExpTok RToken
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString RToken 
@@ -57,10 +58,10 @@ makeCExpr = fromExpr . parseFullExpr
 
 compToken :: TclWord -> RToken
 compToken tw = case tw of
-          (Word s)        -> compile s
-          (NoSub s res)   -> Block s (fromParsed res) (makeCExpr s)
-          (Expand t)      -> ExpTok (compToken t)
-          (Subcommand c)  -> compCmd c
+          Word s        -> compile s
+          NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
+          Expand t      -> ExpTok (compToken t)
+          Subcommand c  -> compCmd c
 
 compCmd c = CmdTok (toCmd c)
 

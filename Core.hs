@@ -28,8 +28,8 @@ callProc :: BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = getCmd pn >>= \pr -> doCall pn pr args
 
 evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
-evalRTokens []     !acc = return $! reverse acc
-evalRTokens (x:xs) !acc = case x of
+evalRTokens []     acc = return $! reverse acc
+evalRTokens (x:xs) acc = case x of
             Lit s     -> evalRTokens xs ((T.fromBStr s):acc)
             LitInt i  -> evalRTokens xs ((T.fromInt i):acc)
             Block s p e -> evalRTokens xs ((T.fromBlock s p e):acc)
