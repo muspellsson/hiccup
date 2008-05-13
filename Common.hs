@@ -95,7 +95,7 @@ data TclFrame = TclFrame {
       frVars :: !VarMap, 
       upMap :: !(Map.Map BString (FrameRef,BString)), 
       frNS :: NSRef,
-      frTag :: Int  }
+      frTag :: !Int  }
 
 type TclStack = [FrameRef]
 
