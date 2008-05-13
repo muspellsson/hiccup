@@ -6,7 +6,6 @@ import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.ByteString.Char8 (isPrefixOf)
 import qualified TclObj as T
-import TclObj ((.==))
 import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))

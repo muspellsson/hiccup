@@ -33,6 +33,8 @@ test "lindex" {
   checkthat [lindex $bean -3] eq {} 
 
   checkthat [lindex $bean end] eq {6 7 8}
+
+  assert_err { lindex {1 2 3 4} cat }
 }
 
 test "lappend" {
@@ -60,6 +62,10 @@ test "lset single index" {
   
   assertErr { lset lst 40 TOO_HIGH }
   assertErr { lset lst -3 TOO_LOW }
+
+  set lst2 [list 1 2 3]
+  lset lst2 end WIN
+  checkthat $lst2 eq [list 1 2 WIN]
 }
 
 test "lassign basic" {
