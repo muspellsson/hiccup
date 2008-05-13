@@ -6,7 +6,6 @@ import Util
 import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
-import TclObj ((.==))
 import Data.Char (toLower,toUpper)
 
 import Test.HUnit
