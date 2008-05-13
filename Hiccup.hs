@@ -1,14 +1,14 @@
 {-# LANGUAGE BangPatterns #-}
 module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
 
-import Control.Monad.Error
 import Data.IORef
+import ProcUtil
+import Control.Monad.Error
 
 import Util
 import qualified TclObj as T
 import Core (evalTcl)
 import Common
-import ProcArgs
 
 import TclLib (libCmds)
 
@@ -68,34 +68,17 @@ procRetv c args = case args of
        st _         = "??"
 
 cmdApply args = case args of
-   (fn:alst) -> mklambda fn >>= \f -> f alst
+   (fn:alst) -> mkLambda fn >>= \f -> f alst
    _         -> argErr "apply"
- where mklambda fn = do
-        lst <- T.asList fn
-        case lst of
-         [al,body] -> parseParams (pack "lambda") al >>= \p -> mkProc p body
-         _         -> fail "invalid lambda"
 
 procProc args = case args of
   [name,alst,body] -> do
     let pname = T.asBStr name
-    params <- parseParams pname alst
-    proc <- mkProc params body
+    proc <- mkProc pname alst body
     registerProc pname (T.asBStr body) proc
     ret
   _               -> argErr "proc"
 
 
-
-mkProc params body = do
-  return (procRunner params body)
-
-procRunner pl body args = do
-  locals <- bindArgs pl args
-  withLocalScope locals (evalTcl body `catchError` herr)
- where herr (ERet s)  = return $! s
-       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
-       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
-       herr e         = throwError e
 
 hiccupTests = TestList []

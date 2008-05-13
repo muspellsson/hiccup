@@ -163,3 +163,10 @@ test "lrange" {
     assert_err { lrange {1 2} 1 "" }
     assert_err { lrange {1 2} 1 ends }
 }
+
+test "map" {
+    set start [list 1 2 3 4]
+    set plus1 {x {incr x}}
+    checkthat [map $plus1 $start] eq [list 2 3 4 5]
+    checkthat [map $plus1 [list]] eq {}
+}

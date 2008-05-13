@@ -1,23 +1,24 @@
-module TclLib.ListProcs (listProcs,procList) where
+module TclLib.ListProcs (listCmds) where
 import Common
 import Util
 import Match (globMatch)
 import Data.List (sortBy)
 import Data.Ord (comparing)
+import ProcUtil (mkLambda)
 import Data.ByteString.Char8 (isPrefixOf)
 import qualified TclObj as T
 import Control.Monad
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
 
-listProcs = makeCmdList $
-  [("list", procList),("lindex",cmdLindex),
+listCmds = makeCmdList $
+  [("list", cmdList),("lindex",cmdLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
-   ("lrange", cmdLrange),
+   ("lrange", cmdLrange), ("map", cmdMap),
    ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
 
-procList = return . T.mkTclList
+cmdList = return . T.mkTclList
 
 cmdLindex args = case args of
           [l]   -> return l
@@ -142,3 +143,10 @@ toIndex len v = case T.asInt v of
                                 in if strval `isPrefixOf` (pack "end") && not (bsNull strval)
                                      then return $ len - 1
                                      else fail "invalid index"
+
+cmdMap args = case args of
+  [fun,lst] -> do
+         fn <- mkLambda fun 
+         T.asList lst >>= mapM (fn . box) >>= return . T.mkTclList 
+  _          -> argErr "map"
+ where box i = [i]   
