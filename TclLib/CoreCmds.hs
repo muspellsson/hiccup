@@ -9,7 +9,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
 coreCmds = makeCmdList [
-  ("set", procSet),
+  ("set", cmdSet),
   ("uplevel", procUpLevel),
   ("return", procReturn),
   ("global", procGlobal),
@@ -18,14 +18,15 @@ coreCmds = makeCmdList [
   ("catch", procCatch),
   ("unset", procUnset),
   ("rename", procRename),
-  ("info", procInfo),
+  ("info", cmdInfo),
   ("error", procError)]
 
+vArgErr s = argErr ("should be " ++ show s)
 
-procSet args = case args of
+cmdSet args = case args of
      [s1,s2] -> varSetNS (T.asVarName s1) s2
      [s1]    -> varGetNS (T.asVarName s1)
-     _       -> argErr "set"
+     _       -> vArgErr "set varName ?newValue?"
 
 procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
@@ -86,17 +87,20 @@ procGlobal args = case args of
  where inner g = do len <- stackLevel
                     upvar len g g
 
-procInfo = makeEnsemble "info" [
+cmdInfo = makeEnsemble "info" [
   matchp "locals" localVars,
   matchp "globals" globalVars,
   matchp "vars" currentVars,
   matchp "commands" commandNames,
   matchp "procs" procNames,
   noarg "level"    (liftM T.mkTclInt stackLevel),
+  noarg "cmdcount" (liftM T.mkTclInt getCmdCount),
   ("exists", info_exists),
+  noarg "tclversion" (getVar "::tcl_version"),
   ("body", info_body)]
  where noarg n f = (n, no_args n f)
        matchp n f = (n, matchList ("info " ++ n) f)
+       getVar = varGetNS . T.asVarName . T.fromStr
        no_args n f args = case args of
                            [] -> f
                            _  -> argErr $ "info " ++ n

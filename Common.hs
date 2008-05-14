@@ -38,6 +38,7 @@ module Common (TclM
        ,ret
        ,argErr
        ,stackLevel
+       ,getCmdCount
        ,globalVars
        ,localVars
        ,currentVars
@@ -103,7 +104,8 @@ data TclState = TclState {
     tclChans :: ChanMap, 
     tclEvents :: Evt.EventMgr T.TclObj,
     tclStack :: !TclStack, 
-    tclGlobalNS :: !NSRef }
+    tclGlobalNS :: !NSRef,
+    tclCmdCount :: !Int }
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 data TclCmdObj = TclCmdObj { 
@@ -130,7 +132,9 @@ getOrigin p = if nso == nsSep
  where nso = maybe nsSep id (cmdOrigNS p)
        pname = cmdName p
 
-applyTo !f !args = (cmdAction f) args
+applyTo !f !args = do 
+   modify (\x -> x { tclCmdCount = (tclCmdCount x) + 1 })
+   (cmdAction f) args
 {-# INLINE applyTo #-}
 
 mkProcAlias nsr pn = do
@@ -180,13 +184,15 @@ makeState' chans vlist cmdlst = do
     (fr,nsr) <- makeGlobal
     addCmds nsr (cmdList2CmdMap cmdlst)
     addChildNS nsr (pack "") nsr
-    st <- return $! TclState { tclChans = chans,
-                         tclEvents = Evt.emptyMgr,
-                         tclStack = [fr], 
-                         tclGlobalNS = nsr } 
+    st <- return $! mkState nsr fr
     (_,res) <- runTclM (withNS (pack "tcl::mathop") (return ())) st
     return res
- where makeGlobal = do 
+ where mkState nsr fr = TclState { tclChans = chans,
+                                   tclEvents = Evt.emptyMgr,
+                                   tclStack = [fr],
+                                   tclGlobalNS = nsr,
+                                   tclCmdCount = 0 }
+       makeGlobal = do 
            fr <- createFrame (makeVarMap vlist) 
            nsr <- globalNS fr
            setFrNS fr nsr
@@ -216,6 +222,9 @@ getFrame = do st <- gets tclStack
 io :: IO a -> TclM a
 io = liftIO
 {-# INLINE io #-}
+
+getCmdCount :: TclM Int
+getCmdCount = gets tclCmdCount
 
 stackLevel = getStack >>= return . pred . length
 globalVars = getGlobalNS >>= getNSFrame >>= getFrameVars >>= return . Map.keys 
@@ -673,7 +682,7 @@ makeEnsemble name subs = top
              (x:xs) -> case plookup (T.asBStr x) of
                          Just f  -> f `applyTo` xs
                          Nothing -> eunknown (T.asBStr x) xs
-             []  -> argErr $ " should be \"" ++ name ++ "\" subcommand ?arg ...?"
+             []  -> argErr $ " should be \"" ++ name ++ " subcommand ?arg ...?\""
         eunknown n al = 
             let names = cmdMapNames subMap
             in case completes n names of
