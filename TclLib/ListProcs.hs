@@ -15,7 +15,7 @@ listCmds = makeCmdList $
   [("list", cmdList),("lindex",cmdLindex),
    ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
-   ("lrange", cmdLrange), ("map", cmdMap),
+   ("lrange", cmdLrange), ("lmap", cmdLmap),
    ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
 
 cmdList = return . T.mkTclList
@@ -144,7 +144,7 @@ toIndex len v = case T.asInt v of
                                      then return $ len - 1
                                      else fail "invalid index"
 
-cmdMap args = case args of
+cmdLmap args = case args of
   [fun,lst] -> do
          fn <- mkLambda fun 
          T.asList lst >>= mapM (fn . box) >>= return . T.mkTclList 

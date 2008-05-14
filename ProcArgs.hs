@@ -3,13 +3,15 @@ module ProcArgs (parseParams, bindArgs) where
 import Util
 import qualified TclObj as T
 import Common
+import Control.Monad
 import qualified Data.ByteString.Char8 as B
 
 type ArgSpec = Either BString (BString,T.TclObj)
 type ArgList = [ArgSpec]
 
+showParams :: ParamList -> String
 showParams (n,hasArgs,pl) = 
-   show ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+   show $ unpack ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
 
 arg2name arg = case arg of
                Left s      -> s
@@ -26,13 +28,14 @@ mkParamList name lst = (name, hasArgs, used)
 
 parseParams :: BString -> T.TclObj -> TclM ParamList
 parseParams name args = T.asList args >>= countRet
- where countRet :: [T.TclObj] -> TclM ParamList
-       countRet lst = mapM doArg lst >>= return . mkParamList name
-       doArg :: T.TclObj -> TclM ArgSpec
-       doArg s = do l <- T.asList s
-                    return $ case l of
-			    [k,v] -> Right (T.asBStr k,v)
-			    _     -> Left (T.asBStr s)
+ where countRet = liftM (mkParamList name) . mapM parseArgSpec 
+       parseArgSpec :: T.TclObj -> TclM ArgSpec
+       parseArgSpec s = do 
+                    l <- T.asList s
+                    case l of
+                       [k,v] -> return $ Right (T.asBStr k,v)
+                       [_]   -> return $ Left (T.asBStr s)
+                       _     -> fail $ "too many fields in argument specifier " ++ show (T.asBStr s)
 
 bindArgs :: ParamList -> [T.TclObj] -> TclM [(BString,T.TclObj)]
 bindArgs params@(_,hasArgs,pl) args = walkBoth pl args [] 

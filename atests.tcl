@@ -562,6 +562,17 @@ test "arg count check" {
  finalize { proc blah proc blah2 }
 }
 
+test "proc optional arg, single default" {
+ assert_noerr { 
+   proc blah {a {b {3 4}} } {}
+ }
+
+ assert_err { 
+   proc blah {a {b 3 4} } {}
+ }
+
+}
+
 test "bad continue/break test" {
   proc whee {} {
     break
