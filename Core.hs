@@ -32,9 +32,9 @@ evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
             Lit s     -> evalRTokens xs ((T.fromBStr s):acc)
             LitInt i  -> evalRTokens xs ((T.fromInt i):acc)
-            Block s p e -> evalRTokens xs ((T.fromBlock s p e):acc)
             CmdTok t  -> nextWith (runCmd t)
             VarRef vn -> nextWith (varGetNS vn)
+            Block s p e -> evalRTokens xs ((T.fromBlock s p e):acc)
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
@@ -57,7 +57,7 @@ runCmd (n,args) = do
                             getCmd name >>= \pr -> doCall name pr rs
 
 
-doCall !pn !mproc args = do
+doCall pn !mproc args = do
    case mproc of
      Nothing   -> do ukproc <- getCmd (pack "unknown")
                      case ukproc of

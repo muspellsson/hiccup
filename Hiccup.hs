@@ -1,13 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
-module Hiccup (runTcl, runTclWithArgs, mkInterp, runInterp, hiccupTests) where
+module Hiccup (runTcl, runTclWithArgs, mkMainInterp, runInterp, hiccupTests) where
 
-import Data.IORef
+import Interp
 import ProcUtil
 import Control.Monad.Error
 
 import Util
 import qualified TclObj as T
-import Core (evalTcl)
 import Common
 
 import TclLib (libCmds)
@@ -23,42 +22,19 @@ coreProcs = makeCmdList $
 
 baseCmds = mergeCmdLists [libCmds, coreProcs]
                           
-processArgs al = [("argc" * T.mkTclInt (length al)), ("argv" * T.mkTclList al)]
+processArgs al = [("argc" * T.fromInt (length al)), ("argv" * T.mkTclList al)]
   where (*) name val = (pack name, val)
 
 interpVars = [("tcl_version" * (show hiccupVersion))]
-  where (*) name val = (pack name, T.mkTclStr val)
+  where (*) name val = (pack name, T.fromStr val)
 
-hiccupVersion = 0.45
+hiccupVersion = 0.48
 
-data Interpreter = Interpreter (IORef TclState)
+mkMainInterp = mkInterp baseCmds
 
-mkInterp = mkInterpWithArgs []
-
-mkInterpWithArgs :: [BString] -> IO Interpreter
-mkInterpWithArgs args = do
-              st <- makeState (interpVars ++ (processArgs (map T.mkTclBStr args))) baseCmds
-              stref <- newIORef st
-              return (Interpreter stref)
-
-
-runInterp :: BString -> Interpreter -> IO (Either BString BString)
-runInterp s = runInterp' (evalTcl (T.mkTclBStr s))
-
-runInterp' t (Interpreter i) = do
-                 bEnv <- readIORef i
-                 (r,i') <- runTclM t bEnv
-                 writeIORef i i'
-                 return (fixErr r)
-  where perr (EDie s)    = Left $ pack s
-        perr (ERet v)    = Right $ T.asBStr v
-        perr EBreak      = Left . pack $ "invoked \"break\" outside of a loop"
-        perr EContinue   = Left . pack $ "invoked \"continue\" outside of a loop"
-        fixErr (Left x)  = perr x
-        fixErr (Right v) = Right (T.asBStr v)
-
-runTcl v = mkInterp >>= runInterp v
-runTclWithArgs v args = mkInterpWithArgs args >>= runInterp v
+runTcl v = mkMainInterp >>= runInterp v
+runTclWithArgs v args = mkInterpWithVars mainVars baseCmds >>= runInterp v
+ where mainVars = interpVars ++ (processArgs (map T.fromBStr args))
 
 procRetv c args = case args of
     [] -> throwError c
@@ -78,7 +54,6 @@ procProc args = case args of
     registerProc pname (T.asBStr body) proc
     ret
   _               -> argErr "proc"
-
 
 
 hiccupTests = TestList []

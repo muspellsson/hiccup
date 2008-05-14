@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8 as B
 main = do args <- getArgs 
           hSetBuffering stdout NoBuffering
           case args of
-             []  -> mkInterp >>= runRepl
+             []  -> mkMainInterp >>= runRepl
              (f:fs) -> do fdata <- B.readFile f 
                           runTclWithArgs fdata (map B.pack fs) >>= (`unlessErr` (\_ -> return ()))
  where unlessErr x f = either (\e -> B.putStrLn e) f x
