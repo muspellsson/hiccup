@@ -1,3 +1,8 @@
+if {[info tclversion] == 8.5 } {
+  namespace import ::tcl::mathop::*
+  namespace import ::tcl::mathfunc::*
+}
+
 namespace eval testlib {
   variable current_test "Test"
   variable trace_test 0
@@ -24,8 +29,8 @@ proc assertFail why {
 }
 
 proc verify { code { msg "" } } {
-  if { uplevel $code } {
-    if { == $::testlib::trace_test 1 } { puts "\"$code\" was true" }
+  if { [uplevel $code] } {
+    if { $::testlib::trace_test == 1 } { puts "\"$code\" was true" }
     assertPass
   } else {
     assertFail "\"$code\" was not true ($msg)"
@@ -34,8 +39,8 @@ proc verify { code { msg "" } } {
 
 proc checkthat { var { op == } { r 1 } { msg "" } } {
   set res [$op $var $r]
-  if { == $res 1 } {
-    if { == $::testlib::trace_test 1 } { puts "\"$var $op $r\" was true" }
+  if { $res == 1 } {
+    if { $::testlib::trace_test == 1 } { puts "\"$var $op $r\" was true" }
     assertPass
   } else {
     assertFail "\"$var $op $r\" was not true ($msg)"
@@ -44,7 +49,7 @@ proc checkthat { var { op == } { r 1 } { msg "" } } {
 
 proc assertNoErr code {
   set ret [catch "uplevel {$code}"]
-  if { == $ret 0 } {
+  if { $ret == 0 } {
     assertPass
   } else {
     assertFail "code failed: $code"
@@ -57,7 +62,7 @@ proc assert_noerr code {
 
 proc assertErr { code { msg "" } } {
   set ret [catch "uplevel {$code}"]
-  if { == $ret 1 } {
+  if { $ret == 1 } {
     assertPass
   } else {
     assertFail "code should've failed: $code ($ret) $msg"
@@ -75,7 +80,7 @@ proc get_err code {
 
 proc assert code {
   set ret [uplevel $code]
-  if { == $ret 1 } { assertPass } else { assertFail "Failed: $code" }
+  if { $ret == 1 } { assertPass } else { assertFail "Failed: $code" }
 }
 
 proc test {name body} {
@@ -95,7 +100,7 @@ proc run_test tname {
   uplevel "proc test_proc {} {$::testlib::tests($tname)}"
   set ::testlib::current_test $tname
   set ret [catch { uplevel test_proc } retval]
-  if { == $ret 1 } { assertFail "Error in test {$tname}: $retval" }
+  if { $ret == 1 } { assertFail "Error in test {$tname}: $retval" }
   puts -nonewline "|"
   rename test_proc {}
 }

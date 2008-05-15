@@ -235,7 +235,7 @@ currentVars = do f <- getFrame
                  return $ Map.keys vs ++ Map.keys mv
 
 -- TODO: Refactor these.
-commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter (not . cmdIsProc) . cmdMapElems
+commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . cmdMapElems
 procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . cmdMapElems
 
 

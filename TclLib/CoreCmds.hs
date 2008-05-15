@@ -3,23 +3,38 @@ import Common
 import Control.Monad.Error
 import Control.Monad (liftM)
 import TclErr (errCode)
+import System (getProgName)
 import Match (globMatches)
+import ProcUtil (mkProc, mkLambda)
 import Core
+
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
 coreCmds = makeCmdList [
+  ("proc", cmdProc),
   ("set", cmdSet),
-  ("uplevel", procUpLevel),
+  ("uplevel", cmdUplevel),
   ("return", procReturn),
   ("global", procGlobal),
   ("upvar", procUpVar),
   ("eval", procEval),
   ("catch", procCatch),
+  ("break", cmdRetv EBreak),
+  ("continue", cmdRetv EContinue),
   ("unset", procUnset),
   ("rename", procRename),
   ("info", cmdInfo),
+  ("apply", cmdApply),
   ("error", procError)]
+
+cmdProc args = case args of
+  [name,alst,body] -> do
+    let pname = T.asBStr name
+    proc <- mkProc pname alst body
+    registerProc pname (T.asBStr body) proc
+    ret
+  _               -> argErr "proc"
 
 vArgErr s = argErr ("should be " ++ show s)
 
@@ -44,7 +59,7 @@ procEval args = case args of
                  [s]  -> evalTcl s
                  _    -> evalTcl (T.objconcat args)
 
-procUpLevel args = case args of
+cmdUplevel args = case args of
               [p]    -> uplevel 1 (evalTcl p)
               (si:p) -> getLevel si >>= \i -> uplevel i (procEval p)
               _      -> argErr "uplevel"
@@ -67,7 +82,14 @@ procCatch args = case args of
  where retReason v e = case e of
                          EDie s -> varSetNS (T.asVarName v) (T.mkTclStr s) >> return T.tclTrue
                          _      -> retInt . errCode $ e
-       retInt = return . T.mkTclInt
+       retInt = return . T.fromInt
+
+cmdRetv c args = case args of
+    [] -> throwError c
+    _  -> argErr $ st c
+ where st EContinue = "continue"
+       st EBreak    = "break"
+       st _         = "??"
 
 procReturn args = case args of
       [s] -> throwError (ERet s)
@@ -93,8 +115,9 @@ cmdInfo = makeEnsemble "info" [
   matchp "vars" currentVars,
   matchp "commands" commandNames,
   matchp "procs" procNames,
-  noarg "level"    (liftM T.mkTclInt stackLevel),
-  noarg "cmdcount" (liftM T.mkTclInt getCmdCount),
+  noarg "level"    (liftM T.fromInt stackLevel),
+  noarg "cmdcount" (liftM T.fromInt getCmdCount),
+  noarg "nameofexecutable" (liftM T.fromStr (io getProgName)),
   ("exists", info_exists),
   noarg "tclversion" (getVar "::tcl_version"),
   ("body", info_body)]
@@ -122,4 +145,8 @@ info_body args = case args of
                    Just p  -> treturn (cmdBody p)
        _   -> argErr "info body"
 
-asTclList = return . T.mkTclList . map T.mkTclBStr
+asTclList = return . T.mkTclList . map T.fromBStr
+
+cmdApply args = case args of
+   (fn:alst) -> mkLambda fn >>= \f -> f alst
+   _         -> argErr "apply"

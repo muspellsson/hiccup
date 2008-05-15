@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.UtilProcs ( utilProcs ) where
 
+import Util
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
@@ -23,9 +24,18 @@ cmdIncr args = case args of
          _           -> argErr "incr"
 
 incr :: T.TclObj -> Int -> TclM T.TclObj
+incr n !i = do
+    let vn = T.asVarName n
+    v <- varGetNS vn `ifFails` (T.fromInt 0)
+    iv <- T.asInt v
+    varSetNS vn $! (T.fromInt (iv + i))
+     
+    
+{-
 incr n !i = varModify (T.asVarName n) $
                  \v -> do ival <- T.asInt v
                           return $! (T.mkTclInt (ival + i))
+-}
 
 cmdPid args = case args of
      [] -> io getProcessID >>= return . T.fromStr . show
