@@ -75,7 +75,10 @@ test "absolute uplevel" {
   #checkthat $err eq {bad level "banana"}
   # TODO: Fix uplevel
   assert_err { uplevel banana { puts FAIL } }
+  proc 33xy x { return $x }
+  assert_err { uplevel 33xy 4 }
   uplevel #0 { checkthat [info level] == 0 }
+  finalize { proc 33xy }
 }
 
 test "info commands vs info procs" {
@@ -114,6 +117,7 @@ test "unevaluated blocks aren't parsed" {
    assertPass
   }
 }
+
 
 test "unused args" {
   proc addem {a b} {
@@ -903,6 +907,17 @@ test "uplevel issue" {
   set level [info level]
   catch { uplevel { error "Oh no" } }
   checkthat [info level] == $level
+}
+
+test "uplevel arg" {
+  proc in_a_proc {} {
+    assert_noerr { uplevel set x 10 }
+  }
+
+  in_a_proc 
+  checkthat $x == 10
+
+  finalize { proc in_a_proc }
 }
 
 test "global namespace" {

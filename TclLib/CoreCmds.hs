@@ -2,9 +2,11 @@ module TclLib.CoreCmds (coreCmds) where
 import Common
 import Control.Monad.Error
 import Control.Monad (liftM)
+import Data.Char (isDigit)
 import TclErr (errCode)
 import System (getProgName)
 import Match (globMatches)
+import Util
 import ProcUtil (mkProc, mkLambda)
 import Core
 
@@ -61,7 +63,12 @@ procEval args = case args of
 
 cmdUplevel args = case args of
               [p]    -> uplevel 1 (evalTcl p)
-              (si:p) -> getLevel si >>= \i -> uplevel i (procEval p)
+              (si:p) -> do 
+                  let defaulted = getLevel si >>= \i -> uplevel i (procEval p)
+                  let checkfirst = let str = T.asBStr si in
+                                   let d = B.head str
+                                   in when (isDigit d || d == '#') (fail $ "expected integer but got " ++ show str)
+                  defaulted `orElse` (checkfirst >> uplevel 1 (procEval (si:p)))
               _      -> argErr "uplevel"
  where getLevel l = do
          let badlevel = tclErr $ "bad level " ++ show (T.asBStr l)
