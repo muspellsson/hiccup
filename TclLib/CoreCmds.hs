@@ -1,6 +1,7 @@
 module TclLib.CoreCmds (coreCmds) where
 import Common
 import Control.Monad.Error
+import TclLib.LibUtil
 import Control.Monad (liftM)
 import Data.Char (isDigit)
 import TclErr (errCode)
@@ -20,7 +21,7 @@ coreCmds = makeCmdList [
   ("return", procReturn),
   ("global", procGlobal),
   ("upvar", procUpVar),
-  ("eval", procEval),
+  ("eval", cmdEval),
   ("catch", procCatch),
   ("break", cmdRetv EBreak),
   ("continue", cmdRetv EContinue),
@@ -38,7 +39,6 @@ cmdProc args = case args of
     ret
   _               -> argErr "proc"
 
-vArgErr s = argErr ("should be " ++ show s)
 
 cmdSet args = case args of
      [s1,s2] -> varSetNS (T.asVarName s1) s2
@@ -56,7 +56,7 @@ procRename args = case args of
 procError [s] = tclErr (T.asStr s)
 procError _   = argErr "error"
 
-procEval args = case args of
+cmdEval args = case args of
                  []   -> argErr "eval"
                  [s]  -> evalTcl s
                  _    -> evalTcl (T.objconcat args)
@@ -64,11 +64,11 @@ procEval args = case args of
 cmdUplevel args = case args of
               [p]    -> uplevel 1 (evalTcl p)
               (si:p) -> do 
-                  let defaulted = getLevel si >>= \i -> uplevel i (procEval p)
+                  let defaulted = getLevel si >>= \i -> uplevel i (cmdEval p)
                   let checkfirst = let str = T.asBStr si in
                                    let d = B.head str
                                    in when (isDigit d || d == '#') (fail $ "expected integer but got " ++ show str)
-                  defaulted `orElse` (checkfirst >> uplevel 1 (procEval (si:p)))
+                  defaulted `orElse` (checkfirst >> uplevel 1 (cmdEval (si:p)))
               _      -> argErr "uplevel"
  where getLevel l = do
          let badlevel = tclErr $ "bad level " ++ show (T.asBStr l)

@@ -263,6 +263,10 @@ test "namespace origin, ns" {
   finalize { ns boo }
 }
 
+proc proc_exists pn { 
+  expr { $pn in [info procs] }
+}
+
 test "namespace origin after import" {
   namespace eval boo { namespace export eep; proc eep {} { return OK } }
   checkthat [namespace origin ::boo::eep] eq {::boo::eep}
@@ -273,6 +277,8 @@ test "namespace origin after import" {
   checkthat [namespace origin eep] eq {::boo::eep}
 
   finalize { ns boo }
+  checkthat [proc_exists eep] == 0
+  rename eep ""
 }
 
 test "ns export pattern" {

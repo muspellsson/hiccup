@@ -5,7 +5,7 @@ import Match (globMatch)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import ProcUtil (mkLambda)
-import Data.ByteString.Char8 (isPrefixOf)
+import TclLib.LibUtil
 import qualified TclObj as T
 import Control.Monad
 import qualified Data.Sequence as S
@@ -13,7 +13,7 @@ import Data.Sequence ((><))
 
 listCmds = makeCmdList $
   [("list", cmdList),("lindex",cmdLindex),
-   ("llength",procLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
+   ("llength",cmdLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
    ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
    ("lrange", cmdLrange), ("lmap", cmdLmap),
    ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
@@ -23,21 +23,20 @@ cmdList = return . T.mkTclList
 cmdLindex args = case args of
           [l]   -> return l
           [l,i] -> do items <- T.asSeq l
-                      if T.isEmpty i 
-                           then return l 
+                      if T.isEmpty i then return l 
                            else do
                             let ilen = S.length items                            
-                            ind   <- toIndex ilen i
+                            ind <- toIndex ilen i
                             if ind >= ilen || ind < 0 then ret else return (S.index items ind)
           _     -> argErr "lindex"
 
-procLlength args = case args of
+cmdLlength args = case args of
         [lst] -> T.asSeq lst >>= return . T.fromInt . S.length
-        _     -> argErr "llength"
+        _     -> vArgErr "llength list"
 
 procLset args = case args of
         [name,val] -> varModify (T.asVarName name) (\_ -> return val)
-        [name,ind,val] ->  varModify (T.asVarName name) $
+        [name,ind,val] -> varModify (T.asVarName name) $
                            \old -> do
                                items <- T.asSeq old
                                if T.isEmpty ind 
@@ -136,13 +135,6 @@ cmdLrange args = case args of
           i2 <- toIndex ilen e
           return $ T.mkTclList' (S.take (i2 - i1 + 1) (S.drop i1 items))
    _           -> argErr "lrange"
-
-toIndex len v = case T.asInt v of
-                     Just i -> return i
-                     Nothing -> let strval = T.asBStr v
-                                in if strval `isPrefixOf` (pack "end") && not (bsNull strval)
-                                     then return $ len - 1
-                                     else fail "invalid index"
 
 cmdLmap args = case args of
   [fun,lst] -> do

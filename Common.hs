@@ -295,9 +295,9 @@ getCmdNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
 getCmdNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
- where pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
-       pmLookup !i !m = Map.lookup i (unCmdMap m)
-       {-# INLINE pmLookup #-}
+
+pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
+pmLookup !i !m = let r = Map.lookup i (unCmdMap m) in r `seq` r
 {-# INLINE getCmdNorm #-}
 
 
@@ -371,7 +371,7 @@ varUnsetNS qns = usingNsFrame qns varUnset'
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
 usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame ns = getNamespace ns >>= getNSFrame
+       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
 {-# INLINE usingNsFrame #-}
 
 {- This specialization is ugly, but GHC hasn't been doing it for me and it
@@ -471,9 +471,7 @@ upvar n d s = do
 deleteNS name = do 
  let nst = parseNSTag name 
  ns <- getNamespace' nst >>= readRef
- case nsParent ns of
-   Nothing -> return ()
-   Just p -> removeChild p (nsTail nst)
+ whenJust (nsParent ns) $ \p -> removeChild p (nsTail nst)
 
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
 addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
@@ -516,8 +514,7 @@ variableNS name val = do
   if same then insertVar fr name varVal
           else n `linkToFrame` (nsfr, n)
  where
-   ensureNotArr Nothing  = return ()
-   ensureNotArr (Just _) = tclErr $ "can't define " ++ show name ++ ": name refers to value in array"
+   ensureNotArr v = whenJust v $! \_ -> tclErr $ "can't define " ++ show name ++ ": name refers to value in array"
    varVal = maybe Undefined ScalarVar val
    sameTags f1 f2 = do
       t1 <- getTag f1
@@ -532,6 +529,11 @@ exportNS clear name = do
 getExportsNS = 
   getCurrNS >>= readRef >>= return . reverse . nsExport
 
+whenJust x f = case x of
+      Nothing -> return ()
+      Just v  -> f $! v
+{-# INLINE whenJust #-}
+
 importNS force name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
@@ -542,9 +544,7 @@ importNS force name = do
             np <- mkProcAlias nsr n 
             when (not force) $ do
                  oldp <- getCmdNS (NSQual Nothing n)
-                 case oldp of
-                    Nothing -> return ()
-                    Just _  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
+                 whenJust oldp $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
             registerCmd (NSQual Nothing n) np
        getExports nsr pat = do 
                ns <- readRef nsr

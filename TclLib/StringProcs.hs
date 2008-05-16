@@ -7,6 +7,7 @@ import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper)
+import TclLib.LibUtil
 
 import Test.HUnit
 
@@ -48,34 +49,19 @@ string_match args = case map T.asBStr args of
 string_index args = case args of
                      [s,i] -> do let str = T.asBStr s
                                  let slen = B.length str
-                                 ind <- toInd slen i
+                                 ind <- toIndex slen i
                                  if ind >= slen || ind < 0 
                                   then ret 
                                   else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
 
-toInd :: (Monad m) => Int -> T.TclObj -> m Int
-toInd len i = case T.asInt i of
-                Nothing -> tryEnd
-                Just iv -> return iv
- where ibs = T.asBStr i 
-       lastInd = len - 1
-       badIndex = fail "bad index"
-       tryEnd = if ibs `B.isPrefixOf` "end" 
-                  then return lastInd
-                  else do let (ip,is) = B.splitAt (B.length "end-") ibs
-                          if ip == "end-"
-                              then case B.readInt is of
-                                       Just (iv,_) -> return (lastInd - iv)
-                                       _           -> badIndex
-                              else badIndex
 
 string_range args = case args of
    [s,i1,i2] -> do 
        let str = T.asBStr s
        let slen = B.length (T.asBStr s)
-       ind1 <- toInd slen i1
-       ind2 <- toInd slen i2
+       ind1 <- toIndex slen i1
+       ind2 <- toIndex slen i2
        treturn $ B.drop ind1 (B.take (ind2+1) str)
    _ -> argErr "string range"
 
@@ -87,7 +73,7 @@ procAppend args = case args of
  where oconcat = T.fromBStr . B.concat . map T.asBStr
 
 procSplit args = case args of
-        [str]       -> dosplit (T.asBStr str)  (pack "\t\n ")
+        [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
                        in if B.null splitChars then return $ (T.mkTclList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
                                                else dosplit (T.asBStr str) splitChars
@@ -97,15 +83,16 @@ procSplit args = case args of
 
 stringTests = TestList [ matchTests, toIndTests ]
 
-
 toIndTests = TestList [
-     (someLen, T.fromStr "10") `should_be` 10
-     ,(someLen, T.fromStr "end") `should_be` lastInd
-     ,(someLen, T.fromStr "e") `should_be` lastInd
-     ,(someLen, T.fromStr "en") `should_be` lastInd
-     ,(someLen, T.fromStr "end-1") `should_be` (lastInd - 1)
-     ,(someLen, T.fromStr "e-4") `should_fail` ()
-  ] where should_be (l,i) b =  ((toInd l i) :: Either String Int)  ~=? (Right b)
-          should_fail (l,i) _ =  ((toInd l i) :: Either String Int)  ~=? (Left "bad index")
+     (someLen, "10") `should_be` 10
+     ,(someLen, "end") `should_be` lastInd
+     ,(someLen, "e") `should_be` lastInd
+     ,(someLen, "en") `should_be` lastInd
+     ,(someLen, "end-1") `should_be` (lastInd - 1)
+     ,(someLen, "e-4") `should_fail` ()
+     ,(someLen, "") `should_fail` ()
+  ] where should_be p b = show p ~: go p  ~=? (Right b)
+          should_fail p _ =  show p ~: go p  ~=? (Left "bad index")
+          go (l,i) = (toIndex l (T.fromStr i)) :: Either String Int
           someLen = 5
           lastInd = someLen - 1

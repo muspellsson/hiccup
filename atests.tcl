@@ -58,7 +58,6 @@ test "info exists" {
   set arr(4) 2
   checkthat [info exists arr(3)] == 0
   checkthat [info exists arr(4)] == 1
-  # TODO: Check upvar'd exists
 }
 
 test "info level" {
@@ -72,14 +71,13 @@ test "info level" {
 }
 
 test "absolute uplevel" {
-  #set err [get_err { uplevel banana { puts FAIL } }]
-  #checkthat $err eq {bad level "banana"}
-  # TODO: Fix uplevel
   assert_err { uplevel banana { puts FAIL } }
   proc 33xy x { return $x }
+  proc nop x { return $x }
   assert_err { uplevel 33xy 4 }
+  checkthat [uplevel nop 4] == 4
   uplevel #0 { checkthat [info level] == 0 }
-  finalize { proc 33xy }
+  finalize { proc 33xy proc nop }
 }
 
 test "info commands vs info procs" {

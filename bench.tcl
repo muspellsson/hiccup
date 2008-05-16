@@ -4,7 +4,7 @@ proc decr v {
 }
 
 proc fib x { 
-  if {<= $x 1} { 
+  if {$x <= 1} { 
     return 1
   } else { 
     return [+ [fib [ - $x 1 ]] [fib [ - $x 2 ]]]
@@ -13,7 +13,7 @@ proc fib x {
 
 proc fact x {
   set res 1
-  while {<= 1 $x} {
+  while { 1 <= $x } {
     set res [* $x $res]
     decr x
   }
@@ -24,7 +24,7 @@ proc memfib x {
   set loc(0) 1
   set loc(1) 1
   set ctr 2
-  while { <= $ctr $x } {
+  while { $ctr <= $x } {
     set v1 "$loc([- $ctr 1])"
     set v2 "$loc([- $ctr 2])"
     set {the sum} [+ $v1 $v2]
@@ -44,7 +44,7 @@ proc sum lst {
 
 proc range {a b {step 1}} {
   set result {}
-  for {set i $a} {<= $i $b} {incr i $step} {
+  for {set i $a} {$i <= $b} {incr i $step} {
     lappend result $i
   }
   return $result
@@ -52,20 +52,20 @@ proc range {a b {step 1}} {
 
 set runcount 20
 
-while {<= 1 $runcount } {
-  for {set fcount 18} {< 2 $fcount} {decr fcount} {
+while {1 <= $runcount } {
+  for {set fcount 18} { 2 < $fcount} {decr fcount} {
     puts [fib $fcount]
-    if { <= $fcount 2 } { break }
+    if { $fcount <= 2 } { break }
   }
 
   set fcount 25 
-  while {<= 2 $fcount} {
+  while {2 <= $fcount} {
     set x [memfib $fcount]
     decr fcount
   }
 
   set count 10
-  while {<= 1 $count} {
+  while {1 <= $count} {
     set x [fact $count]
     decr count
   }
@@ -87,7 +87,7 @@ namespace eval Count {
 }
 
 proc repeat {n code} {
-  for {set i 0} { <= $i $n } {incr i} $code
+  for {set i 0} { $i <= $n } {incr i} $code
 }
 
 repeat 350 { Count::bump }
