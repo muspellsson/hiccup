@@ -263,7 +263,7 @@ evtGetDue = do
   when (not (null d)) $ modify (\s -> s { tclEvents = em' })
   return d
 
-upped !s !fr = getUpMap fr >>= \f -> return $! (Map.lookup s f)
+upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in (Map.lookup s sf))
 {-# INLINE upped #-}
 
 
@@ -295,9 +295,9 @@ getCmdNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
 getCmdNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
   return $! (pmLookup i currpm)
-
-pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
-pmLookup !i !m = let r = Map.lookup i (unCmdMap m) in r `seq` r
+ where pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
+       pmLookup !i !m = Map.lookup i (unCmdMap m)
+       {-# INLINE pmLookup #-}
 {-# INLINE getCmdNorm #-}
 
 
@@ -599,7 +599,7 @@ getFrameVars :: FrameRef -> TclM VarMap
 getFrameVars !frref = (frref `refExtract` frVars) 
 {-# INLINE getFrameVars #-}
 
-getUpMap !frref = (frref `refExtract` upMap) 
+getUpMap !frref = frref `refExtract` upMap 
 {-# INLINE getUpMap #-}
 
 getNSFrame :: NSRef -> TclM FrameRef

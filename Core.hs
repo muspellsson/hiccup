@@ -46,7 +46,7 @@ evalRTokens (x:xs) acc = case x of
  where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
 
 runCmd :: Cmd -> TclM T.TclObj
-runCmd (n,args) = do
+runCmd (!n,args) = do
   evArgs <- evalRTokens args []
   res <- evArgs `seq` go n evArgs
   return $! res

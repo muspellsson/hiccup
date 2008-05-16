@@ -5,7 +5,6 @@ import TclParse (TokCmd)
 import VarName
 import Util
 
-
 data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
 
 data Atom = AStr !BString | ANum !TNum 

@@ -22,14 +22,14 @@ coreCmds = makeCmdList [
   ("global", procGlobal),
   ("upvar", procUpVar),
   ("eval", cmdEval),
-  ("catch", procCatch),
+  ("catch", cmdCatch),
   ("break", cmdRetv EBreak),
   ("continue", cmdRetv EContinue),
   ("unset", procUnset),
-  ("rename", procRename),
+  ("rename", cmdRename),
   ("info", cmdInfo),
   ("apply", cmdApply),
-  ("error", procError)]
+  ("error", cmdError)]
 
 cmdProc args = case args of
   [name,alst,body] -> do
@@ -49,12 +49,12 @@ procUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
      _       -> argErr "unset"
 
-procRename args = case args of
+cmdRename args = case args of
     [old,new] -> renameProc (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
 
-procError [s] = tclErr (T.asStr s)
-procError _   = argErr "error"
+cmdError [s] = tclErr (T.asStr s)
+cmdError _   = argErr "error"
 
 cmdEval args = case args of
                  []   -> argErr "eval"
@@ -82,14 +82,14 @@ cmdUplevel args = case args of
                                             _ -> badlevel
                          _ -> badlevel
 
-procCatch args = case args of
-           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` (retInt . errCode)
+cmdCatch args = case args of
+           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retCode
            [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
  where retReason v e = case e of
                          EDie s -> varSetNS (T.asVarName v) (T.mkTclStr s) >> return T.tclTrue
-                         _      -> retInt . errCode $ e
-       retInt = return . T.fromInt
+                         _      -> retCode e
+       retCode = return . T.fromInt . errCode
 
 cmdRetv c args = case args of
     [] -> throwError c

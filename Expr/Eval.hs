@@ -30,6 +30,7 @@ runCExpr lu exp = run exp
                         DVar vn   -> lu (VarRef vn)
                         DFun fn e -> mapM run e >>= callFun fn 
                         DCom cmd  -> lu (CmdEval cmd)
+{-# INLINE runCExpr #-}
 
 getItem item = case item of
                  ANum (TInt i)    -> return $! T.fromInt i
@@ -47,7 +48,7 @@ runExpr lu exp = run exp
                         vb <- run b
                         (getOpFun op) va vb
                 UnApp op v -> run v >>= getUnFun op
-                Paren e       -> run e
+                Paren e    -> run e
        callFun fn args = lu (FunRef (fn, args))
        getDep item = case item of
                         DVar vn   -> lu (VarRef vn)
