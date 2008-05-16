@@ -1,4 +1,4 @@
-if {[info tclversion] == 8.5 } {
+if {![is_hiccup] } {
   namespace import ::tcl::mathop::*
   namespace import ::tcl::mathfunc::*
 }
