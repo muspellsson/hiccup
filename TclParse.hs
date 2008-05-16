@@ -120,13 +120,13 @@ parseVarTerm = getVar `orElse` braceVar
  where getVar = getPred1 wordChar "word"
 
 parseInd :: Parser BString
-parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
+parseInd = chain_ [pchar '(', getPred (/= ')'), pchar ')']
 
-wordToken = parseMany1 (someVar `orElse` inner) `wrapWith` B.concat
- where pthing = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"
-       inner = (parseMany1 (pthing `orElse` escapedChar)) `wrapWith` B.concat
-       someVar = chain [pchar '$', parseVarBody, tryGet parseInd]
- -- TODO: Rename pthing
+wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
+ where simple = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"
+       inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
+       someVar = chain_ [pchar '$', parseVarBody, tryGet parseInd]
+       someCmd = consumed (brackets parseTokens)
 
 parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
  where braceIt w = B.concat ["{", w , "}"]
@@ -184,6 +184,7 @@ runParseTests = "runParse" ~: TestList [
      ,"arr w/ esc index" ~: (pr ["set","x(\\))", "4"]) ?=? "set x(\\)) 4"
      ,"quoted ws arr" ~: (pr ["set","arr(1 2)", "4"]) ?=? "set \"arr(1 2)\" 4"
      ,"hashed num" ~: (pr ["uplevel", "#1", "exit"]) ?=? "uplevel #1 exit"
+     ,"command appended" ~: (pr ["set", "val", "x[nop 4]"]) ?=? "set val x[nop 4]"
      ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
      ,"expand" ~: ([(Word "incr", [Expand (Word "$boo")])], "") ?=? "incr {*}$boo"
      ,"no expand" ~: ([(Word "incr", [mkNoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
@@ -236,6 +237,7 @@ wordTokenTests = "wordToken" ~: TestList [
      ,"Simple2" ~: ("$whoa", "") ?=? "$whoa"
      ,"Simple with bang" ~: ("whoa!", " ") ?=? "whoa! "
      ,"braced, then normal" ~: ("${x}$x", "") ?=? "${x}$x"
+     ,"normal, then cmd" ~: ("fish[nop 5]", "") ?=? "fish[nop 5]"
      ,"non-var, then var" ~: ("**$x", "") ?=? "**$x"
      ,"non-var, then var w/ space" ~: ( "**${a b}", "") ?=? "**${a b}"
      ,"escaped" ~: ( "x\\ y", "")  ?=? "x\\ y"

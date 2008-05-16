@@ -17,12 +17,19 @@ eatSpaces s = return ((), dropSpaces s)
 emit v s = return (v,s)
 {-# INLINE emit #-}
 
+consumed :: Parser t -> Parser BString
+consumed p s = do 
+    (_,r) <- p s 
+    let lendiff = B.length s - B.length r
+    return (B.take lendiff s, r)
+
 orElse :: Parser t -> Parser t -> Parser t
 orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
 {-# INLINE orElse #-}
 
 tryGet fn = fn `orElse` (emit "")
      
+chain_ lst = consumed (foldr (.>>) (emit ()) lst)
 chain :: [Parser BString] -> Parser BString
 chain lst = (foldr pcons (emit []) lst) `wrapWith` B.concat
 {-# INLINE chain #-}

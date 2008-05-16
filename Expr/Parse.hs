@@ -19,11 +19,6 @@ import Expr.TExp
 import Test.HUnit 
 
 
-consumed :: Parser t -> Parser BString
-consumed p s = do 
-    (_,r) <- p s 
-    let lendiff = B.length s - B.length r
-    return (B.take lendiff s, r)
 
 
 parseNum :: Parser TNum
