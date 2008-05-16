@@ -40,6 +40,7 @@ getOpFun !op = case op of
     OpOr -> procBool (||)
     OpLShift -> Math.leftShift
     OpRShift -> Math.rightShift
+    OpIn     -> Math.opIn
  where up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 

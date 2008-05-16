@@ -1,8 +1,9 @@
 proc is_hiccup {} {
-  expr { [info nameofexecutable] eq "hiccup" }
+  expr { [info nameofexecutable] in "hiccup Main.hs" }
 }
 
 if { ![is_hiccup] } {
+  puts "NOT HICCUP"
   proc lmap {f lst} {
     set result [list]
     foreach i $lst {

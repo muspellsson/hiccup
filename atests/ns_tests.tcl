@@ -166,6 +166,8 @@ test "ns variable array" {
   }
   
   checkthat [get_index 2] eq two
+
+  finalize { ns foo proc get_index }
 }
 
 test "ns variable undefined scalar" {
@@ -285,7 +287,7 @@ test "ns export pattern" {
 
   checkthat [golly] eq OK
   checkthat [eep] eq OK
-  assertErr { faulty }
+  assert_err { faulty }
 
   finalize { namespace boo }
 }

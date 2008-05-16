@@ -10,6 +10,7 @@ module MathOp(
         opNot,
         leftShift,
         rightShift,
+        opIn,
         lessThan,
         lessThanEq,
         greaterThan,
@@ -18,6 +19,7 @@ module MathOp(
 
 import qualified TObj as T
 import Data.Bits
+import Data.Foldable as F
 
 numop name iop dop !x !y = 
    case (T.asInt x, T.asInt y) of
@@ -101,3 +103,7 @@ shiftFun n f a b =
                                 then fail "negative shift argument"
                                 else return . T.fromInt $ i1 `f` i2
         _                  -> fail $ "can't use non-numeric string as operand of " ++ show n
+
+opIn i lst = do
+     s <- T.asSeq lst
+     return . T.fromBool $ (F.any (T.strEq i) s)

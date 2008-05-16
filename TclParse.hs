@@ -120,7 +120,7 @@ parseVarTerm = getVar `orElse` braceVar
  where getVar = getPred1 wordChar "word"
 
 parseInd :: Parser BString
-parseInd = chain_ [pchar '(', getPred (/= ')'), pchar ')']
+parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 
 wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
  where simple = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"

@@ -19,8 +19,6 @@ import Expr.TExp
 import Test.HUnit 
 
 
-
-
 parseNum :: Parser TNum
 parseNum s = do
    (i,r) <- parseInt s
@@ -37,9 +35,10 @@ parseInt s = case B.readInt s of
 
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
+                   ,[("in", OpIn)]
+                   ,[("eq",OpStrEq), ("ne",OpStrNe)]
                    ,[("==",OpEql), ("!=",OpNeql)]
                    ,[("<=", OpLte), (">=", OpGte), ("<",OpLt), (">",OpGt)]
-                   ,[("eq",OpStrEq), ("ne",OpStrNe)]
                    ,[("<<", OpLShift), (">>", OpRShift)]
                    ,[("+",OpPlus), ("-",OpMinus)]
                    ,[("*", OpTimes), ("/", OpDiv)] 

@@ -23,7 +23,7 @@ data Expr = Item Atom
 
 data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
           OpLt | OpGt | OpLte | OpGte | OpStrNe | OpStrEq | OpAnd |
-          OpOr | OpExp | OpLShift | OpRShift
+          OpOr | OpExp | OpLShift | OpRShift | OpIn
   deriving (Show,Eq,Ord,Enum, Bounded)
 
 data UnOp = OpNot | OpNeg deriving (Eq,Show)

@@ -14,7 +14,7 @@ import Test.HUnit
 mathCmds = makeCmdList $
    [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
-    ("int", m1 mathInt),
+    ("int", m1 mathInt), ("in", m2 opIn),
     ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
     ("==", procEql), ("!=", cmdNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),

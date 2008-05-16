@@ -16,7 +16,7 @@ proc die s {
   exit
 }
 
-proc assertPass {} {
+proc ::testlib::pass {} {
   puts -nonewline "."
   incr ::testlib::assertcount
   incr ::testlib::passcount
@@ -31,7 +31,7 @@ proc assertFail why {
 proc verify { code { msg "" } } {
   if { [uplevel $code] } {
     if { $::testlib::trace_test == 1 } { puts "\"$code\" was true" }
-    assertPass
+    ::testlib::pass
   } else {
     assertFail "\"$code\" was not true ($msg)"
   }
@@ -41,7 +41,7 @@ proc checkthat { var { op == } { r 1 } { msg "" } } {
   set res [$op $var $r]
   if { $res == 1 } {
     if { $::testlib::trace_test == 1 } { puts "\"$var $op $r\" was true" }
-    assertPass
+    ::testlib::pass
   } else {
     assertFail "\"$var $op $r\" was not true ($msg)"
   }
@@ -50,7 +50,7 @@ proc checkthat { var { op == } { r 1 } { msg "" } } {
 proc assertNoErr code {
   set ret [catch "uplevel {$code}"]
   if { $ret == 0 } {
-    assertPass
+    testlib::pass
   } else {
     assertFail "code failed: $code"
   }
@@ -63,7 +63,7 @@ proc assert_noerr code {
 proc assertErr { code { msg "" } } {
   set ret [catch "uplevel {$code}"]
   if { $ret == 1 } {
-    assertPass
+    ::testlib::pass
   } else {
     assertFail "code should've failed: $code ($ret) $msg"
   }
@@ -80,7 +80,7 @@ proc get_err code {
 
 proc assert code {
   set ret [uplevel $code]
-  if { $ret == 1 } { assertPass } else { assertFail "Failed: $code" }
+  if { $ret == 1 } { ::testlib::pass } else { assertFail "Failed: $code" }
 }
 
 proc test {name body} {
@@ -88,15 +88,15 @@ proc test {name body} {
   set testlib::test_results($name) "not run"
 }
 
-proc run_tests {} {
+proc ::testlib::run_tests {} {
   puts "Running [array size testlib::tests] tests."
   foreach tn [array names ::testlib::tests] {
-    uplevel "run_test {$tn}"
+    uplevel "::testlib::run_test {$tn}"
   }
   puts stdout "\nDone. Passed $testlib::passcount / $testlib::assertcount checks."
 }
 
-proc run_test tname {
+proc ::testlib::run_test tname {
   uplevel "proc test_proc {} {$::testlib::tests($tname)}"
   set ::testlib::current_test $tname
   set ret [catch { uplevel test_proc } retval]
