@@ -46,15 +46,16 @@ evalRTokens (x:xs) acc = case x of
  where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
 
 runCmd :: Cmd -> TclM T.TclObj
-runCmd (!n,args) = do
+runCmd (Cmd n args) = do
   evArgs <- evalRTokens args []
-  res <- evArgs `seq` go n evArgs
+  res <- go n evArgs
   return $! res
- where go (Left p@(NSQual _ name)) a = getCmdNS p >>= \pr -> doCall name pr a
-       go (Right rt) a = do lst <- evalRTokens [rt] []
-                            let (o:rs) = lst ++ a
-                            let name = T.asBStr o
-                            getCmd name >>= \pr -> doCall name pr rs
+ where go (BasicCmd p@(NSQual _ name)) a = getCmdNS p >>= \pr -> doCall name pr a
+       go (DynCmd rt) a = do 
+             lst <- evalRTokens [rt] []
+             let (o:rs) = lst ++ a
+             let name = T.asBStr o
+             getCmd name >>= \pr -> doCall name pr rs
 
 
 doCall pn !mproc args = do

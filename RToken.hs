@@ -1,4 +1,4 @@
-module RToken (Cmd, RToken(..), singleTok, tryParsed, Parseable, Parsed, 
+module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable, Parsed, 
   tokCmdToCmd,
   makeCExpr,
   asParsed, rtokenTests ) where
@@ -15,8 +15,8 @@ import Test.HUnit
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
 type ExprResult = Either String (CExpr Cmd)
-type CmdName = Either (NSQual BString) RToken
-type Cmd = (CmdName, [RToken])
+data CmdName = BasicCmd (NSQual BString) | DynCmd RToken deriving (Eq,Show)
+data Cmd = Cmd CmdName [RToken] deriving (Eq,Show)
 data RToken = Lit !BString | LitInt !Int | CatLst [RToken] 
               | CmdTok !Cmd | ExpTok RToken
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString RToken 
@@ -89,9 +89,9 @@ fromExpr m = case m of
    Right (r,rs) -> if B.null rs then Right (compileExpr toCmd r) else Left ("incomplete expr parse: " ++ show rs)
 
 toCmd :: TokCmd -> Cmd
-toCmd (x,xs) = (handleProc (compToken x), map compToken xs)
-  where handleProc (Lit v) = Left (parseProc v)
-        handleProc xx      = Right xx
+toCmd (x,xs) = Cmd (handleProc (compToken x)) (map compToken xs)
+  where handleProc (Lit v) = BasicCmd (parseProc v)
+        handleProc xx      = DynCmd xx
 
 singleTok b = [toCmd (Word b,[])]
 
@@ -102,12 +102,12 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"x(G) -> ArrRef x G" ~: "$x(G)" `compiles_to` (arrref "x" (lit "G"))  
       ,"CatLst" ~: "$x$y" `compiles_to` (CatLst [varref "x", varref "y"])  
       ,"lit" ~: "incr x -1" `compiles_to` lit "incr x -1"
-      ,"cmd" ~: "[double 4]" `compiles_to` cmdTok (Left (vlocal "double"), [ilit 4])
+      ,"cmd" ~: "[double 4]" `compiles_to` cmdTok (BasicCmd (vlocal "double"), [ilit 4])
     ]
 
   compTokenTests = "compToken" ~: TestList [ 
       "1" ~: (mkwd "x")  `tok_to` (lit "x")  
-      ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [((Left (vlocal "puts")), [ilit 4])])
+      ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [Cmd (BasicCmd (vlocal "puts")) [ilit 4]])
     ]
   
   block s v = Block (pack s) (Right v) ((fromExpr . parseFullExpr . pack) s)
@@ -116,7 +116,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
   lit = Lit . pack 
   ilit = LitInt 
   vlocal x = NSQual Nothing (pack x)
-  cmdTok = CmdTok
+  cmdTok (n,a) = CmdTok (Cmd n a)
   varref = VarRef . parseVarName . pack 
   arrref s t = ArrRef Nothing (pack s) t
   tok_to a b = do let r = compToken a
