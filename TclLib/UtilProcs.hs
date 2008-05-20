@@ -30,13 +30,6 @@ incr n !i = do
     iv <- T.asInt v
     varSetNS vn $! (T.fromInt (iv + i))
      
-    
-{-
-incr n !i = varModify (T.asVarName n) $
-                 \v -> do ival <- T.asInt v
-                          return $! (T.mkTclInt (ival + i))
--}
-
 cmdPid args = case args of
      [] -> io getProcessID >>= return . T.fromStr . show
      _  -> argErr "pid"

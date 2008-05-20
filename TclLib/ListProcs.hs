@@ -35,8 +35,8 @@ cmdLlength args = case args of
         _     -> vArgErr "llength list"
 
 procLset args = case args of
-        [name,val] -> varModify (T.asVarName name) (\_ -> return val)
-        [name,ind,val] -> varModify (T.asVarName name) $
+        [name,val] -> modifyVar (T.asVarName name) (\_ -> return val)
+        [name,ind,val] -> modifyVar (T.asVarName name) $
                            \old -> do
                                items <- T.asSeq old
                                if T.isEmpty ind 
@@ -47,6 +47,10 @@ procLset args = case args of
                                       return $! T.mkTclList' (S.update i val items)
         _              -> argErr "lset"
  where rangeCheck seq i = when (i < 0 || i >= (S.length seq)) $ fail "list index out of range" 
+       modifyVar vn f = do
+            o <- varGetNS vn
+            n <- f o
+            varSetNS vn $! n
                               
 procLassign args = case args of
   (list:(varnames@(_:_))) -> do l <- T.asList list
@@ -67,9 +71,10 @@ procJoin args = case args of
 procConcat = return . T.objconcat
 
 procLappend args = case args of
-        (n:news) -> varModify (T.asVarName n)  $
-                \old -> do items <- T.asSeq old
-                           return $ T.mkTclList' (items >< (S.fromList news))
+        (n:news) -> do 
+             let vn = T.asVarName n 
+             items <- varGetNS vn >>= T.asSeq 
+             varSetNS vn $ T.mkTclList' (items >< (S.fromList news))
         _        -> argErr "lappend"
 
 cmdLsearch args = case args of

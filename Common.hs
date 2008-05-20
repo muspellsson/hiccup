@@ -16,7 +16,6 @@ module Common (TclM
        ,getCmdNS
        ,registerProc
        ,varGetNS
-       ,varModify
        ,varSetNS
        ,varSetHere
        ,varExists
@@ -298,13 +297,6 @@ varSet vn v frref = do
                           Undefined     -> return (ArrayVar (Map.singleton i v))
                           _     -> cantSetErr "variable isn't array"
          changeVar $! newVal
-
-
-varModify !vn f = do 
-  val <- varGetNS vn
-  res <- f val
-  varSetNS vn res
-{-# INLINE varModify #-}
 
 varExists :: BString -> TclM Bool
 varExists name = (varGet name >> return True) `ifFails` False
