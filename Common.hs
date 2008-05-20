@@ -51,7 +51,6 @@ module Common (TclM
        ,getExportsNS
        ,importNS
        ,commandNames
-       ,procNames
        ,commonTests
     ) where
 
@@ -183,10 +182,9 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
--- TODO: Refactor these.
-commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . cmdMapElems
-procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . cmdMapElems
-
+commandNames procsOnly = nsCmdMap >>= return . map cmdName . filt . cmdMapElems
+ where nsCmdMap = getCurrNS >>= getNsCmdMap
+       filt = if procsOnly then filter cmdIsProc else id
 
 cmdMapElems :: CmdMap -> [TclCmdObj]
 cmdMapElems = Map.elems . unCmdMap
