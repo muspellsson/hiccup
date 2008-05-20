@@ -1,9 +1,10 @@
-module Interp (mkInterp, mkInterpWithVars, runInterp, interpCmds) where
+module TclLib.Interp (mkInterp, mkInterpWithVars, runInterp, interpCmds) where
 
 import Common
 import Util
 import Data.IORef
 import qualified TclObj as T
+import TclLib.LibUtil
 import Core (evalTcl)
 
 
@@ -11,7 +12,7 @@ interpCmds = makeCmdList [
     ("interp", cmdInterp)    
   ]
 
-cmdInterp = makeEnsemble "interp" [
+cmdInterp = mkEnsemble "interp" [
     ("create", interp_create),
     ("eval", interp_eval)
   ]

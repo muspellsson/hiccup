@@ -31,7 +31,6 @@ module Common (TclM
        ,evtGetDue
        ,uplevel
        ,upvar
-       ,makeEnsemble
        ,io
        ,tclErr
        ,treturn
@@ -107,17 +106,9 @@ makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
 mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
 
-
-makeCmdMap :: [(String,TclCmd)] -> CmdMap
-makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj_
-
-
-toTclCmdObj = return . toTclCmdObj_
-toTclCmdObj_ (n,v) = (bsn, TclCmdObj bsn False errStr Nothing v)
+toTclCmdObj (n,v) = return (bsn, TclCmdObj bsn False errStr Nothing v)
  where errStr = pack $ show bsn ++ " isn't a procedure"
        bsn = pack n
-
-
 
 tclErr :: String -> TclM a
 tclErr s = do
@@ -636,29 +627,6 @@ modKids f ns = let kidfun kr = do
                         kid <- readIORef kr
                         when (nsParent kid /= Nothing) (f kr)
               in mapM_ kidfun (Map.elems (nsChildren ns))
-
-makeEnsemble name subs = top
-  where top args = 
-           case args of
-             (x:xs) -> case plookup (T.asBStr x) of
-                         Just f  -> f `applyTo` xs
-                         Nothing -> eunknown (T.asBStr x) xs
-             []  -> argErr $ " should be \"" ++ name ++ " subcommand ?arg ...?\""
-        eunknown n al = 
-            let names = cmdMapNames subMap
-            in case completes n names of
-                 [x] -> case (B.length n > 1, plookup x) of
-                          (True, Just p) -> p `applyTo` al
-                          _              -> no_match n names
-                 _   -> no_match n names
-        no_match n lst = tclErr $ "unknown or ambiguous subcommand " ++ show n ++ ": must be " 
-			                        ++ commaList "or" (map unpack lst)
-        subMap = makeCmdMap subs
-        plookup s = Map.lookup s (unCmdMap subMap)
-        cmdMapNames = map cmdName . cmdMapElems
-        completes s lst = case filter (s `B.isPrefixOf`) lst of 
-                            [] -> lst
-                            x  -> x
 
 emptyCmdMap = CmdMap 0 Map.empty
 emptyCmdList = CmdList []

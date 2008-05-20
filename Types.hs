@@ -44,7 +44,9 @@ data TclState = TclState {
     tclCmdCount :: !Int }
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
+
 type CmdRef = IORef TclCmdObj
+
 data TclCmdObj = TclCmdObj { 
                    cmdName :: BString, 
                    cmdIsProc :: Bool,
