@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -XGeneralizedNewtypeDeriving #-}
 module Common (TclM
        ,TclState
        ,Err(..)
@@ -64,6 +63,7 @@ import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
 
+import Types
 
 import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
@@ -75,56 +75,6 @@ import TclErr
 import Util
 
 import Test.HUnit
-
-
-newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
- deriving (MonadState TclState, MonadError Err, MonadIO, Monad)
-
-data Namespace = TclNS {
-         nsName :: BString,
-         nsCmds :: !CmdMap,
-         nsFrame :: !FrameRef,
-         nsExport :: [BString],
-         nsParent :: Maybe NSRef,
-         nsChildren :: Map.Map BString NSRef } 
-
-
-type FrameRef = IORef TclFrame
-type NSRef = IORef Namespace
-
-data TclFrame = TclFrame { 
-      frVars :: !VarMap, 
-      upMap :: !(Map.Map BString (FrameRef,BString)), 
-      frNS :: NSRef,
-      frTag :: !Int  }
-
-type TclStack = [FrameRef]
-
-data TclState = TclState { 
-    tclChans :: ChanMap, 
-    tclEvents :: Evt.EventMgr T.TclObj,
-    tclStack :: !TclStack, 
-    tclGlobalNS :: !NSRef,
-    tclCmdCount :: !Int }
-
-type TclCmd = [T.TclObj] -> TclM T.TclObj
-data TclCmdObj = TclCmdObj { 
-                   cmdName :: BString, 
-                   cmdIsProc :: Bool,
-                   cmdBody :: BString,  
-                   cmdOrigNS :: Maybe BString,
-                   cmdAction :: !TclCmd }
-
-type ProcKey = BString
-data CmdMap = CmdMap { 
-      cmdMapEpoch :: !Int,
-      unCmdMap :: !(Map.Map ProcKey TclCmdObj) 
-  } 
-
-type TclArray = Map.Map BString T.TclObj
-data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
-type VarMap = Map.Map BString TclVar
-
 
 getOrigin p = if nso == nsSep 
                   then return $ B.append nso pname 
@@ -147,20 +97,24 @@ mkProcAlias nsr pn = do
                         Nothing -> tclErr "bad imported command. Yikes"
                         Just p  -> p `applyTo` args
   
-data CmdList = CmdList { unCmdList :: [(String, TclCmd)] }
+type CmdSpec = (String,TclCmd)
+data CmdList = CmdList { unCmdList :: [CmdSpec] }
+
 makeCmdList = makeNsCmdList ""
 makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
 
 mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
 
-cmdList2CmdMap = makeCmdMap . unCmdList
 
 makeCmdMap :: [(String,TclCmd)] -> CmdMap
-makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj . mapFst pack
+makeCmdMap = CmdMap 0 . Map.fromList . map toTclCmdObj_
 
-toTclCmdObj (n,v) = (n, TclCmdObj n False (errStr n) Nothing v)
- where errStr n = pack $ show n ++ " isn't a procedure"
+
+toTclCmdObj = return . toTclCmdObj_
+toTclCmdObj_ (n,v) = (bsn, TclCmdObj bsn False errStr Nothing v)
+ where errStr = pack $ show bsn ++ " isn't a procedure"
+       bsn = pack n
 
 
 
@@ -171,7 +125,7 @@ tclErr s = do
 
 setErrorInfo s = do
   glFr <- getGlobalNS >>= getNSFrame
-  varSet' (VarName (pack "errorInfo") Nothing) (T.fromStr s) glFr
+  varSet (VarName (pack "errorInfo") Nothing) (T.fromStr s) glFr
 
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
@@ -182,11 +136,9 @@ makeState = makeState' baseChans
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans vlist cmdlst = do 
     (fr,nsr) <- makeGlobal
-    addCmds nsr (cmdList2CmdMap cmdlst)
     addChildNS nsr (pack "") nsr
     st <- return $! mkState nsr fr
-    (_,res) <- runTclM (withNS (pack "tcl::mathop") (return ())) st
-    return res
+    execTclM runRegister st
  where mkState nsr fr = TclState { tclChans = chans,
                                    tclEvents = Evt.emptyMgr,
                                    tclStack = [fr],
@@ -197,11 +149,14 @@ makeState' chans vlist cmdlst = do
            nsr <- globalNS fr
            setFrNS fr nsr
            return (fr, nsr)
+       runRegister = do
+           withNS (pack "tcl::mathop") (return ())
+           mapM toTclCmdObj (unCmdList cmdlst) >>= mapM (\(n,p) -> registerCmd (parseProc n) p)
        globalNS fr = newIORef $ TclNS { nsName = nsSep, 
                          nsCmds = emptyCmdMap, nsFrame = fr, 
                          nsExport = [],
                          nsParent = Nothing, nsChildren = Map.empty }
-       addCmds nsr (CmdMap _ cm) = changeCmds nsr (\m -> Map.union m cm)
+
 getStack = gets tclStack
 {-# INLINE getStack  #-}
 
@@ -239,12 +194,15 @@ commandNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . cmdMapElems
 procNames = getCurrNS >>= getNsCmdMap >>= return . map cmdName . filter cmdIsProc . cmdMapElems
 
 
+cmdMapElems :: CmdMap -> [TclCmdObj]
 cmdMapElems = Map.elems . unCmdMap
 
 argErr s = tclErr ("wrong # args: " ++ s)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT (unTclM code)) env
+
+execTclM c e = runTclM c e >>= return . snd
 
 modChan f = modify (\s -> s { tclChans = f (tclChans s) })
 getChan n = gets tclChans >>= \m -> return (lookupChan n m)
@@ -294,14 +252,13 @@ getCmdNS (NSQual nst n) = do
 getCmdNorm :: ProcKey -> NSRef -> TclM (Maybe TclCmdObj)
 getCmdNorm !i !nsr = do
   currpm <- getNsCmdMap nsr
-  return $! (pmLookup i currpm)
+  return $! pmLookup i currpm 
  where pmLookup :: ProcKey -> CmdMap -> Maybe TclCmdObj
        pmLookup !i !m = Map.lookup i (unCmdMap m)
        {-# INLINE pmLookup #-}
 {-# INLINE getCmdNorm #-}
 
 
-rmProc name = rmProcNS (parseProc name)
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
  where rmFromNS nsref = io $ changeCmds nsref (Map.delete n) 
 
@@ -314,23 +271,24 @@ registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do fn <- nsr `refExtract` nsName
-                   io $ changeCmds nsr (pmInsert (setOrigin fn newProc))
+                   let newc = setOrigin fn newProc
+                   io $ changeCmds nsr (pmInsert newc)
   setOrigin fn x = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
 
-varSet :: BString -> T.TclObj -> TclM RetVal
-varSet !n v = varSetNS (parseVarName n) v
-{-# INLINE varSet #-}
+varSetRaw :: BString -> T.TclObj -> TclM RetVal
+varSetRaw !n v = varSetNS (parseVarName n) v
 
-varSetNS qvn v = usingNsFrame qvn (\n f -> varSet' n v f)
+varSetNS qvn v = usingNsFrame qvn (\n f -> varSet n v f)
 {-# INLINE varSetNS #-}
 
-varSetHere vn v = getFrame >>= varSet' vn v
+varSetHere vn v = getFrame >>= varSet vn v
+{-# INLINE varSetHere #-}
 
-varSet' vn v frref = do
+varSet vn v frref = do
      isUpped <- upped (vnName vn) frref 
      case isUpped of
          Nothing    -> modVar (vnName vn) >> return v
-         Just (f,s) -> varSet' (vn {vnName = s}) v f
+         Just (f,s) -> varSet (vn {vnName = s}) v f
  where cantSetErr why = fail $ "can't set " ++ showVN vn ++ ":" ++ why
        modVar str = do
          vm <- getFrameVars frref
@@ -359,7 +317,7 @@ renameProc old new = do
   mpr <- getCmd old
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
-   Just pr -> do rmProc old
+   Just pr -> do rmProcNS (parseProc old)
                  unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr))
 
 varUnset :: BString -> TclM RetVal
@@ -754,12 +712,12 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   int = T.mkTclInt
 
   setTests = TestList [
-       "set exists" ~: (varSet (b "x") (int 1)) `checkExists` "x"
-       ,"set exists2" ~: (varSet (b "boogie") (int 1)) `checkExists` "boogie"
-       ,"checkeq" ~: checkEq (varSet name value) "varname" value
+       "set exists" ~: (varSetRaw (b "x") (int 1)) `checkExists` "x"
+       ,"set exists2" ~: (varSetRaw (b "boogie") (int 1)) `checkExists` "boogie"
+       ,"checkeq" ~: checkEq (varSetRaw name value) "varname" value
      ]
   withScopeTests = TestList [
-      "with scope" ~: getVM (varSet (b "x") (int 1)) (\m -> not (Map.null m))
+      "with scope" ~: getVM (varSetRaw (b "x") (int 1)) (\m -> not (Map.null m))
     ]
    where getVM f c = do vmr <- createFrame emptyVarMap 
                         (res,_) <- evalWithEnv (withScope vmr f)
@@ -772,7 +730,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   getTests = TestList [
        "non-exist" ~: (varGet (b "boo")) `checkErr` "can't read \"boo\": no such variable"
-       ,"no err if exists" ~: checkNoErr ((varSet name value) >> varGet name)
+       ,"no err if exists" ~: checkNoErr ((varSetRaw name value) >> varGet name)
      ]
 
   unsetTests = TestList [

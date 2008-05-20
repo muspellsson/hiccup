@@ -278,7 +278,6 @@ test "namespace origin after import" {
 
   finalize { ns boo }
   checkthat [proc_exists eep] == 0
-  rename eep ""
 }
 
 test "ns export pattern" {
