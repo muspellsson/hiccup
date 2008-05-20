@@ -1,4 +1,4 @@
-if {![is_hiccup] } {
+if { !("==" in [info commands]) } {
   namespace import ::tcl::mathop::*
   namespace import ::tcl::mathfunc::*
 }

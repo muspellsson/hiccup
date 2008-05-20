@@ -132,6 +132,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
   dub d = Item (ANum (TDouble d))
   str s = Item (AStr s)
   app2 a op b = BinApp op a b
+  app1 op a = UnApp op a
   should_be_ p dat res = (B.unpack dat) ~: Right (res, "") ~=? p dat
   atomTests = TestList [
      "11" `should_be` (ANum (TInt 11))
@@ -165,6 +166,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"1 == \"1\"" `should_be` (app2 (int 1) OpEql (str "1"))
      ,"1 + 1 != \"1\"" `should_be` (app2 (app2 (int 1) OpPlus (int 1)) OpNeql (str "1"))
      ,"2 << 1 < 5" `should_be` (app2 (app2 (int 2) OpLShift (int 1)) OpLt (int 5))
+     ,"!(3 == 5)" `should_be` (app1 OpNot (Paren (app2 (int 3) OpEql (int 5))))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
   
   numTests = TestList [

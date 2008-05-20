@@ -116,7 +116,7 @@ procGlobal args = case args of
  where inner g = do len <- stackLevel
                     upvar len g g
 
-cmdInfo = makeEnsemble "info" [
+cmdInfo = mkEnsemble "info" [
   matchp "locals" localVars,
   matchp "globals" globalVars,
   matchp "vars" currentVars,

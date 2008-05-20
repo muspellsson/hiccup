@@ -13,7 +13,7 @@ import Test.HUnit
 
 stringProcs = makeCmdList [("string", procString), ("append", procAppend), ("split", procSplit)]
 
-procString = makeEnsemble "string" [
+procString = mkEnsemble "string" [
    ("trim", string_Op "trim" T.trim), 
    ("tolower", string_Op "tolower" (B.map toLower)),
    ("toupper", string_Op "toupper" (B.map toUpper)),

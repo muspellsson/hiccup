@@ -11,16 +11,19 @@ import System.Random
 import MathOp
 import Test.HUnit
 
-mathCmds = makeCmdList $
-   [("+", many plus 0), ("*", many times 1), ("-", m2 minus), ("pow", m2 pow), 
-    ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), ("double", onearg id),
-    ("int", m1 mathInt), ("in", m2 opIn),
-    ("eq", procEq), ("ne", procNe), ("sqrt", m1 squarert), 
+mathCmds = mergeCmdLists [mathFuncs, mathOps]
+mathOps = makeNsCmdList "::tcl::mathop::" $
+   [("+", many plus 0), ("*", many times 1), ("-", m2 minus),
+    ("in", m2 opIn), ("eq", procEq), ("ne", procNe),
     ("==", procEql), ("!=", cmdNotEql), 
     ("/", m2 divide), ("<", lessThanProc),(">", greaterThanProc),
-    mkcmd ">=" greaterThanEq, ("<=",lessThanEqProc), 
-    ("rand", cmdRand), ("srand", procSrand),
-    ("!", cmdNot), ("max", many1 tmax), ("min", many1 tmin)]
+    mkcmd ">=" greaterThanEq, mkcmd "<=" lessThanEq, ("!", cmdNot)]
+
+mathFuncs = makeNsCmdList "::tcl::mathfunc::" $
+    [("rand", cmdRand), ("srand", procSrand), ("sqrt", m1 squarert), 
+    ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), 
+    ("double", onearg id),("int", m1 mathInt),
+    ("pow", m2 pow),("max", many1 tmax), ("min", many1 tmin)]
 
 mkcmd n f = (n,inner)
  where inner args = case args of
@@ -90,11 +93,6 @@ cmdNot args = case args of
 lessThanProc args = case args of
    [a,b] -> return $! lessThan a b
    _     -> argErr "<"
-
-
-lessThanEqProc args = case args of
-   [a,b] -> return $! (lessThanEq a b)
-   _     -> argErr "<="
 
 
 greaterThanProc args = case args of

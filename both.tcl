@@ -1,4 +1,6 @@
 
+namespace import ::tcl::mathop::*
+
 proc fib x { 
   if {$x <= 1} { 
     return 1

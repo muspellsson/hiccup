@@ -2,6 +2,8 @@
 module TclLib.LibUtil where
 
 import Common
+import Util
+import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
@@ -22,3 +24,26 @@ toIndex len i = case T.asInt i of
                                        Just (iv,_) -> return (lastInd - iv)
                                        _           -> badIndex
                               else badIndex
+
+mkEnsemble name subs = top
+  where top args = 
+           case args of
+             (x:xs) -> case plookup (T.asBStr x) of
+                         Just f  -> f xs
+                         Nothing -> eunknown (T.asBStr x) xs
+             []  -> argErr $ " should be \"" ++ name ++ " subcommand ?arg ...?\""
+        eunknown n al = 
+            let names = cmdMapNames subMap
+            in case completes n names of
+                 [x] -> case (B.length n > 1, plookup x) of
+                          (True, Just p) -> p al
+                          _              -> no_match n names
+                 _   -> no_match n names
+        no_match n lst = tclErr $ "unknown or ambiguous subcommand " ++ show n ++ ": must be " 
+			                        ++ commaList "or" (map unpack lst)
+        subMap = Map.fromList (mapFst pack subs)
+        plookup s = Map.lookup s subMap
+        cmdMapNames = Map.keys
+        completes s lst = case filter (s `B.isPrefixOf`) lst of 
+                            [] -> lst
+                            x  -> x

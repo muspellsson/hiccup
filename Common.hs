@@ -10,6 +10,7 @@ module Common (TclM
        ,withLocalScope
        ,withNS
        ,makeCmdList
+       ,makeNsCmdList
        ,mergeCmdLists
        ,getCmd
        ,getCmdNS
@@ -149,8 +150,10 @@ makeState' chans vlist cmdlst = do
            nsr <- globalNS fr
            setFrNS fr nsr
            return (fr, nsr)
+       exportAll ns = withNS (pack ns) (exportNS False (pack "*"))
        runRegister = do
-           withNS (pack "tcl::mathop") (return ())
+           exportAll "::tcl::mathop"
+           exportAll "::tcl::mathfunc"
            mapM toTclCmdObj (unCmdList cmdlst) >>= mapM (\(n,p) -> registerCmd (parseProc n) p)
        globalNS fr = newIORef $ TclNS { nsName = nsSep, 
                          nsCmds = emptyCmdMap, nsFrame = fr, 

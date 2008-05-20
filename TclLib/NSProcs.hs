@@ -3,13 +3,14 @@ module TclLib.NSProcs (nsProcs) where
 
 import Common
 import Core (evalTcl)
+import TclLib.LibUtil
 import VarName
 import qualified TclObj as T
 
 nsProcs = makeCmdList [("namespace", procNamespace), ("variable", procVariable)]
 
 procNamespace :: TclCmd
-procNamespace = makeEnsemble "namespace" [
+procNamespace = mkEnsemble "namespace" [
      ("current", ns_current),
      ("eval", ns_eval),
      ("parent", ns_parent),

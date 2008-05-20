@@ -6,6 +6,7 @@ import Match (globMatches, globMatch, exactMatches)
 import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad
+import TclLib.LibUtil
 import qualified Data.Map as Map
 import VarName 
 import Text.Printf
@@ -21,7 +22,7 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (unpack a) (T.asStr b))
 
 
-procArray = makeEnsemble "array" [
+procArray = mkEnsemble "array" [
               ("get", array_get), ("size", array_size), 
               ("exists", array_exists), ("set", array_set), 
               ("names", array_names), ("unset", array_unset)
