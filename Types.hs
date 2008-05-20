@@ -57,9 +57,18 @@ data TclCmdObj = TclCmdObj {
 type ProcKey = BString
 data CmdMap = CmdMap { 
       cmdMapEpoch :: !Int,
-      unCmdMap :: !(Map.Map ProcKey TclCmdObj) 
+      unCmdMap :: !(Map.Map ProcKey CmdRef) 
   } 
 
 type TclArray = Map.Map BString T.TclObj
 data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
 type VarMap = Map.Map BString TclVar
+
+runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
+runTclM code env = runStateT (runErrorT (unTclM code)) env
+
+execTclM c e = do 
+  (r,s) <- runTclM c e 
+  case r of
+    Right _ -> return s
+    Left e -> error (show e)

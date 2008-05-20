@@ -18,14 +18,14 @@ coreCmds = makeCmdList [
   ("proc", cmdProc),
   ("set", cmdSet),
   ("uplevel", cmdUplevel),
-  ("return", procReturn),
-  ("global", procGlobal),
-  ("upvar", procUpVar),
+  ("return", cmdReturn),
+  ("global", cmdGlobal),
+  ("upvar", cmdUpVar),
   ("eval", cmdEval),
   ("catch", cmdCatch),
   ("break", cmdRetv EBreak),
   ("continue", cmdRetv EContinue),
-  ("unset", procUnset),
+  ("unset", cmdUnset),
   ("rename", cmdRename),
   ("info", cmdInfo),
   ("apply", cmdApply),
@@ -45,12 +45,12 @@ cmdSet args = case args of
      [s1]    -> varGetNS (T.asVarName s1)
      _       -> vArgErr "set varName ?newValue?"
 
-procUnset args = case args of
+cmdUnset args = case args of
      [n]     -> varUnset (T.asBStr n)
      _       -> argErr "unset"
 
 cmdRename args = case args of
-    [old,new] -> renameProc (T.asBStr old) (T.asBStr new) >> ret
+    [old,new] -> renameCmd (T.asBStr old) (T.asBStr new) >> ret
     _         -> argErr "rename"
 
 cmdError [s] = tclErr (T.asStr s)
@@ -98,19 +98,18 @@ cmdRetv c args = case args of
        st EBreak    = "break"
        st _         = "??"
 
-procReturn args = case args of
+cmdReturn args = case args of
       [s] -> throwError (ERet s)
       []  -> throwError (ERet T.empty)
       _   -> argErr "return"
 
-procUpVar :: TclCmd
-procUpVar args = case args of
+cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s
      [si,d,s] -> T.asInt si >>= \i -> doUp i d s
      _        -> argErr "upvar"
  where doUp i d s = upvar i (T.asBStr d) (T.asBStr s) >> ret
 
-procGlobal args = case args of
+cmdGlobal args = case args of
       [] -> argErr "global"
       _  -> mapM_ (inner . T.asBStr) args >> ret
  where inner g = do len <- stackLevel
