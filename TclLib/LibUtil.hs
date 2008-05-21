@@ -9,6 +9,10 @@ import qualified TclObj as T
 
 vArgErr s = argErr ("should be " ++ show s)
 
+treturn :: BString -> TclM T.TclObj
+treturn = return . T.fromBStr
+{-# INLINE treturn #-}
+
 toIndex :: (Monad m) => Int -> T.TclObj -> m Int
 toIndex len i = case T.asInt i of
                 Nothing -> tryEnd

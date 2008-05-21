@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Util (BString, joinWith, joinWithBS, pack, unpack, bsNull,
              dropSpaces, mapFst, mapSnd, listEscape,
-             orElse, ifFails, commaList,
+             orElse, ifFails, attempt, commaList,
              downCase, slurpFile,
              utilTests )  where
 
@@ -37,6 +37,8 @@ ifFails f v = f `catchError` (\_ -> return v)
 {-# INLINE ifFails #-}
 
 orElse f f2 = f `catchError` (\_ -> f2)
+
+attempt f = (f >> return ()) `orElse` (return ())
 
 slurpFile fname = do dat <- B.readFile fname 
                      B.length dat `seq` return dat

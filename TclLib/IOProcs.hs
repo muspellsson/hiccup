@@ -1,4 +1,4 @@
-module TclLib.IOProcs (ioProcs) where
+module TclLib.IOProcs (ioCmds) where
 import Common
 import Control.Monad (unless)
 import System.IO
@@ -9,9 +9,10 @@ import qualified TclChan as T
 import qualified System.IO.Error as IOE 
 import qualified Data.ByteString.Char8 as B
 import TclObj ((.==))
+import TclLib.LibUtil
 import Util
 
-ioProcs = makeCmdList $ 
+ioCmds = makeCmdList $ 
  [("puts",procPuts),("gets",procGets),("read",cmdRead),
   ("open", procOpen), ("close", procClose),("flush", procFlush),
   ("exit", procExit), ("source", procSource), ("eof", procEof)]

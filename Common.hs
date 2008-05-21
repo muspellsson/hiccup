@@ -31,7 +31,6 @@ module Common (TclM
        ,upvar
        ,io
        ,tclErr
-       ,treturn
        ,ret
        ,argErr
        ,stackLevel
@@ -112,8 +111,8 @@ mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
 
 emptyCmd = TclCmdObj { 
-       cmdName = B.empty,
-       cmdBody = B.empty,
+       cmdName = pack "",
+       cmdBody = pack "",
        cmdAction = (\_ -> fail "empty command"),
        cmdIsProc = False,
        cmdOrigNS = Nothing,
@@ -130,7 +129,7 @@ toTclCmdObj (n,v) = return (bsn, emptyCmd { cmdName = bsn,
 
 tclErr :: String -> TclM a
 tclErr s = do
-  (setErrorInfo s) `orElse` ret
+  attempt (setErrorInfo s)
   throwError (EDie s)
 
 setErrorInfo s = do
@@ -600,7 +599,7 @@ currentNS = getCurrNS >>= readRef >>= return . nsName
 parentNS nst = do
  ns <- getNamespace nst >>= readRef
  case nsParent ns of
-   Nothing -> return B.empty
+   Nothing -> return (pack "")
    Just v  -> readRef v >>= return . nsName
 
 childrenNS nst = do
@@ -614,13 +613,9 @@ ensure action p = do
    return $! r
 {-# INLINE ensure #-}
 
-ret :: TclM RetVal
+ret :: TclM T.TclObj
 ret = return T.empty
 {-# INLINE ret #-}
-
-treturn :: BString -> TclM RetVal
-treturn = return . T.fromBStr
-{-# INLINE treturn #-}
 
 createFrame !vref = do
    tag <- liftM hashUnique newUnique

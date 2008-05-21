@@ -12,4 +12,4 @@ import TclLib.UtilProcs
 import TclLib.CoreCmds (coreCmds)
 
 libCmds = mergeCmdLists [ controlProcs, mathCmds, coreCmds, nsProcs, 
-                          ioProcs, listCmds, arrayProcs, stringProcs, utilProcs ]
+                          ioCmds, listCmds, arrayProcs, stringProcs, utilProcs ]

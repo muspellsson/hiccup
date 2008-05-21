@@ -38,7 +38,7 @@ evalRTokens (x:xs) acc = case x of
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalRTokens l [] >>= treturn . B.concat . map T.asBStr) 
+            CatLst l -> nextWith (evalRTokens l [] >>= return . T.fromBStr . B.concat . map T.asBStr) 
             ExpTok t -> do 
                  [rs] <- evalRTokens [t] [] 
                  l <- T.asList rs
