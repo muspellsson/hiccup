@@ -9,7 +9,6 @@ import qualified TclObj as T
 
 nsProcs = makeCmdList [("namespace", procNamespace), ("variable", procVariable)]
 
-procNamespace :: TclCmd
 procNamespace = mkEnsemble "namespace" [
      ("current", ns_current),
      ("eval", ns_eval),
@@ -42,7 +41,6 @@ ns_parent args = case args of
           [ns] -> parentNS (Just (parseNSTag (T.asBStr ns))) >>= treturn
           _  -> argErr "namespace parent"
 
-ns_export :: TclCmd
 ns_export args = case map T.asBStr args of
        []     -> getExportsNS >>= return . T.mkTclList . map T.mkTclBStr
        ("-clear":al) -> mapM_ (exportNS True) al >> ret
@@ -52,7 +50,6 @@ ns_import args = case map T.asBStr args of
       ("-force":rest) -> mapM_ (importNS True) rest >> ret
       al              -> mapM_ (importNS False) al >> ret
 
-ns_origin :: TclCmd
 ns_origin args = case args of
      [pn] -> do pr <- getCmd (T.asBStr pn)
                 case pr of

@@ -277,7 +277,22 @@ test "namespace origin after import" {
   checkthat [namespace origin eep] eq {::boo::eep}
 
   finalize { ns boo }
-  checkthat [proc_exists eep] == 0
+}
+
+test "imported procs go away when parent is deleted" {
+  namespace eval boo { namespace export fancy; proc fancy {} { return OK } }
+  checkthat [namespace origin ::boo::fancy] eq {::boo::fancy}
+  namespace import ::boo::*
+
+  checkthat [::boo::fancy] eq OK
+  checkthat [fancy] eq OK
+
+  checkthat [namespace origin fancy] eq {::boo::fancy}
+
+  namespace delete ::boo
+
+  checkthat [namespace exists boo] == 0
+  checkthat [proc_exists fancy] == 0
 }
 
 test "ns export pattern" {

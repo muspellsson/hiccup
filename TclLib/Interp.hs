@@ -3,6 +3,7 @@ module TclLib.Interp (mkInterp, mkInterpWithVars, runInterp, interpCmds) where
 import Common
 import Util
 import Data.IORef
+import TclErr
 import qualified TclObj as T
 import TclLib.LibUtil
 import Core (evalTcl)

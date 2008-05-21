@@ -1,6 +1,7 @@
 module ProcUtil (mkProc, mkLambda) where
 
 import Common
+import TclErr
 import ProcArgs
 import Core (evalTcl)
 import Control.Monad.Error

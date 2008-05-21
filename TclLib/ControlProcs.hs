@@ -6,6 +6,7 @@ import Core
 import Match (globMatch, exactMatch)
 import Control.Monad.Error
 import qualified TclObj as T
+import TclErr
 import TclObj ((.==))
 import Util
 

@@ -51,7 +51,9 @@ data TclCmdObj = TclCmdObj {
                    cmdName :: BString, 
                    cmdIsProc :: Bool,
                    cmdBody :: BString,  
-                   cmdOrigNS :: Maybe BString,
+                   cmdOrigNS :: Maybe NSRef,
+                   cmdParent :: Maybe CmdRef,
+                   cmdKids :: [CmdRef],
                    cmdAction :: !TclCmd }
 
 type ProcKey = BString

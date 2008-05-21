@@ -1,8 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Common (TclM
        ,TclState
-       ,Err(..)
-       ,TclCmd,applyTo,cmdBody
+       ,applyTo,cmdBody
        ,getOrigin
        ,runTclM
        ,makeState
@@ -74,11 +73,16 @@ import Util
 
 import Test.HUnit
 
-getOrigin p = if nso == nsSep 
-                  then return $ B.append nso pname 
-                  else return $ B.concat [nso, nsSep, pname]
- where nso = maybe nsSep id (cmdOrigNS p)
+getOrigin :: TclCmdObj -> TclM BString
+getOrigin p = getOrig
+ where nsox = maybe (return nsSep) (`refExtract` nsName)
        pname = cmdName p
+       fixName n = if n == nsSep 
+                    then return $ B.append n pname 
+                    else return $ B.concat [n, nsSep, pname]
+       getOrig = case cmdParent p of 
+                  Nothing  -> nsox (cmdOrigNS p) >>= fixName
+                  Just par -> readRef par >>= getOrigin 
 
 applyTo !f !args = do 
    modify (\x -> x { tclCmdCount = (tclCmdCount x) + 1 })
@@ -90,8 +94,10 @@ mkCmdAlias nsr pn = do
     case mcr of
       Nothing -> fail "trying to import proc that doesn't exist"
       Just cr -> do 
-          newcmd <- readRef cr >>= \p -> return $! p { cmdAction = inner cr } 
-          return newcmd
+          newcmd <- readRef cr >>= \p -> 
+                      return $! p { cmdAction = inner cr, cmdParent = Just cr, cmdOrigNS = Nothing } 
+          let adder x = io $ modifyIORef cr (\p -> p { cmdKids = x:(cmdKids p) })
+          return (newcmd, adder)
  where inner cr args = do 
             p <- readRef cr
             p `applyTo` args
@@ -105,7 +111,20 @@ makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
 mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
 
-toTclCmdObj (n,v) = return (bsn, TclCmdObj bsn False errStr Nothing v)
+emptyCmd = TclCmdObj { 
+       cmdName = B.empty,
+       cmdBody = B.empty,
+       cmdAction = (\_ -> fail "empty command"),
+       cmdIsProc = False,
+       cmdOrigNS = Nothing,
+       cmdParent = Nothing,
+       cmdKids = [] }
+
+toCmdObjs = mapM toTclCmdObj . unCmdList
+
+toTclCmdObj (n,v) = return (bsn, emptyCmd { cmdName = bsn,
+                                            cmdBody = errStr,
+                                            cmdAction = v} )
  where errStr = pack $ show bsn ++ " isn't a procedure"
        bsn = pack n
 
@@ -144,7 +163,7 @@ makeState' chans vlist cmdlst = do
        runRegister = do
            exportAll "::tcl::mathop"
            exportAll "::tcl::mathfunc"
-           mapM toTclCmdObj (unCmdList cmdlst) >>= mapM (\(n,p) -> registerCmd (parseProc n) p)
+           toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmd (parseProc n) p)
        globalNS fr = newIORef $ TclNS { nsName = nsSep, 
                          nsCmds = emptyCmdMap, nsFrame = fr, 
                          nsExport = [],
@@ -209,7 +228,7 @@ evtGetDue = do
   when (not (null d)) $ modify (\s -> s { tclEvents = em' })
   return d
 
-upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in (Map.lookup s sf))
+upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in Map.lookup s sf)
 {-# INLINE upped #-}
 
 
@@ -257,18 +276,26 @@ getCmdNorm !i !nsr = do
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
  where rmFromNS nsref = io $ changeCmds nsref (Map.delete n) 
 
+removeCmd cmd = do 
+ case cmdOrigNS cmd of
+   Just nsr -> do
+     io $ changeCmds nsr (Map.delete (cmdName cmd))
+   Nothing  -> return ()
 
 registerProc name body pr = 
     let pn@(NSQual _ n) = parseProc name
-    in registerCmd pn (TclCmdObj n True body Nothing pr)
+    in registerCmd pn (emptyCmd { cmdName = n,
+                                  cmdIsProc = True,
+                                  cmdBody =  body,
+                                  cmdAction = pr})
 
 registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
  where 
   pmInsert proc m = Map.insert k proc m
-  regInNS nsr = do fn <- nsr `refExtract` nsName
-                   newc <- io . newIORef $ setOrigin fn newProc
-                   io $ changeCmds nsr (pmInsert newc)
-  setOrigin fn x = if cmdOrigNS x == Nothing then x { cmdOrigNS = Just fn } else x
+  regInNS nsr = do 
+           newc <- io . newIORef $ newProc { cmdOrigNS = Just nsr }
+           io $ changeCmds nsr (pmInsert newc)
+           return newc
 
 varSetRaw :: BString -> T.TclObj -> TclM RetVal
 varSetRaw !n v = varSetNS (parseVarName n) v
@@ -287,7 +314,6 @@ varSet vn v frref = do
  where cantSetErr why = fail $ "can't set " ++ showVN vn ++ ":" ++ why
        modVar str = do
          vm <- getFrameVars frref
-         let changeVar = insertVar frref str
          newVal <- case vnInd vn of
              Nothing -> case Map.lookup str vm of
                           Just (ArrayVar _) -> cantSetErr "variable is array"
@@ -296,7 +322,7 @@ varSet vn v frref = do
                           ArrayVar prev -> return (ArrayVar (Map.insert i v prev))
                           Undefined     -> return (ArrayVar (Map.singleton i v))
                           _     -> cantSetErr "variable isn't array"
-         changeVar $! newVal
+         insertVar frref str $! newVal
 
 varExists :: BString -> TclM Bool
 varExists name = (varGet name >> return True) `ifFails` False
@@ -307,7 +333,7 @@ renameCmd old new = do
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProcNS pold
-                 unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr))
+                 unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr) >> return ())
 
 varUnset :: BString -> TclM RetVal
 varUnset name = varUnsetNS (parseVarName name)
@@ -418,6 +444,8 @@ upvar n d s = do
 deleteNS name = do 
  let nst = parseNSTag name 
  ns <- getNamespace' nst >>= readRef
+ kids <- mapM (`refExtract` cmdKids) (cmdMapElems (nsCmds ns))
+ mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
  whenJust (nsParent ns) $ \p -> removeChild p (nsTail nst)
 
 removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
@@ -488,11 +516,12 @@ importNS force name = do
     mapM (importProc nsr) exported
     return . T.mkTclList . map T.fromBStr $ exported
  where importProc nsr n = do
-            np <- mkCmdAlias nsr n 
+            (np,add) <- mkCmdAlias nsr n 
             when (not force) $ do
                  oldp <- getCmdNS (NSQual Nothing n)
                  whenJust oldp $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            registerCmd (NSQual Nothing n) np
+            oldc <- registerCmd (NSQual Nothing n) np
+            add oldc
        getExports nsr pat = do 
                ns <- readRef nsr
                let exlist = nsExport ns
@@ -605,6 +634,7 @@ createFrameWithNS !nsref !vref = do
 
 changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
 
+changeVars :: FrameRef -> (VarMap -> VarMap) -> TclM ()
 changeVars !fr fun = liftIO (modifyIORef fr (\f -> let !r = fun (frVars f) in f { frVars = r } ))
 {-# INLINE changeVars #-}
 

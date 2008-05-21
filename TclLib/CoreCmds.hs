@@ -4,12 +4,12 @@ import Control.Monad.Error
 import TclLib.LibUtil
 import Control.Monad (liftM)
 import Data.Char (isDigit)
-import TclErr (errCode)
+import TclErr (Err(..), errCode)
 import System (getProgName)
 import Match (globMatches)
 import Util
 import ProcUtil (mkProc, mkLambda)
-import Core
+import Core (evalTcl)
 
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
@@ -87,7 +87,7 @@ cmdCatch args = case args of
            [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> return T.tclFalse) `catchError` (retReason result)
            _   -> argErr "catch"
  where retReason v e = case e of
-                         EDie s -> varSetNS (T.asVarName v) (T.mkTclStr s) >> return T.tclTrue
+                         EDie s -> varSetNS (T.asVarName v) (T.fromStr s) >> return T.tclTrue
                          _      -> retCode e
        retCode = return . T.fromInt . errCode
 
