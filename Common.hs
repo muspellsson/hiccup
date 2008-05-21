@@ -5,6 +5,9 @@ module Common (TclM
        ,getOrigin
        ,runTclM
        ,makeState
+       ,createInterp
+       ,getInterp
+       ,deleteInterp
        ,runCheckResult
        ,withLocalScope
        ,withNS
@@ -141,6 +144,26 @@ makeVarMap = Map.fromList . mapSnd ScalarVar
 makeState :: [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
 
+createInterp n clist = do
+  st <- get
+  let im = tclInterps st
+  newi <- io $ makeState [] clist >>= newIORef
+  put (st { tclInterps = Map.insert n newi im })
+  return newi
+  
+getInterp n = do
+  st <- get
+  let im = tclInterps st
+  Map.lookup n im
+
+deleteInterp n = do
+  st <- get
+  let im = tclInterps st
+  case Map.lookup n im of
+    Nothing -> tclErr "interpreter doesn't exist"
+    Just v  -> put (st { tclInterps = Map.delete n im })
+
+
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans vlist cmdlst = do 
     (fr,nsr) <- makeGlobal
@@ -148,6 +171,7 @@ makeState' chans vlist cmdlst = do
     st <- return $! mkState nsr fr
     execTclM runRegister st
  where mkState nsr fr = TclState { tclChans = chans,
+                                   tclInterps = Map.empty,
                                    tclEvents = Evt.emptyMgr,
                                    tclStack = [fr],
                                    tclGlobalNS = nsr,
@@ -323,7 +347,7 @@ varSet vn v frref = do
          insertVar frref str $! newVal
 
 varExists :: BString -> TclM Bool
-varExists name = (varGet name >> return True) `ifFails` False
+varExists name = (varGetRaw name >> return True) `ifFails` False
 
 renameCmd old new = do
   let pold = parseProc old
@@ -337,20 +361,6 @@ varUnsetRaw name = varUnsetNS (parseVarName name)
 
 varUnsetNS :: NSQual VarName -> TclM RetVal
 varUnsetNS qns = usingNsFrame qns varUnset
-
-usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
-usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
- where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
-{-# INLINE usingNsFrame #-}
-
-{- This specialization is ugly, but GHC hasn't been doing it for me and it
- - knocks a few percent off the runtime of my benchmarks. -}
-usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
-usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
- where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame ns  = getNamespace ns >>= getNSFrame
-{-# INLINE usingNsFrame2 #-}
 
 varUnset vn frref = do
      isUpped <- upped (vnName vn) frref 
@@ -377,6 +387,21 @@ varUnset vn frref = do
                         ScalarVar _   -> cantUnset "variable isn't array"
                         _             -> noExist
 
+usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
+usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
+ where lookupNsFrame Nothing = getFrame 
+       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
+{-# INLINE usingNsFrame #-}
+
+{- This specialization is ugly, but GHC hasn't been doing it for me and it
+ - knocks a few percent off the runtime of my benchmarks. -}
+usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
+usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
+ where lookupNsFrame Nothing = getFrame 
+       lookupNsFrame ns  = getNamespace ns >>= getNSFrame
+{-# INLINE usingNsFrame2 #-}
+
+
 
 getArray :: BString -> TclM TclArray
 getArray name = usingNsFrame2 (parseProc name) getArray'
@@ -395,8 +420,8 @@ varLookup !name !frref = do
       Nothing    -> getFrameVars frref >>= \m -> return $! (Map.lookup name m)
       Just (f,n) -> varLookup n f
 
-varGet :: BString -> TclM RetVal
-varGet !n = varGetNS (parseVarName n)
+varGetRaw :: BString -> TclM RetVal
+varGetRaw !n = varGetNS (parseVarName n)
 
 varGetNS :: NSQual VarName -> TclM RetVal
 varGetNS qns = usingNsFrame qns varGet'
@@ -717,8 +742,8 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
                         
 
   getTests = TestList [
-       "non-exist" ~: (varGet (b "boo")) `checkErr` "can't read \"boo\": no such variable"
-       ,"no err if exists" ~: checkNoErr ((varSetRaw name value) >> varGet name)
+       "non-exist" ~: (varGetRaw (b "boo")) `checkErr` "can't read \"boo\": no such variable"
+       ,"no err if exists" ~: checkNoErr ((varSetRaw name value) >> varGetRaw name)
      ]
 
   unsetTests = TestList [

@@ -38,6 +38,7 @@ type TclStack = [FrameRef]
 
 data TclState = TclState { 
     tclChans :: ChanMap, 
+    tclInterps :: Map.Map BString (IORef TclState),
     tclEvents :: Evt.EventMgr T.TclObj,
     tclStack :: !TclStack, 
     tclGlobalNS :: !NSRef,

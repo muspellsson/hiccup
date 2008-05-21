@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.NSProcs (nsProcs) where
+module TclLib.NSProcs (nsCmds) where
 
 import Common
 import Core (evalTcl)
@@ -7,9 +7,9 @@ import TclLib.LibUtil
 import VarName
 import qualified TclObj as T
 
-nsProcs = makeCmdList [("namespace", procNamespace), ("variable", procVariable)]
+nsCmds = makeCmdList [("namespace", cmdNamespace), ("variable", cmdVariable)]
 
-procNamespace = mkEnsemble "namespace" [
+cmdNamespace = mkEnsemble "namespace" [
      ("current", ns_current),
      ("eval", ns_eval),
      ("parent", ns_parent),
@@ -23,7 +23,7 @@ procNamespace = mkEnsemble "namespace" [
      ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
 
-procVariable args = case args of
+cmdVariable args = case args of
        [n]   -> variableNS (T.asBStr n) Nothing  >> ret
        [n,v] -> variableNS (T.asBStr n) (Just v) >> ret
        _     -> argErr "variable"

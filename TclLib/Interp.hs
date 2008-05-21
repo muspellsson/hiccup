@@ -6,6 +6,7 @@ import Data.IORef
 import TclErr
 import qualified TclObj as T
 import TclLib.LibUtil
+import TclLib (libCmds)
 import Core (evalTcl)
 
 
@@ -14,14 +15,48 @@ interpCmds = makeCmdList [
   ]
 
 cmdInterp = mkEnsemble "interp" [
-    ("create", interp_create),
-    ("eval", interp_eval)
+    ("create", interp_create)
+    ,("eval", interp_eval)
+    ,("exists", interp_exists)
+    ,("delete", interp_delete)
   ]
 
+interp_exists :: [T.TclObj] -> TclM T.TclObj
+interp_exists args = case args of
+    [n] -> (getInterp (T.asBStr n) >> return (T.fromBool True)) `orElse` (return $ T.fromBool False)
+    _   -> argErr "interp exists"
 
-interp_create = notImplemented
-interp_eval = notImplemented
-notImplemented _ = fail "Not implemented"
+-- delete ?path ?...
+interp_delete args = case args of
+    [n] -> do 
+        deleteInterp (T.asBStr n)
+        renameCmd (T.asBStr n) (pack "")
+        ret
+    _   -> argErr "interp delete"
+
+allCmds = mergeCmdLists [interpCmds, libCmds]
+
+interp_create args = case args of
+    [n] -> do 
+       ir <- createInterp (T.asBStr n) allCmds 
+       registerProc (T.asBStr n) (pack "NO.") (interpEnsem n ir)
+       return n
+    _   -> argErr "interp create"
+
+interpEnsem n ir = 
+  mkEnsemble (T.asStr n) [("eval", interpEval ir)]
+
+interp_eval args = case args of
+   (n:xs) -> do
+        it <- getInterp (T.asBStr n)
+        interpEval it xs
+   _      -> argErr "interp eval"
+
+interpEval ir cmds = do
+   res <- io $ runInterp' (evalTcl (T.objconcat cmds)) (Interpreter ir)
+   case res of
+     Left e -> tclErr (unpack e)
+     Right v -> return (T.fromBStr v)
 
 data Interpreter = Interpreter (IORef TclState)
 

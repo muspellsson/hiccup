@@ -116,6 +116,8 @@ proc finalize { items { code {} } } {
       namespace { namespace delete $name }
       proc -
       pr { rename $name {} }
+      interp -
+      int { interp delete $name }
       default { error "Unrecognized type: $type" }
     }
   }

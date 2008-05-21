@@ -7,6 +7,7 @@ source atests/list_tests.tcl
 source atests/array_tests.tcl
 source atests/expr_tests.tcl
 source atests/ns_tests.tcl
+source atests/interp_tests.tcl
 
 test "upvar" {
 
