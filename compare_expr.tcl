@@ -1,4 +1,5 @@
 
+namespace import ::tcl::mathop::*
 
 puts "expr:"
 puts [time { set x 0; while { expr { ($x + 1) < 15 * 20 + 5 } } { incr x } } 200]
