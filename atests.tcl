@@ -190,11 +190,11 @@ test "double compare" {
 
 test "test if, elseif, else" {
   if { "one" eq "two" } {
-    die "Should not have hit this."
+    assertFail "Should not have hit this."
   } elseif { 1 == 1 } {
     ::testlib::pass
   } else {
-    die "Should not have hit this."
+    assertFaile "Should not have hit this."
   }
 }
 
@@ -422,7 +422,7 @@ test "parsing corners" {
   checkthat "whee \$ stuff" eq "whee \$ stuff"
   checkthat "whee \$\" stuff" eq "whee $\" stuff"
   assertNoErr { 
-    if { 3 == 3 } { } else { die "bad" } 
+    if { 3 == 3 } { } else { assertFail "bad" } 
   }
 
   set x four 

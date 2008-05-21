@@ -11,11 +11,6 @@ namespace eval testlib {
   variable assertcount 0
 }
 
-proc die s {
-  puts $s
-  exit
-}
-
 proc ::testlib::pass {} {
   puts -nonewline "."
   incr ::testlib::assertcount

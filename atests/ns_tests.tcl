@@ -295,6 +295,18 @@ test "imported procs go away when parent is deleted" {
   checkthat [proc_exists fancy] == 0
 }
 
+test "delete imported" {
+  namespace eval boo { namespace export blah; proc blah {} { return OK }  }
+  namespace import ::boo::blah
+
+  checkthat [blah] eq OK
+  rename blah {}
+  checkthat [proc_exists blah] == 0
+  checkthat [::boo::blah] eq OK
+
+  finalize { ns boo }
+}
+
 test "ns export pattern" {
   namespace eval boo {
     namespace export g* e*
