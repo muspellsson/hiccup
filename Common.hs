@@ -18,7 +18,6 @@ module Common (TclM
        ,varSetNS
        ,varSetHere
        ,varExists
-       ,varUnset
        ,varUnsetNS
        ,renameCmd
        ,getArray
@@ -297,7 +296,6 @@ registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
            io $ changeCmds nsr (pmInsert newc)
            return newc
 
-varSetRaw :: BString -> T.TclObj -> TclM RetVal
 varSetRaw !n v = varSetNS (parseVarName n) v
 
 varSetNS qvn v = usingNsFrame qvn (\n f -> varSet n v f)
@@ -335,11 +333,10 @@ renameCmd old new = do
    Just pr -> do rmProcNS pold
                  unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr) >> return ())
 
-varUnset :: BString -> TclM RetVal
-varUnset name = varUnsetNS (parseVarName name)
+varUnsetRaw name = varUnsetNS (parseVarName name)
 
 varUnsetNS :: NSQual VarName -> TclM RetVal
-varUnsetNS qns = usingNsFrame qns varUnset'
+varUnsetNS qns = usingNsFrame qns varUnset
 
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
 usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
@@ -355,14 +352,14 @@ usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
        lookupNsFrame ns  = getNamespace ns >>= getNSFrame
 {-# INLINE usingNsFrame2 #-}
 
-varUnset' vn frref = do
+varUnset vn frref = do
      isUpped <- upped (vnName vn) frref 
      case isUpped of
          Nothing    -> modVar >> ret
          Just (f,s) -> do 
              when (not (isArr vn)) $ do 
                  changeUpMap frref (Map.delete (vnName vn))
-             varUnset' (vn {vnName = s}) f
+             varUnset (vn {vnName = s}) f
  where noExist = cantUnset "no such variable" 
        cantUnset why = fail $ "can't unset " ++ showVN vn ++ ": " ++ why
        modArr v f = ArrayVar (f v)
@@ -725,7 +722,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
      ]
 
   unsetTests = TestList [
-       "non-exist" ~: (varUnset (b "boo")) `checkErr` "can't unset \"boo\": no such variable"
+       "non-exist" ~: (varUnsetRaw (b "boo")) `checkErr` "can't unset \"boo\": no such variable"
      ]
 
 -- # ENDTESTS # --

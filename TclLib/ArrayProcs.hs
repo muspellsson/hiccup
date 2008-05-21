@@ -68,7 +68,7 @@ array_set args = case args of
           _       -> argErr "array set"
 
 array_unset args = case args of
-     [name]     -> varUnset (T.asBStr name)
+     [name]     -> varUnsetNS (T.asVarName name)
      [name,pat] -> do let n = T.asBStr name 
                       arr <- getArray n
                       let (NSQual nst (VarName vn x)) = parseVarName n
