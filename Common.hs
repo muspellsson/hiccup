@@ -84,8 +84,8 @@ getOrigin p = getOrig
                   Nothing  -> nsox (cmdOrigNS p) >>= fixName
                   Just par -> readRef par >>= getOrigin 
 
-applyTo !f !args = do 
-   modify (\x -> x { tclCmdCount = (tclCmdCount x) + 1 })
+applyTo !f args = do 
+   -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
    (cmdAction f) args
 {-# INLINE applyTo #-}
 
@@ -172,6 +172,7 @@ makeState' chans vlist cmdlst = do
 getStack = gets tclStack
 {-# INLINE getStack  #-}
 
+getNsCmdMap :: NSRef -> TclM CmdMap
 getNsCmdMap !nsr = liftIO (readIORef nsr >>= \v -> return $! (nsCmds v))
 {-# INLINE getNsCmdMap #-}
 

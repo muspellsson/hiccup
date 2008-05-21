@@ -37,12 +37,12 @@ cmdPid args = case args of
 cmdTime args =
    case args of
      [code]     -> do tspan <- dotime code
-                      return (T.mkTclStr (show tspan))
+                      return (T.fromStr (show tspan))
      [code,cnt] -> do count <- T.asInt cnt
                       unless (count > 0) (tclErr "invalid number of iterations in time")
                       ts <- mapM (\_ -> dotime code) [1..count]
                       let str = show ((sum ts) / fromIntegral (length ts))
-                      return (T.mkTclStr (str ++ " per iteration"))
+                      return (T.fromStr (str ++ " per iteration"))
      _      -> argErr "time"
  where dotime code = do
          startt <- io getCurrentTime

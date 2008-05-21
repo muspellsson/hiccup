@@ -42,7 +42,7 @@ ns_parent args = case args of
           _  -> argErr "namespace parent"
 
 ns_export args = case map T.asBStr args of
-       []     -> getExportsNS >>= return . T.mkTclList . map T.mkTclBStr
+       []     -> getExportsNS >>= return . T.mkTclList . map T.fromBStr
        ("-clear":al) -> mapM_ (exportNS True) al >> ret
        al            -> mapM_ (exportNS False) al >> ret
           
@@ -58,8 +58,8 @@ ns_origin args = case args of
      _    -> argErr "namespace origin"
 
 ns_children args = case args of
-          [] -> childrenNS Nothing >>= return . T.mkTclList . map T.mkTclBStr
-          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.mkTclList . map T.mkTclBStr
+          [] -> childrenNS Nothing >>= return . T.mkTclList . map T.fromBStr
+          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.mkTclList . map T.fromBStr
           _  -> argErr "namespace children"
 
 ns_exists args = case args of
@@ -72,7 +72,7 @@ ns_delete args = case args of
 
 ns_tail args = case args of
    [s] -> case parseNSTag (T.asBStr s) of
-           v -> return . T.mkTclBStr $ (nsTail v)
+           v -> return . T.fromBStr $ (nsTail v)
    _   -> argErr "namespace tail"
 
 ns_path args = case args of
@@ -80,5 +80,5 @@ ns_path args = case args of
    _  -> argErr "namespace path"
 
 ns_qualifiers args = case args of
-   [s] -> return . T.mkTclBStr $ (nsQualifiers (T.asBStr s))
+   [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
    _   -> argErr "namespace qualifiers"

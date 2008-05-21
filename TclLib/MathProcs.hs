@@ -139,7 +139,7 @@ testProcEq = TestList [
        is c b = (T.fromBool b) ?=? c
        int :: Int -> T.TclObj
        int i = T.fromInt i
-       str s = T.mkTclStr s
+       str s = T.fromStr s :: T.TclObj
 
 mathTests = TestList [ testProcEq ]
 

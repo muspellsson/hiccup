@@ -7,8 +7,6 @@ module TclObj (
  ,fromStr
  ,fromBStr
  ,fromDouble
- ,mkTclStr
- ,mkTclBStr
  ,mkTclList
  ,mkTclList'
  ,mkTclInt
