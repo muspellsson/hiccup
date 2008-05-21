@@ -13,7 +13,7 @@ baseCmds = mergeCmdLists [interpCmds, libCmds]
                           
 processArgs al = [("argc" * T.fromInt (length al)), ("argv" * toTclList al)]
   where (*) name val = (pack name, val)
-        toTclList = T.mkTclList . map T.fromBStr
+        toTclList = T.fromList . map T.fromBStr
 
 interpVars = [("tcl_version" * (show hiccupVersion))]
   where (*) name val = (pack name, T.fromStr val)

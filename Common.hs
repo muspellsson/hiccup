@@ -77,12 +77,12 @@ getOrigin :: TclCmdObj -> TclM BString
 getOrigin p = getOrig
  where nsox = maybe (return nsSep) (`refExtract` nsName)
        pname = cmdName p
-       fixName n = if n == nsSep 
-                    then return $ B.append n pname 
-                    else return $ B.concat [n, nsSep, pname]
        getOrig = case cmdParent p of 
-                  Nothing  -> nsox (cmdOrigNS p) >>= fixName
+                  Nothing  -> nsox (cmdOrigNS p) >>= \rt -> return $ fixNSName rt pname
                   Just par -> readRef par >>= getOrigin 
+
+fixNSName rt t = if rt == nsSep then B.append rt t
+                                else B.concat [rt, nsSep, t]
 
 applyTo !f args = do 
    -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
@@ -510,12 +510,13 @@ whenJust x f = case x of
       Just v  -> f $! v
 {-# INLINE whenJust #-}
 
+importNS :: Bool -> BString -> TclM T.TclObj
 importNS force name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
     exported <- getExports nsr n
     mapM (importProc nsr) exported
-    return . T.mkTclList . map T.fromBStr $ exported
+    return . T.fromList . map T.fromBStr $ exported
  where importProc nsr n = do
             (np,add) <- mkCmdAlias nsr n 
             when (not force) $ do
@@ -553,9 +554,7 @@ withScope !frref fun = do
 mkEmptyNS name parent = do
     pname <- liftM nsName (readIORef parent)
     emptyFr <- createFrame emptyVarMap
-    let sep = if pname == nsSep then B.empty else nsSep
-    let fullname = B.concat [pname, sep, name]
-    new <- newIORef $ TclNS { nsName = fullname, 
+    new <- newIORef $ TclNS { nsName = fixNSName pname name, 
                               nsCmds = emptyCmdMap, nsFrame = emptyFr, 
                               nsExport = [],
                               nsParent = Just parent, nsChildren = Map.empty }
@@ -706,7 +705,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   isRight (Right _) = True
   isRight _         = False
-  int = T.mkTclInt
+  int = T.fromInt
 
   setTests = TestList [
        "set exists" ~: (varSetRaw (b "x") (int 1)) `checkExists` "x"

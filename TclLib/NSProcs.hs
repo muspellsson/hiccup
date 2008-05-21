@@ -42,7 +42,7 @@ ns_parent args = case args of
           _  -> argErr "namespace parent"
 
 ns_export args = case map T.asBStr args of
-       []     -> getExportsNS >>= return . T.mkTclList . map T.fromBStr
+       []     -> getExportsNS >>= return . T.fromList . map T.fromBStr
        ("-clear":al) -> mapM_ (exportNS True) al >> ret
        al            -> mapM_ (exportNS False) al >> ret
           
@@ -58,8 +58,8 @@ ns_origin args = case args of
      _    -> argErr "namespace origin"
 
 ns_children args = case args of
-          [] -> childrenNS Nothing >>= return . T.mkTclList . map T.fromBStr
-          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.mkTclList . map T.fromBStr
+          [] -> childrenNS Nothing >>= return . T.fromList . map T.fromBStr
+          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.fromList . map T.fromBStr
           _  -> argErr "namespace children"
 
 ns_exists args = case args of

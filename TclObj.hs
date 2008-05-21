@@ -2,15 +2,12 @@
 {-# LANGUAGE BangPatterns #-}
 module TclObj (
  TclObj
- ,ITObj
  ,fromInt
  ,fromStr
  ,fromBStr
  ,fromDouble
- ,mkTclList
- ,mkTclList'
- ,mkTclInt
- ,mkTclDouble
+ ,fromList
+ ,fromSeq
  ,fromBlock
  ,fromBool
  ,empty
@@ -54,8 +51,8 @@ mkTclStr s  = mkTclBStr (pack s)
 mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) (makeCExpr s)
 {-# INLINE mkTclBStr #-}
 
-mkTclList l  = TclList (S.fromList l) (fromList (map asBStr l))
-mkTclList' l = TclList l (fromList (map asBStr (F.toList l)))
+fromList l = TclList (S.fromList l) (list2Str (map asBStr l))
+fromSeq l = TclList l (list2Str (map asBStr (F.toList l)))
 
 fromBlock s p e = TclBStr s (maybeInt s) p e
 {-# INLINE fromBlock #-}
@@ -104,7 +101,7 @@ instance ITObj BS.ByteString where
 
 -}
 
-asList :: (Monad m) => TclObj -> m [TclObj]
+asList :: (Monad m, ITObj o) => o -> m [o]
 asList o = liftM F.toList (asSeq o)
 
 asStr o = unpack (asBStr o)
@@ -170,7 +167,7 @@ instance Exprable TclObj Cmd where
   asCExpr (TclBStr _ _ _ (Right ex)) = return ex
   asCExpr _ =  fail "only blocks for now"
 
-fromList l = (map listEscape l)  `joinWith` ' '
+list2Str l = (map listEscape l)  `joinWith` ' '
 
 
 trueValues = map pack ["1", "true", "yes", "on"]

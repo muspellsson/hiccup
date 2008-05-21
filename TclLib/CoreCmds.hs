@@ -151,7 +151,7 @@ info_body args = case args of
                    Just p  -> treturn (cmdBody p)
        _   -> argErr "info body"
 
-asTclList = return . T.mkTclList . map T.fromBStr
+asTclList = return . T.fromList . map T.fromBStr
 
 cmdApply args = case args of
    (fn:alst) -> mkLambda fn >>= \f -> f alst

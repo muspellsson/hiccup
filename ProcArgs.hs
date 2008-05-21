@@ -43,7 +43,7 @@ bindArgs params@(_,hasArgs,pl) args = walkBoth pl args []
         walkBoth ((Left _):_)       []      _   = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) !acc = walkBoth xs as ((k,a):acc)
         walkBoth ((Right (k,v)):xs) []     !acc = walkBoth xs [] ((k,v):acc)
-        walkBoth []                 xl     !acc = if hasArgs then return $! ((pack "args"),(T.mkTclList xl)):acc
+        walkBoth []                 xl     !acc = if hasArgs then return $! ((pack "args"),(T.fromList xl)):acc
                                                              else if null xl then return $! acc 
                                                                              else badArgs
         badArgs = argErr $ "should be " ++ showParams params

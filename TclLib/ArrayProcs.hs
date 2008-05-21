@@ -41,7 +41,7 @@ array_get args = case args of
          _      -> argErr "array get"
  where runGet name filt = do
         arr <- getOrEmpty name
-        return . T.mkTclList $ concatMap (\(k,v) -> [T.fromBStr k, v]) (filter (filt . fst) (Map.toList arr))
+        return . T.fromList $ concatMap (\(k,v) -> [T.fromBStr k, v]) (filter (filt . fst) (Map.toList arr))
  
 
 array_names args = case args of
@@ -58,7 +58,7 @@ array_names args = case args of
                       
          _      -> argErr "array names"
  where getKeys n = getOrEmpty n >>= return . Map.keys
-       retlist = return . T.mkTclList . map T.fromBStr
+       retlist = return . T.fromList . map T.fromBStr
 
 array_set args = case args of
           [a2,a3] -> do l <- T.asList a3

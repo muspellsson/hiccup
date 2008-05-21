@@ -75,11 +75,11 @@ procAppend args = case args of
 procSplit args = case args of
         [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
-                       in if B.null splitChars then return $ (T.mkTclList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
+                       in if B.null splitChars then return $ (T.fromList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
                                                else dosplit (T.asBStr str) splitChars
         _           -> argErr "split"
 
- where dosplit str chars = return $ T.mkTclList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
+ where dosplit str chars = return $ T.fromList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
 stringTests = TestList [ matchTests, toIndTests ]
 

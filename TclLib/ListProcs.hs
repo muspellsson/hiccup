@@ -18,7 +18,7 @@ listCmds = makeCmdList $
    ("lrange", cmdLrange), ("lmap", cmdLmap),
    ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
 
-cmdList = return . T.mkTclList
+cmdList = return . T.fromList
 
 cmdLindex args = case args of
           [l]   -> return l
@@ -44,7 +44,7 @@ procLset args = case args of
                                   else do
                                       i <- toIndex (S.length items) ind
                                       rangeCheck items i
-                                      return $! T.mkTclList' (S.update i val items)
+                                      return $! T.fromSeq (S.update i val items)
         _              -> argErr "lset"
  where rangeCheck seq i = when (i < 0 || i >= (S.length seq)) $ fail "list index out of range" 
        modifyVar vn f = do
@@ -56,7 +56,7 @@ procLassign args = case args of
   (list:(varnames@(_:_))) -> do l <- T.asList list
                                 let (src,rest) = splitAt (length varnames) l
                                 zipWithM_ setter varnames (src ++ repeat T.empty)
-                                return (T.mkTclList rest)
+                                return (T.fromList rest)
   _ -> argErr "lassign"
  where setter n v = varSetNS (T.asVarName n) v
 
@@ -74,7 +74,7 @@ procLappend args = case args of
         (n:news) -> do 
              let vn = T.asVarName n 
              items <- varGetNS vn >>= T.asSeq 
-             varSetNS vn $ T.mkTclList' (items >< (S.fromList news))
+             varSetNS vn $ T.fromSeq (items >< (S.fromList news))
         _        -> argErr "lappend"
 
 cmdLsearch args = case args of
@@ -107,7 +107,7 @@ procLsort args =  case args of
                          dosort sf lst
  where dosort sf lst = do
               items <- T.asList lst 
-              sortEm sf items >>= return . T.mkTclList
+              sortEm sf items >>= return . T.fromList
 
 
 -- TODO: This is so ugly.
@@ -129,7 +129,7 @@ cmdLrepeat args = case args of
     (ti:x:xs) -> do 
           i <- T.asInt ti 
           when (i <= 0) $ fail "must have a count of at least 1"
-          return $ T.mkTclList (concat (replicate i (x:xs)))
+          return $ T.fromList (concat (replicate i (x:xs)))
     _ -> argErr "lrepeat"
 
 cmdLrange args = case args of
@@ -138,12 +138,12 @@ cmdLrange args = case args of
           let ilen = S.length items
           i1 <- toIndex ilen beg
           i2 <- toIndex ilen e
-          return $ T.mkTclList' (S.take (i2 - i1 + 1) (S.drop i1 items))
+          return $ T.fromSeq (S.take (i2 - i1 + 1) (S.drop i1 items))
    _           -> argErr "lrange"
 
 cmdLmap args = case args of
   [fun,lst] -> do
          fn <- mkLambda fun 
-         T.asList lst >>= mapM (fn . box) >>= return . T.mkTclList 
+         T.asList lst >>= mapM (fn . box) >>= return . T.fromList 
   _          -> argErr "map"
  where box i = [i]   
