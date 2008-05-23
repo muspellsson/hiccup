@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, runCmd, callProc, coreTests) where
+module Core (evalTcl, doCond, runCmd, callProc, evalArgs, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -44,6 +44,8 @@ evalRTokens (x:xs) acc = case x of
                  l <- T.asList rs
                  evalRTokens xs ((reverse l) ++ acc)
  where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
+
+evalArgs args = evalRTokens args []
 
 runCmd :: Cmd -> TclM T.TclObj
 runCmd (Cmd n args) = do

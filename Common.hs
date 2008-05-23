@@ -161,7 +161,7 @@ deleteInterp n = do
   let im = tclInterps st
   case Map.lookup n im of
     Nothing -> tclErr "interpreter doesn't exist"
-    Just v  -> put (st { tclInterps = Map.delete n im })
+    Just _  -> put (st { tclInterps = Map.delete n im })
 
 
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
