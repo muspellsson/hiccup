@@ -4,7 +4,7 @@ import Util
 import Match (globMatch)
 import Data.List (sortBy)
 import Data.Ord (comparing)
-import ProcUtil (mkLambda)
+import Proc.Util (mkLambda)
 import TclLib.LibUtil
 import qualified TclObj as T
 import Control.Monad

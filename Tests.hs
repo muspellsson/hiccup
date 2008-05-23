@@ -10,7 +10,7 @@ import RToken (rtokenTests)
 import Util (utilTests)
 import VarName (varNameTests)
 import Expr (exprTests)
-import ProcUtil (procUtilTests)
+import Proc.Util (procUtilTests)
 import Test.HUnit 
 
 allTests = TestList [ bsParseTests, tclParseTests, utilTests, tclObjTests, commonTests, 

@@ -1,8 +1,8 @@
-module ProcUtil (mkProc, mkLambda, procUtilTests) where
+module Proc.Util (mkProc, mkLambda, procUtilTests) where
 
 import Common
 import TclErr
-import ProcArgs
+import Proc.Params
 import Data.IORef
 import Core (evalTcl)
 import Control.Monad.Error

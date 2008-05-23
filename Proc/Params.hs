@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module ProcArgs (parseParams, bindArgs, ParamList) where
+module Proc.Params (parseParams, bindArgs, ParamList) where
 import Util
 import qualified TclObj as T
 import Common
