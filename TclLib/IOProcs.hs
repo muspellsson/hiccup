@@ -60,8 +60,9 @@ getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 
 procSource args = case args of
                   [s] -> do 
-		    let fn = T.asStr s 
-		    useFile fn (slurpFile fn) >>= evalTcl . T.fromBStr
+                     let fn = T.asStr s 
+                     dat <- useFile fn (slurpFile fn)
+                     evalTcl (T.fromBStr dat :: T.TclObj)
                   _   -> argErr "source"
 
 checkReadable c = do r <- io (hIsReadable c)

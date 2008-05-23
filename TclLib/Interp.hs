@@ -67,7 +67,7 @@ mkInterpWithVars vars cmds = do
               return (Interpreter stref)
 
 runInterp :: BString -> Interpreter -> IO (Either BString BString)
-runInterp s = runInterp' (evalTcl (T.fromBStr s))
+runInterp s = runInterp' (evalTcl ((T.fromBStr s) :: T.TclObj))
 
 runInterp' t (Interpreter i) = do
                  bEnv <- readIORef i

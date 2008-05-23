@@ -11,9 +11,12 @@ import VarName (arrName, NSQual(..))
 
 import Test.HUnit
 
-evalTcl :: T.TclObj -> TclM T.TclObj
-evalTcl s = asParsed s >>= runCmds
-{-# INLINE evalTcl #-}
+class Runnable t where
+  evalTcl :: t -> TclM T.TclObj
+
+instance Runnable T.TclObj where
+  evalTcl s = asParsed s >>= runCmds
+  {-# INLINE evalTcl #-}
 
 
 runCmds cl = case cl of
