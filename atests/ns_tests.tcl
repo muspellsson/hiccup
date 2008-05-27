@@ -405,3 +405,20 @@ test "simple forget unqualified (no import)" {
 
    finalize { proc blah }
 }
+
+test "qualified forget" {
+   namespace eval baz2 {
+      namespace export blah2
+      proc blah2 {} { return OK }
+   }
+
+   checkthat [proc_exists blah2] == 0
+   namespace import ::baz2::blah2
+   checkthat [proc_exists blah2] == 1
+
+   namespace forget ::baz2::b*
+
+   checkthat [proc_exists blah2] == 0
+
+   finalize { ns baz2 }
+}

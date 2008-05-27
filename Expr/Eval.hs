@@ -36,6 +36,7 @@ getItem item = case item of
                  ANum (TInt i)    -> return $! T.fromInt i
                  ANum (TDouble d) -> return $! T.fromDouble d
                  AStr s           -> return $! T.fromBStr s
+{-# INLINE getItem #-}
 
 
 runExpr :: (Monad m) => Callback m -> Expr -> m T.TclObj

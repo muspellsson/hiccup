@@ -87,7 +87,7 @@ parseDep = choose [var,cmd,fun]
 
 parseAtom = choose [str,num,bool]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
-        str = atom parseStr AStr
+        str = atom (parseStr `orElse` parseBlock) AStr
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)
 
@@ -139,6 +139,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"true" `should_be` (ANum (TInt 1))
      ,"false" `should_be` (ANum (TInt 0))
      ,"\"what\"" `should_be` (AStr "what")
+     ,"{what \" }" `should_be` (AStr "what \" ")
    ] where should_be = should_be_ parseAtom
 
   depTests = TestList [
@@ -167,6 +168,8 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"1 + 1 != \"1\"" `should_be` (app2 (app2 (int 1) OpPlus (int 1)) OpNeql (str "1"))
      ,"2 << 1 < 5" `should_be` (app2 (app2 (int 2) OpLShift (int 1)) OpLt (int 5))
      ,"!(3 == 5)" `should_be` (app1 OpNot (Paren (app2 (int 3) OpEql (int 5))))
+     ,"4 in \"1 4 8\"" `should_be` (app2 (int 4) OpIn (str "1 4 8"))
+     ,"4 in { 1 4 8 }" `should_be` (app2 (int 4) OpIn (str " 1 4 8 "))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
   
   numTests = TestList [

@@ -550,26 +550,31 @@ importNS force name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespace nst
     exported <- getExports nsr n
-    mapM (importProc nsr) exported
+    mapM (importCmd nsr) exported
     return . T.fromList . map T.fromBStr $ exported
- where importProc nsr n = do
+ where importCmd nsr n = do
             (np,add) <- mkCmdAlias nsr n 
             when (not force) $ do
                  oldp <- getCmdNS (NSQual Nothing n)
                  whenJust oldp $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
             oldc <- registerCmd (NSQual Nothing n) np
             add oldc
-       getExports nsr pat = do 
-               ns <- readRef nsr
-               let exlist = nsExport ns
-               let pnames = Map.keys (unCmdMap (nsCmds ns))
-               let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
-               return (globMatches pat filt)
+
+getExports nsr pat = do 
+   ns <- readRef nsr
+   let exlist = nsExport ns
+   let pnames = Map.keys (unCmdMap (nsCmds ns))
+   let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
+   return (globMatches pat filt)
 
 forgetNS name = do
    let qns@(NSQual nst n) = parseProc name
    case nst of 
-     Just _ -> fail "qualified forget isn't implemented yet"
+     Just _ -> do
+        nsr <- getNamespace nst
+        exported <- getExports nsr n
+        cns <- getCurrNS
+        mapM_ (\x -> io $ changeCmds cns (Map.delete x)) exported
      Nothing -> do
        mCmd <- getCmdNS qns 
        case mCmd of
