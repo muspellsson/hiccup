@@ -19,6 +19,7 @@ cmdNamespace = mkEnsemble "namespace" [
      ("path", ns_path),
      ("export", ns_export),
      ("import", ns_import),
+     ("forget", ns_forget),
      ("origin", ns_origin),
      ("qualifiers", ns_qualifiers),
      ("exists", ns_exists)]
@@ -50,11 +51,15 @@ ns_import args = case map T.asBStr args of
       ("-force":rest) -> mapM_ (importNS True) rest >> ret
       al              -> mapM_ (importNS False) al >> ret
 
+ns_forget args = case map T.asBStr args of
+      [] -> argErr "namespace forget"
+      al -> mapM_ forgetNS al >> ret
+
 ns_origin args = case args of
      [pn] -> do pr <- getCmd (T.asBStr pn)
                 case pr of
                   Nothing -> tclErr $ "invalid command name: " ++ show pn
-                  Just p  -> getOrigin p >>= treturn
+                  Just p  -> getOriginName p >>= treturn
      _    -> argErr "namespace origin"
 
 ns_children args = case args of

@@ -2,7 +2,7 @@
 module Common (TclM
        ,TclState
        ,applyTo,cmdBody
-       ,getOrigin
+       ,getOriginName
        ,runTclM
        ,makeState
        ,createInterp
@@ -49,6 +49,7 @@ module Common (TclM
        ,exportNS
        ,getExportsNS
        ,importNS
+       ,forgetNS
        ,commandNames
        ,commonTests
     ) where
@@ -74,13 +75,26 @@ import Util
 
 import Test.HUnit
 
-getOrigin :: TclCmdObj -> TclM BString
-getOrigin p = getOrig
+
+
+getOrigin :: TclCmdObj -> TclM NSRef
+getOrigin p = case cmdParent p of
+                Nothing  -> case cmdOrigNS p of
+                              Nothing -> fail "Can't find origin namespace!"
+                              Just nsr -> return nsr
+                Just par -> readRef par >>= getOrigin
+                 
+getOriginName p = getOrigin p >>= readRef >>= \ns -> return $ fixNSName (nsName ns) (cmdName p)
+
+{-
+getOriginName :: TclCmdObj -> TclM BString
+getOriginName p = getOrig
  where nsox = maybe (return nsSep) (`refExtract` nsName)
        pname = cmdName p
        getOrig = case cmdParent p of 
                   Nothing  -> nsox (cmdOrigNS p) >>= \rt -> return $ fixNSName rt pname
-                  Just par -> readRef par >>= getOrigin 
+                  Just par -> readRef par >>= getOriginName
+                  -}
 
 fixNSName rt t = if rt == nsSep then B.append rt t
                                 else B.concat [rt, nsSep, t]
@@ -552,6 +566,17 @@ importNS force name = do
                let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
                return (globMatches pat filt)
 
+forgetNS name = do
+   let qns@(NSQual nst n) = parseProc name
+   case nst of 
+     Just _ -> fail "qualified forget isn't implemented yet"
+     Nothing -> do
+       mCmd <- getCmdNS qns 
+       case mCmd of
+         Just cmd -> case cmdParent cmd of
+                         Nothing -> return ()
+                         Just _  -> removeCmd cmd
+         Nothing -> fail "no such command to forget"
 
 getTag frref = do
   f <- readRef frref

@@ -378,3 +378,30 @@ test "default ns path" {
     checkthat [namespace path] eq {}
   }
 }
+
+test "simple forget unqualified" {
+   namespace eval baz {
+      namespace export blah
+      proc blah {} { return OK }
+   }
+
+   checkthat [proc_exists blah] == 0
+   namespace import ::baz::blah
+   checkthat [proc_exists blah] == 1
+
+   namespace forget blah
+   checkthat [proc_exists blah] == 0
+
+   finalize { ns baz }
+}
+
+test "simple forget unqualified (no import)" {
+   proc blah {} { return OK }
+
+   checkthat [proc_exists blah] == 1
+
+   namespace forget blah
+   checkthat [proc_exists blah] == 1
+
+   finalize { proc blah }
+}
