@@ -39,6 +39,7 @@ module Common (TclM
        ,getCmdCount
        ,globalVars
        ,localVars
+       ,commandNames
        ,currentVars
        ,currentNS
        ,parentNS
@@ -50,7 +51,6 @@ module Common (TclM
        ,getExportsNS
        ,importNS
        ,forgetNS
-       ,commandNames
        ,commonTests
     ) where
 
@@ -238,9 +238,17 @@ currentVars = do f <- getFrame
                  mv <- getUpMap f
                  return $ Map.keys vs ++ Map.keys mv
 
-commandNames procsOnly = nsCmdMap >>= (mapM readRef) . cmdMapElems >>= return . map cmdName . filt
- where nsCmdMap = getCurrNS >>= getNsCmdMap
-       filt = if procsOnly then filter cmdIsProc else id
+commandNames procsOnly = nsList >>= mapM mapElems >>= return . map fst . filt . concat
+ where mapElems e = getNsCmdMap e >>= (mapM (\(a,b) -> readRef b >>= \bp -> return (a,bp))) . Map.toList . unCmdMap
+       nsList = do
+          c <- getCurrNS
+          ns_par <- c `refExtract` nsParent
+          case ns_par of
+             Nothing -> return [c]
+             Just _  -> do
+                 gns <- getGlobalNS 
+                 return [gns, c]
+       filt = if procsOnly then filter (cmdIsProc . snd) else id
 
 cmdMapElems :: CmdMap -> [CmdRef]
 cmdMapElems = Map.elems . unCmdMap

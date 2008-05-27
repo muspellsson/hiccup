@@ -422,3 +422,12 @@ test "qualified forget" {
 
    finalize { ns baz2 }
 }
+
+test "info commands has all accessable" {
+    namespace eval panther {
+        proc baz {} {}
+        checkthat [expr { "baz" in [info commands] }]
+        checkthat [expr { "puts" in [info commands] }]
+    }
+    finalize { ns panther }
+}
