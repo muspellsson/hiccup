@@ -17,6 +17,7 @@ interpCmds = makeCmdList [
 cmdInterp = mkEnsemble "interp" [
     ("create", interp_create)
     ,("eval", interp_eval)
+    ,("issafe", interp_issafe)
     ,("exists", interp_exists)
     ,("delete", interp_delete)
   ]
@@ -33,6 +34,14 @@ interp_delete args = case args of
         renameCmd (T.asBStr n) (pack "")
         ret
     _   -> argErr "interp delete"
+
+interp_issafe args = case args of
+  []  -> return (T.fromBool False)
+  [n] -> do
+     getInterp (T.asBStr n)
+     return (T.fromBool False)
+  _   -> argErr "interp issafe"
+
 
 allCmds = mergeCmdLists [interpCmds, libCmds]
 

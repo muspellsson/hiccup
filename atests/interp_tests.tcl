@@ -27,3 +27,8 @@ test "interp proc" {
 
   checkthat [expr {"pizz" in [info commands]}] == 0
 }
+
+test "interp issafe" {
+    checkthat [interp issafe] == 0
+    assert_err { interp issafe pinochet }
+}

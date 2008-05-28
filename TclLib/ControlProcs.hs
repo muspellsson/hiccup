@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.ControlProcs (controlCmds) where
 
-import Proc.CodeBlock 
 import Common
 import Core
 import Match (globMatch, exactMatch)

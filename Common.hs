@@ -160,13 +160,15 @@ createInterp n clist = do
 getInterp n = do
   st <- get
   let im = tclInterps st
-  Map.lookup n im
+  case Map.lookup n im of
+    Nothing -> tclErr $ "could not find interpreter " ++ show n
+    Just v  -> return $! v
 
 deleteInterp n = do
   st <- get
   let im = tclInterps st
   case Map.lookup n im of
-    Nothing -> tclErr "interpreter doesn't exist"
+    Nothing -> tclErr $ "could not find interpreter " ++ show n
     Just _  -> put (st { tclInterps = Map.delete n im })
 
 
