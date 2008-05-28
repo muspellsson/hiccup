@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module TclLib.ControlProcs (controlProcs) where
+module TclLib.ControlProcs (controlCmds) where
 
 import Proc.CodeBlock 
 import Common
@@ -11,7 +11,7 @@ import TclErr
 import TclObj ((.==))
 import Util
 
-controlProcs = makeCmdList $
+controlCmds = makeCmdList $
   [("while", cmdWhile), ("if", cmdIf), ("for", cmdFor),
    ("foreach", cmdForEach), ("switch", cmdSwitch)]
 
@@ -30,7 +30,7 @@ cmdWhile args = case args of
   _           -> argErr "while"
 
 whileLoop cond body = loop `catchError` herr
- where herr e = case e of
+ where herr e = case toEnum (errCode e) of
            EBreak    -> ret
            EContinue -> loop `catchError` herr
            _         -> throwError e
@@ -38,7 +38,7 @@ whileLoop cond body = loop `catchError` herr
          condVal <- doCond cond
          if condVal then evalTcl body >> loop else ret
 
-eatErr f v = (f >> ret) `catchError` \e -> if v == e then ret else throwError e
+eatErr f v = (f >> ret) `catchError` \e -> if v == (toEnum (errCode e)) then ret else throwError e
 {-# INLINE eatErr #-}
 
 cmdFor args = case args of

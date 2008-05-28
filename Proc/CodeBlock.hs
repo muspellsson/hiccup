@@ -31,8 +31,8 @@ compToken tok = case tok of
   ArrRef mtag n t -> compToken t >>= \nt -> return $ ArrRef mtag n nt
   VarRef v -> return $ VarRef v
   Block s t e -> return (Block s t e)
-  Lit s           -> return (Lit s)
-  LitInt i        -> return (LitInt i)
+  Lit s           -> return $! (Lit s)
+  LitInt i        -> return $! (LitInt i)
   CatLst lst      -> mapM compToken lst >>= return . CatLst
 
 instance Runnable CompCmd where

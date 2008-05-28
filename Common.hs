@@ -138,7 +138,7 @@ toTclCmdObj (n,v) = return (bsn, emptyCmd { cmdName = bsn,
 tclErr :: String -> TclM a
 tclErr s = do
   attempt (setErrorInfo s)
-  throwError (EDie s)
+  throwError (eDie s)
 
 setErrorInfo s = do
   glFr <- getGlobalNS >>= getNSFrame
@@ -732,7 +732,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
        return (retv, tclStack resStack)
 
 
-  checkErr a s = errWithEnv a >>= \v -> assertEqual "err match" (Left (EDie s)) v
+  checkErr a s = errWithEnv a >>= \v -> assertEqual "err match" (Left (eDie s)) v
   checkNoErr a = errWithEnv a >>= \v -> assertBool "err match" (isRight v)
 
   checkExists a n = do (_,(v:_)) <- evalWithEnv a

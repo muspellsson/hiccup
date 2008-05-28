@@ -4,7 +4,7 @@ import Control.Monad.Error
 import TclLib.LibUtil
 import Control.Monad (liftM)
 import Data.Char (isDigit)
-import TclErr (Err(..), errCode,e_OK)
+import TclErr 
 import System (getProgName)
 import Match (globMatches)
 import Util
@@ -86,14 +86,17 @@ cmdCatch args = case args of
            [s]        -> (evalTcl s >> retCodeVal e_OK) `catchError` retCode
            [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> retCodeVal e_OK) `catchError` (retReason result)
            _   -> argErr "catch"
- where retReason v e = case e of
-                         EDie s -> varSetNS (T.asVarName v) (T.fromStr s) >> retCode e
-                         _      -> retCode e
+ where retReason v e = 
+            let setVar = varSetNS (T.asVarName v) (errData e) >> retCode e
+            in case toEnum (errCode e) of
+                         EError  -> setVar
+                         EReturn -> setVar
+                         _       -> retCode e
        retCode = retCodeVal . errCode
        retCodeVal = return . T.fromInt
 
 cmdRetv c args = case args of
-    [] -> throwError c
+    [] -> throwError (fromCode c)
     _  -> argErr $ st c
  where st EContinue = "continue"
        st EBreak    = "break"
@@ -105,13 +108,18 @@ cmdReturn args = case args of
       [c,f] -> handleCode c f T.empty
       [c,f,s] -> handleCode c f s
       _   -> argErr "return"
- where returnVal val = throwError (ERet val)
+ where throwVal e val = throwError (Err (fromEnum e) (Just val))
+       returnVal v = throwError (Err e_RETURN (Just v))
+       trampErr x = throwError (ErrTramp (fromCode x))
        handleCode c f val = do
          unless (T.asStr c == "-code") $ tclErr "invalid flag to return"
          case T.asStr f of
-           "ok" -> returnVal val
-           "error" -> returnVal val -- TODO: This is not right
-           cv   -> throwError (EDie $ "bad completion val: " ++ show cv)
+           "ok" -> throwVal EReturn val
+           "error" -> throwVal EReturn val -- TODO: This is not right
+           "break" -> trampErr EBreak
+           "continue" -> trampErr EContinue
+           "return"   -> trampErr EReturn
+           cv   -> throwError (eDie $ "bad completion val: " ++ show cv)
 
 cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s

@@ -34,11 +34,11 @@ callProc pn args = getCmd pn >>= \pr -> doCall pn pr args
 
 evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
-            Lit s     -> evalRTokens xs ((T.fromBStr s):acc)
-            LitInt i  -> evalRTokens xs ((T.fromInt i):acc)
+            Lit s     -> nextWith (return . T.fromBStr $ s) -- evalRTokens xs ((T.fromBStr s):acc)
+            LitInt i  -> nextWith (return . T.fromInt $ i) -- evalRTokens xs ((T.fromInt i):acc)
             CmdTok t  -> nextWith (evalTcl t)
             VarRef vn -> nextWith (varGetNS vn)
-            Block s p e -> evalRTokens xs ((T.fromBlock s p e):acc)
+            Block s p e -> nextWith (return $ T.fromBlock s p e) -- evalRTokens xs ((T.fromBlock s p e):acc)
             ArrRef ns n i -> do
                  ni <- evalRTokens [i] [] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 

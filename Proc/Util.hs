@@ -1,7 +1,6 @@
 module Proc.Util (mkProc, mkLambda, procUtilTests) where
 
 import Common
-import TclErr
 import Proc.Compiled
 import Proc.Params
 import Data.IORef
@@ -54,11 +53,6 @@ procRunner compref attempts params body args = do
 
 interpretProc pl body args = do
   locals <- bindArgs pl args
-  withLocalScope locals (evalTcl body `catchError` herr)
- where herr (ERet s)  = return $! s
-       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
-       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
-       herr e         = throwError e
-
+  withLocalScope locals (procCatcher (evalTcl body))
 
 procUtilTests = TestList [] 

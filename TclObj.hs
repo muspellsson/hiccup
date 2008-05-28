@@ -166,6 +166,7 @@ instance Exprable TclObj Cmd where
   asCExpr (TclBStr _ _ _ (Left err)) = fail err
   asCExpr (TclBStr _ _ _ (Right ex)) = return ex
   asCExpr _ =  fail "only blocks for now"
+  {-# INLINE asCExpr #-}
 
 list2Str l = (map listEscape l)  `joinWith` ' '
 

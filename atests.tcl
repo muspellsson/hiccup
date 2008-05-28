@@ -1030,20 +1030,82 @@ test "return code" {
 
     assert_err { return -code fishbulb }
 
-    checkthat [catch {return -code error EEP} msg] == 2 { catch return -code error == 2 }
-    checkthat $msg eq EEP
+    checkthat [catch { return pants } msg1] == 2
+    checkthat $msg1 eq pants
+
+    checkthat [catch { set x 4 } msg2] == 0
+    checkthat $msg2 eq 4
+
+    checkthat [catch {return -code error EEP} msg3] == 2 { catch return -code error == 2 }
+    checkthat $msg3 eq EEP
+
+    finalize { proc retthis }
+}
+
+test "return break" {
+    proc retbreak {} { return -code break }
+
+    set count 0
+    for { set x 0 } { $x < 5 } { incr x } {
+        incr count
+        retbreak
+    }
+
+    checkthat $count == 1
+    finalize { proc retbreak }
+}
+
+test "return continue" {
+    proc retcont {} { return -code continue }
+    set res OK
+    for { set x 0 } { $x < 5 } { incr x } {
+        retcont
+        set res FAIL
+    }
+
+    checkthat $res eq OK
+
+    finalize { proc retcont }
+}
+
+test "return return" {
+    proc retret {} { return -code return }
+    proc thinger {} {
+        uplevel  { set res OK }
+        retret
+        uplevel { set res FAIL }
+    }
+    thinger
+
+    checkthat $res eq OK
+    finalize { proc retret proc thinger }
 }
 
 test "changed proc" {
-    set c 0
-    proc stuff {} { uplevel { incr boo } }
-    set boo 0
-    while { $c < 5 } {
-        stuff
-        proc stuff {} {}
-        incr c
+    namespace eval temp {
+        variable count 0
     }
-    checkthat $boo == 1
+
+    proc inner {} {
+        variable ::temp::count
+        set count 0
+    }
+    proc outer {} {
+        inner 
+        inner
+    }
+    outer
+    checkthat $::temp::count == 0
+
+    proc inner {} {
+        variable ::temp::count
+        set count 5
+    }
+
+    outer
+    checkthat $::temp::count == 5
+
+    finalize { proc inner proc outer ns temp } 
 }
 
 ::testlib::run_tests
