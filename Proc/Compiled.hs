@@ -1,27 +1,23 @@
 module Proc.Compiled where
-import Util
-import RToken
+import TclErr
+import Control.Monad.Error
 import Common
 import Proc.Params
-import Data.IORef
-import qualified TclObj as T
+import Proc.CodeBlock
 
-data CompiledProc = CProc [CompCmd] T.TclObj ParamList
-
-type TclCmd = [T.TclObj] -> TclM T.TclObj
-
-type MRef a = (IORef (Maybe a))
-data CompCmd = CompCmd (Maybe (MRef TclCmd)) Cmd
+data CompiledProc = CProc CodeBlock ParamList
 
 compileProc params body = do
-  cmds <- asParsed body >>= mapM compCmd 
-  fail "no compiler. sorry"
-  return (CProc cmds body params)
+  cb <- toCodeBlock body
+  return (CProc cb params)
 
-compCmd :: Cmd -> TclM CompCmd
-compCmd c@(Cmd (BasicCmd _) _) = do
-       r <- io $ newIORef Nothing
-       return $ CompCmd (Just r) c
-compCmd c = return $ CompCmd Nothing c
 
-runCompiled (CProc _ o a) args = fail "no can do"
+procCatcher f = f `catchError` herr
+ where herr (ERet s)  = return $! s
+       herr EBreak    = tclErr "invoked \"break\" outside of a loop"
+       herr EContinue = tclErr "invoked \"continue\" outside of a loop"
+       herr e         = throwError e
+
+runCompiled (CProc cb pl) args = do
+  locals <- bindArgs pl args
+  withLocalScope locals (procCatcher (runCodeBlock cb))

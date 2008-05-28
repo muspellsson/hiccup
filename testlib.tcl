@@ -18,6 +18,10 @@ proc ::testlib::pass {} {
 }
 
 proc assertFail why {
+    ::testlib::fail $why
+}
+
+proc ::testlib::fail why {
   variable ::testlib::current_test
   incr ::testlib::assertcount
   puts "'$current_test' failed: $why"
@@ -28,7 +32,7 @@ proc verify { code { msg "" } } {
     if { $::testlib::trace_test == 1 } { puts "\"$code\" was true" }
     ::testlib::pass
   } else {
-    assertFail "\"$code\" was not true ($msg)"
+    testlib::fail "\"$code\" was not true ($msg)"
   }
 }
 
@@ -38,7 +42,7 @@ proc checkthat { var { op == } { r 1 } { msg "" } } {
     if { $::testlib::trace_test == 1 } { puts "\"$var $op $r\" was true" }
     ::testlib::pass
   } else {
-    assertFail "\"$var $op $r\" was not true ($msg)"
+    ::testlib::fail "\"$var $op $r\" was not true ($msg)"
   }
 }
 
@@ -47,7 +51,7 @@ proc assertNoErr code {
   if { $ret == 0 } {
     testlib::pass
   } else {
-    assertFail "code failed: $code"
+    testlib::fail "code failed: $code"
   }
 }
 
@@ -60,7 +64,7 @@ proc assertErr { code { msg "" } } {
   if { $ret == 1 } {
     ::testlib::pass
   } else {
-    assertFail "code should've failed: $code ($ret) $msg"
+    ::testlib::fail "code should've failed: $code ($ret) $msg"
   }
 }
 
@@ -75,7 +79,7 @@ proc get_err code {
 
 proc assert code {
   set ret [uplevel $code]
-  if { $ret == 1 } { ::testlib::pass } else { assertFail "Failed: $code" }
+  if { $ret == 1 } { ::testlib::pass } else { ::testlib::fail "Failed: $code" }
 }
 
 proc test {name body} {
@@ -95,7 +99,7 @@ proc ::testlib::run_test tname {
   uplevel "proc test_proc {} {$::testlib::tests($tname)}"
   set ::testlib::current_test $tname
   set ret [catch { uplevel test_proc } retval]
-  if { $ret == 1 } { assertFail "Error in test {$tname}: $retval" }
+  if { $ret == 1 } { ::testlib::fail "Error in test {$tname}: $retval" }
   puts -nonewline "|"
   rename test_proc {}
 }

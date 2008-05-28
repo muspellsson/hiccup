@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module TclLib.ControlProcs (controlProcs) where
 
+import Proc.CodeBlock 
 import Common
 import Core
 import Match (globMatch, exactMatch)
@@ -11,31 +12,36 @@ import TclObj ((.==))
 import Util
 
 controlProcs = makeCmdList $
-  [("while", procWhile), ("if", procIf), ("for", procFor),
-   ("foreach", procForEach), ("switch", procSwitch)]
+  [("while", cmdWhile), ("if", cmdIf), ("for", cmdFor),
+   ("foreach", cmdForEach), ("switch", cmdSwitch)]
 
-procIf (cond:yes:rest) = do
+cmdIf (cond:yes:rest) = do
   condVal <- doCond cond
   if condVal then evalTcl yes
     else case rest of
           []      -> ret
           [s,blk] -> if (T.asBStr s) == (pack "else") then evalTcl blk else tclErr "Invalid If"
-          (s:r)   -> if s .== "elseif" then procIf r else tclErr "Invalid If"
-procIf _ = argErr "if"
+          (s:r)   -> if s .== "elseif" then cmdIf r else tclErr "Invalid If"
+cmdIf _ = argErr "if"
 
-procWhile [cond,body] = loop `catchError` herr
- where herr EBreak    = ret
-       herr EContinue = loop `catchError` herr
-       herr x         = throwError x
-       loop = do condVal <- doCond cond
-                 if condVal then evalTcl body >> loop else ret
 
-procWhile _ = argErr "while"
+cmdWhile args = case args of
+  [cond,body] -> whileLoop cond body
+  _           -> argErr "while"
+
+whileLoop cond body = loop `catchError` herr
+ where herr e = case e of
+           EBreak    -> ret
+           EContinue -> loop `catchError` herr
+           _         -> throwError e
+       loop = do
+         condVal <- doCond cond
+         if condVal then evalTcl body >> loop else ret
 
 eatErr f v = (f >> ret) `catchError` \e -> if v == e then ret else throwError e
 {-# INLINE eatErr #-}
 
-procFor args = case args of
+cmdFor args = case args of
    [start,test,next,body] -> do evalTcl start
                                 loop test next body `eatErr` EBreak
                                 ret
@@ -45,7 +51,7 @@ procFor args = case args of
          if c then (evalTcl body `eatErr` EContinue) >> evalTcl next >> loop test next body
               else ret
 
-procForEach args =
+cmdForEach args =
    case args of
     [vl_,l_,block] -> do
                vl <- T.asList vl_
@@ -67,7 +73,7 @@ procForEach args =
 chunkBy lst n = let (a,r) = splitAt n lst
                 in a : (if null r then [] else r `chunkBy` n)
 
-procSwitch args = case args of
+cmdSwitch args = case args of
    [str,pairlst]     -> T.asList pairlst >>= doSwitch (exacter str) 
    [opt,str,pairlst] -> if opt .== "--" || opt .== "-exact"
                          then T.asList pairlst >>= doSwitch (exacter str) 

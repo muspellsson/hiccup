@@ -4,7 +4,7 @@ import Control.Monad.Error
 import TclLib.LibUtil
 import Control.Monad (liftM)
 import Data.Char (isDigit)
-import TclErr (Err(..), errCode)
+import TclErr (Err(..), errCode,e_OK)
 import System (getProgName)
 import Match (globMatches)
 import Util
@@ -83,13 +83,14 @@ cmdUplevel args = case args of
                          _ -> badlevel
 
 cmdCatch args = case args of
-           [s]        -> (evalTcl s >> return T.tclFalse) `catchError` retCode
-           [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> return T.tclFalse) `catchError` (retReason result)
+           [s]        -> (evalTcl s >> retCodeVal e_OK) `catchError` retCode
+           [s,result] -> (evalTcl s >>= varSetNS (T.asVarName result) >> retCodeVal e_OK) `catchError` (retReason result)
            _   -> argErr "catch"
  where retReason v e = case e of
-                         EDie s -> varSetNS (T.asVarName v) (T.fromStr s) >> return T.tclTrue
+                         EDie s -> varSetNS (T.asVarName v) (T.fromStr s) >> retCode e
                          _      -> retCode e
-       retCode = return . T.fromInt . errCode
+       retCode = retCodeVal . errCode
+       retCodeVal = return . T.fromInt
 
 cmdRetv c args = case args of
     [] -> throwError c
@@ -99,9 +100,18 @@ cmdRetv c args = case args of
        st _         = "??"
 
 cmdReturn args = case args of
-      [s] -> throwError (ERet s)
-      []  -> throwError (ERet T.empty)
+      [s] -> returnVal s
+      []  -> returnVal T.empty
+      [c,f] -> handleCode c f T.empty
+      [c,f,s] -> handleCode c f s
       _   -> argErr "return"
+ where returnVal val = throwError (ERet val)
+       handleCode c f val = do
+         unless (T.asStr c == "-code") $ tclErr "invalid flag to return"
+         case T.asStr f of
+           "ok" -> returnVal val
+           "error" -> returnVal val -- TODO: This is not right
+           cv   -> throwError (EDie $ "bad completion val: " ++ show cv)
 
 cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s

@@ -39,7 +39,7 @@ cMAX_ATTEMPTS = 3
 procRunner compref attempts params body args = do
   num_attempts <- readRef attempts 
   if num_attempts > cMAX_ATTEMPTS 
-    then runInterp
+    then (io $ putStrLn "reached max attempts") >> runInterp
     else do cp <- readRef compref
             case cp of
              Nothing -> compileAndExec `orElse` (incrAttempts >> runInterp)

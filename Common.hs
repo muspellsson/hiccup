@@ -5,6 +5,7 @@ module Common (TclM
        ,getOriginName
        ,runTclM
        ,makeState
+       ,setErrorInfo
        ,createInterp
        ,getInterp
        ,deleteInterp
@@ -86,15 +87,6 @@ getOrigin p = case cmdParent p of
                  
 getOriginName p = getOrigin p >>= readRef >>= \ns -> return $ fixNSName (nsName ns) (cmdName p)
 
-{-
-getOriginName :: TclCmdObj -> TclM BString
-getOriginName p = getOrig
- where nsox = maybe (return nsSep) (`refExtract` nsName)
-       pname = cmdName p
-       getOrig = case cmdParent p of 
-                  Nothing  -> nsox (cmdOrigNS p) >>= \rt -> return $ fixNSName rt pname
-                  Just par -> readRef par >>= getOriginName
-                  -}
 
 fixNSName rt t = if rt == nsSep then B.append rt t
                                 else B.concat [rt, nsSep, t]
@@ -215,13 +207,13 @@ getNsCmdMap !nsr = liftIO (readIORef nsr >>= \v -> return $! (nsCmds v))
 putStack s = modify (\v -> v { tclStack = s })
 {-# INLINE putStack  #-}
 modStack :: (TclStack -> TclStack) -> TclM ()
-modStack f = modify (\v -> v { tclStack = f (tclStack v) })
+modStack f = get >>= put . (\v -> let !v2 = v { tclStack = f (tclStack v) } in v2)
 {-# INLINE modStack #-}
 
 getFrame = do st <- gets tclStack
               case st of
                  (fr:_) -> return $! fr
-                 _      -> tclErr "stack badness"
+                 _      -> fail "stack badness"
 
 io :: IO a -> TclM a
 io = liftIO
@@ -239,7 +231,8 @@ currentVars = do f <- getFrame
                  return $ Map.keys vs ++ Map.keys mv
 
 commandNames procsOnly = nsList >>= mapM mapElems >>= return . map fst . filt . concat
- where mapElems e = getNsCmdMap e >>= (mapM (\(a,b) -> readRef b >>= \bp -> return (a,bp))) . Map.toList . unCmdMap
+ where mapElems e = getNsCmdMap e >>= mapM readSnd . Map.toList . unCmdMap
+       readSnd (a,b) = readRef b >>= \bp -> return (a,bp)
        nsList = do
           c <- getCurrNS
           ns_par <- c `refExtract` nsParent
@@ -314,7 +307,7 @@ getCmdNorm !i !nsr = do
   cr <- getCmdRef i nsr
   case cr of
      Nothing -> return Nothing
-     Just v  -> readRef v >>= return . Just
+     Just v  -> liftIO (readIORef v >>= return . Just)
 {-# INLINE getCmdNorm #-}
 
 

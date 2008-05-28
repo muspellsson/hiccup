@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (evalTcl, doCond, runCmd, callProc, evalArgs, coreTests) where
+module Core (Runnable(..), doCond, runCmd, callProc, evalArgs, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -18,6 +18,9 @@ instance Runnable T.TclObj where
   evalTcl s = asParsed s >>= runCmds
   {-# INLINE evalTcl #-}
 
+instance Runnable Cmd where
+  evalTcl = runCmd
+
 
 runCmds cl = case cl of
    [x]    -> runCmd x
@@ -26,16 +29,14 @@ runCmds cl = case cl of
 {-# INLINE runCmds #-}
 
 
-
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = getCmd pn >>= \pr -> doCall pn pr args
 
-evalRTokens :: [RToken] -> [T.TclObj] -> TclM [T.TclObj] 
 evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
             Lit s     -> evalRTokens xs ((T.fromBStr s):acc)
             LitInt i  -> evalRTokens xs ((T.fromInt i):acc)
-            CmdTok t  -> nextWith (runCmd t)
+            CmdTok t  -> nextWith (evalTcl t)
             VarRef vn -> nextWith (varGetNS vn)
             Block s p e -> evalRTokens xs ((T.fromBlock s p e):acc)
             ArrRef ns n i -> do

@@ -13,10 +13,10 @@ import Data.Sequence ((><))
 
 listCmds = makeCmdList $
   [("list", cmdList),("lindex",cmdLindex),
-   ("llength",cmdLlength), ("lappend", procLappend), ("lsearch", cmdLsearch),
-   ("lset", procLset), ("lassign", procLassign), ("lsort", procLsort),
+   ("llength",cmdLlength), ("lappend", cmdLappend), ("lsearch", cmdLsearch),
+   ("lset", cmdLset), ("lassign", cmdLassign), ("lsort", cmdLsort),
    ("lrange", cmdLrange), ("lmap", cmdLmap),
-   ("join", procJoin), ("concat", procConcat), ("lrepeat", cmdLrepeat)]
+   ("join", cmdJoin), ("concat", cmdConcat), ("lrepeat", cmdLrepeat)]
 
 cmdList = return . T.fromList
 
@@ -34,7 +34,7 @@ cmdLlength args = case args of
         [lst] -> T.asSeq lst >>= return . T.fromInt . S.length
         _     -> vArgErr "llength list"
 
-procLset args = case args of
+cmdLset args = case args of
         [name,val] -> modifyVar (T.asVarName name) (\_ -> return val)
         [name,ind,val] -> modifyVar (T.asVarName name) $
                            \old -> do
@@ -52,7 +52,7 @@ procLset args = case args of
             n <- f o
             varSetNS vn $! n
                               
-procLassign args = case args of
+cmdLassign args = case args of
   (list:(varnames@(_:_))) -> do l <- T.asList list
                                 let (src,rest) = splitAt (length varnames) l
                                 zipWithM_ setter varnames (src ++ repeat T.empty)
@@ -60,7 +60,7 @@ procLassign args = case args of
   _ -> argErr "lassign"
  where setter n v = varSetNS (T.asVarName n) v
 
-procJoin args = case args of
+cmdJoin args = case args of
    [lst]     -> dojoin lst (pack " ")
    [lst,sep] -> dojoin lst (T.asBStr sep)
    _         -> argErr "join"
@@ -68,9 +68,9 @@ procJoin args = case args of
          lst <- T.asList ll
          return $ T.fromBStr (joinWithBS (map T.asBStr lst) sep)
 
-procConcat = return . T.objconcat
+cmdConcat = return . T.objconcat
 
-procLappend args = case args of
+cmdLappend args = case args of
         (n:news) -> do 
              let vn = T.asVarName n 
              items <- varGetNS vn >>= T.asSeq 
@@ -100,7 +100,7 @@ accumFlags (x:xs) sf = case T.asStr x of
                         
 defaultSort = SF { sortType = AsciiSort, sortReverse = False, noCase = False }
 
-procLsort args =  case args of
+cmdLsort args = case args of
           []    -> argErr "lsort"
           alst  -> let (opts,lst) = (init alst, last alst)
                    in do sf <- accumFlags opts defaultSort

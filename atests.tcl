@@ -361,6 +361,8 @@ test "errors and catch" {
 
 
 test "catching return, break and continue" {
+  checkthat [catch {set x 4}] == 0
+  checkthat [catch {error ERR}] == 1
   checkthat [catch return] == 2
   checkthat [catch break] == 3
   checkthat [catch continue] == 4
@@ -461,6 +463,7 @@ test "early return" {
     proc yay {} { 
       upvar moo moo2
       return 
+      puts "WTF SHOULD NOT HAPPEN"
       set moo2 5
     }
 
@@ -1014,6 +1017,33 @@ test "apply" {
 
   checkthat [apply {{a b} { + $a $b}} 2 3] == 5
   assert_err { apply {{a b} { + $a $b}} 2 }
+}
+
+test "return code" {
+    proc retthis args {
+        return {*}$args
+    }
+    checkthat [retthis -errorcode] eq -errorcode
+    checkthat [retthis -code] eq -code
+
+    checkthat [retthis -code ok] eq {}
+
+    assert_err { return -code fishbulb }
+
+    checkthat [catch {return -code error EEP} msg] == 2 { catch return -code error == 2 }
+    checkthat $msg eq EEP
+}
+
+test "changed proc" {
+    set c 0
+    proc stuff {} { uplevel { incr boo } }
+    set boo 0
+    while { $c < 5 } {
+        stuff
+        proc stuff {} {}
+        incr c
+    }
+    checkthat $boo == 1
 }
 
 ::testlib::run_tests
