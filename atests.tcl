@@ -1108,5 +1108,15 @@ test "changed proc" {
     finalize { proc inner proc outer ns temp } 
 }
 
+test "format" {
+    checkthat [format "hi %s" billy] eq "hi billy"
+    checkthat [format "hi %%"] eq "hi %"
+    checkthat [format "letter %c!" 65] eq "letter A!"
+
+    assert_err { format "Oh %c" candy }
+    assert_err { format "hi %s" }
+    assert_err { format " % " }
+}
+
 ::testlib::run_tests
 #puts "([llength [info procs]] lingering procs)"

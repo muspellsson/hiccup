@@ -9,6 +9,7 @@ import System.Posix.Process (getProcessID)
 import Core (evalTcl, runCmd, callProc)
 import Common
 import Expr (runAsExpr, CBData(..))
+import Format
 import qualified TclObj as T
 
 utilProcs = makeCmdList [
@@ -16,6 +17,7 @@ utilProcs = makeCmdList [
    ("incr", cmdIncr), 
    ("expr", cmdExpr),
    ("pid", cmdPid),
+   ("format", cmdFormat),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
 cmdIncr args = case args of
@@ -82,3 +84,7 @@ exprCallback !v = case v of
     VarRef n     -> varGetNS n
     FunRef (n,a) -> callProc n a
     CmdEval cmd  -> runCmd cmd
+
+cmdFormat args = case args of
+   (x:xs) -> formatString (T.asBStr x) xs >>= return . T.fromBStr
+   _      -> argErr "format"
