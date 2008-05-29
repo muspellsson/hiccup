@@ -9,17 +9,18 @@ Homepage:            http://hiccup.googlecode.com/
 Category:            Compilers/Interpreters
 Synopsis:            Relatively efficient Tcl interpreter with support for basic operations
 Maintainer:          consalus+hiccup@gmail.com
-Build-Depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring < 0.9.0.4 , containers, random, unix
+Build-Depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring, containers, random, unix
+-- Build-Depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring < 0.9.0.4 , containers, random, unix
 Build-Type:          Simple
 data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
 Executable:          hiccup
-Other-Modules:       Hiccup, TclObj, VarName, Common, Types, Util, Core, RToken, BSParse, EventMgr, ProcArgs, TclLib,
+Other-Modules:       Hiccup, TclObj, VarName, Common, Types, Util, Core, RToken, BSParse, EventMgr, TclLib,
                      TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, 
                      TclLib.LibUtil, TclChan,
                      TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, Expr.Parse, Expr.Eval, Expr.TExp, 
-                     Expr.Util, Match
+                     Expr.Util, Match, Format, Proc.Params, Proc.Util, Proc.Compiled, Proc.CodeBlock
 Main-is:             Main.hs
 ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W -fglasgow-exts
 ghc-prof-options:    -auto-all -prof

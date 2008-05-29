@@ -16,6 +16,8 @@ test "array set/get" {
   set arr($i) 0
   set "arr([succ [succ $i]])" 1
   checkthat "$arr([succ [succ $i]])" == 1
+
+  finalize { proc succ }
 }
 
 

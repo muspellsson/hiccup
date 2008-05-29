@@ -69,6 +69,7 @@ test "info level" {
   }
 
   checkthat [getlevel] == 2
+  finalize { proc getlevel }
 }
 
 test "absolute uplevel" {
@@ -191,11 +192,11 @@ test "double compare" {
 
 test "test if, elseif, else" {
   if { "one" eq "two" } {
-    assertFail "Should not have hit this."
+    ::testlib::fail "Should not have hit this."
   } elseif { 1 == 1 } {
     ::testlib::pass
   } else {
-    assertFaile "Should not have hit this."
+    testlib::fail "Should not have hit this."
   }
 }
 
@@ -425,7 +426,7 @@ test "parsing corners" {
   checkthat "whee \$ stuff" eq "whee \$ stuff"
   checkthat "whee \$\" stuff" eq "whee $\" stuff"
   assertNoErr { 
-    if { 3 == 3 } { } else { assertFail "bad" } 
+    if { 3 == 3 } { } else { testlib::fail "bad" } 
   }
 
   set x four 
@@ -683,8 +684,8 @@ test "global ns proc" {
 test "switch" {
   set x 4
   switch $x {
-    1 { assertFail "bad switch" }
-    3 { assertFail "bad switch" }
+    1 { ::testlib::fail "bad switch" }
+    3 { ::testlib::fail "bad switch" }
     4 { ::testlib::pass }
   }
 }
@@ -692,11 +693,11 @@ test "switch" {
 test "switch fallthrough" {
   set x 4
   switch $x {
-    1 { assertFail "bad switch" }
-    3 { assertFail "bad switch" }
+    1 { testlib::fail "bad switch" }
+    3 { testlib::fail "bad switch" }
     4 -
     5 { ::testlib::pass }
-    4 { assertFail "bad switch" }
+    4 { testlib::fail "bad switch" }
   }
 
   set val 0
@@ -710,8 +711,8 @@ test "switch default" {
   set res "failed"
   set x 4
   switch $x {
-    1 { assertFail "bad switch" }
-    3 { assertFail "bad switch" }
+    1 { ::testlib::fail "bad switch" }
+    3 { testlib::fail "bad switch" }
     default { set res "worked" }
   }
 
@@ -734,29 +735,29 @@ test "switch return" {
 test "switch exact" {
   set x 4
   switch -exact $x {
-    2 { assertFail "bad Switch" }
+    2 { testlib::fail "bad Switch" }
     4 { testlib::pass }
-    default { assertFail "bad Swich" }
+    default { testlib::fail "bad Swich" }
   }
 }
 
 test "switch glob" {
   set x been
   switch -glob $x {
-    2 { assertFail "bad Switch1" }
-    b*d { assertFail "bad Switch2" }
+    2 { testlib::fail "bad Switch1" }
+    b*d { testlib::fail "bad Switch2" }
     b??n { testlib::pass }
-    been { assertFail "wtf" }
-    default { assertFail "bad Switch3" }
+    been { testlib::fail "wtf" }
+    default { testlib::fail "bad Switch3" }
   }
 }
 
 test "switch --" {
   set x 4
   switch -- $x {
-    2 { assertFail "bad Switch" }
+    2 { testlib::fail "bad Switch" }
     4 { testlib::pass }
-    default { assertFail "bad Swich" }
+    default { testlib::fail "bad Swich" }
   }
 }
 
@@ -1119,4 +1120,5 @@ test "format" {
 }
 
 ::testlib::run_tests
+
 #puts "([llength [info procs]] lingering procs)"

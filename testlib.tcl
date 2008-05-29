@@ -17,10 +17,6 @@ proc ::testlib::pass {} {
   incr ::testlib::passcount
 }
 
-proc assertFail why {
-    ::testlib::fail $why
-}
-
 proc ::testlib::fail why {
   variable ::testlib::current_test
   incr ::testlib::assertcount

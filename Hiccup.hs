@@ -15,15 +15,15 @@ processArgs al = [("argc" * T.fromInt (length al)), ("argv" * toTclList al)]
   where (*) name val = (pack name, val)
         toTclList = T.fromList . map T.fromBStr
 
-interpVars = [("tcl_version" * (show hiccupVersion))]
+interpVars al = [("tcl_version" * (show hiccupVersion))] ++ processArgs al
   where (*) name val = (pack name, T.fromStr val)
 
 hiccupVersion = 0.48
 
-mkMainInterp = mkInterp baseCmds
+mkMainInterp = mkInterpWithVars (interpVars []) baseCmds
 
 runTcl v = mkMainInterp >>= runInterp v
 
 runTclWithArgs v args = mkInterpWithVars mainVars baseCmds >>= runInterp v
- where mainVars = interpVars ++ (processArgs args)
+ where mainVars = interpVars args
 
