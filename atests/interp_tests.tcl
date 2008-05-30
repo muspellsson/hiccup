@@ -32,3 +32,10 @@ test "interp issafe" {
     checkthat [interp issafe] == 0
     assert_err { interp issafe pinochet }
 }
+
+test "interp create (no name)" {
+    set n [interp create]
+    interp eval $n {set x 4}
+    checkthat [$n eval {info exists x}]
+    interp delete $n
+}

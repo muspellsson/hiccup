@@ -9,6 +9,8 @@ import TclLib.LibUtil
 import TclLib (libCmds)
 import Core (evalTcl)
 
+import Data.Unique
+
 
 interpCmds = makeCmdList [
     ("interp", cmdInterp)    
@@ -45,12 +47,19 @@ interp_issafe args = case args of
 
 allCmds = mergeCmdLists [interpCmds, libCmds]
 
+uniqueName = do
+   i <- newUnique >>= return . hashUnique
+   return . pack $ "interp" ++ show i
+
 interp_create args = case args of
-    [n] -> do 
-       ir <- createInterp (T.asBStr n) allCmds 
-       registerProc (T.asBStr n) (pack "NO.") (interpEnsem n ir)
-       return n
+    [] -> io uniqueName >>= create . T.fromBStr
+    [n] -> create n
     _   -> argErr "interp create"
+ where create n = do 
+           let bsn = T.asBStr n
+           ir <- createInterp bsn allCmds 
+           registerProc bsn (pack "NO.") (interpEnsem n ir)
+           return n
 
 interpEnsem n ir = 
   mkEnsemble (T.asStr n) [("eval", interpEval ir)]
