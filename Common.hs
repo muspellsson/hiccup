@@ -120,11 +120,13 @@ emptyCmd = TclCmdObj {
 
 toCmdObjs = mapM toTclCmdObj . unCmdList
 
-toTclCmdObj (n,v) = return (bsn, emptyCmd { cmdName = bsn,
-                                            cmdBody = errStr,
-                                            cmdAction = v} )
- where errStr = pack $ show bsn ++ " isn't a procedure"
+toTclCmdObj cs = return (bsn, emptyCmd { cmdName = bsn,
+                                         cmdBody = errStr,
+                                         cmdAction = v} )
+ where errStr = pack $ show n ++ " isn't a procedure"
        bsn = pack n
+       n = cmdSpecName cs
+       v = cmdSpecCmd cs
 
 tclErr :: String -> TclM a
 tclErr s = do

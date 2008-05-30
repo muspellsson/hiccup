@@ -67,7 +67,7 @@ cmdForEach args =
  where allowBreak f = f `eatErr` EBreak
        doChunk vl block items = do zipWithM_ (\a b -> varSetNS (T.asVarName a) b) vl (items ++ repeat T.empty)
                                    evalTcl block `eatErr` EContinue
-       doSingl v block i = do varSetNS (T.asVarName v) i -- TODO: should this be varSetHere?
+       doSingl v block i = do varSetNS (T.asVarName v) i
                               evalTcl block `eatErr` EContinue
 
 chunkBy lst n = let (a,r) = splitAt n lst

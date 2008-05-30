@@ -309,6 +309,19 @@ test "foreach misc" {
   finalize { proc join2 }
 }
 
+test "foreach with ns index" {
+    namespace eval boo {
+    }
+
+    set last 0
+    foreach boo::x [list 1 2 3] {
+        set last $::boo::x
+    }
+
+    checkthat $::boo::x == 3
+    finalize { ns boo }
+}
+
 test "for loop" {
   set res 0
   for {set i 0} { $i < 20 } { incr i } {

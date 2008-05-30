@@ -1,14 +1,16 @@
 module CmdList where
 import Types
-import Util
 
-data CmdSafety = CSafe | CUnsafe deriving (Eq,Show)
-
-type CmdSpec = (String,TclCmd)
+data CmdSpec = CmdSpec String TclCmd Bool
 data CmdList = CmdList { unCmdList :: [CmdSpec] }
 
+cmdSpecName (CmdSpec n _ _) = n
+cmdSpecCmd (CmdSpec _ cmd _) = cmd
+
 makeCmdList = makeNsCmdList ""
-makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
+
+makeNsCmdList :: String -> [(String,TclCmd)] -> CmdList
+makeNsCmdList p = CmdList . map (\(n,v) -> CmdSpec (p ++ n) v False)
 
 mergeCmdLists :: [CmdList] -> CmdList
 mergeCmdLists = CmdList . concat . map unCmdList
