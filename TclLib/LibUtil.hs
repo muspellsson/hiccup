@@ -1,11 +1,21 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.LibUtil where
+module TclLib.LibUtil (
+    treturn
+    ,vArgErr
+    ,toIndex
+    ,mkEnsemble
+    ,makeCmdList
+    ,mergeCmdLists
+    ,makeNsCmdList
+  ) where
 
 import Common
 import Util
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+
+import CmdList
 
 vArgErr s = argErr ("should be " ++ show s)
 

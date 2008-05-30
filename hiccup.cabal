@@ -16,7 +16,7 @@ data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
 Executable:          hiccup
-Other-Modules:       Hiccup, TclObj, VarName, Common, Types, Util, Core, RToken, BSParse, EventMgr, TclLib,
+Other-Modules:       Hiccup, TclObj, VarName, Common, Types, CmdList, Util, Core, RToken, BSParse, EventMgr, TclLib,
                      TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, 
                      TclLib.LibUtil, TclChan,
                      TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, Expr.Parse, Expr.Eval, Expr.TExp, 

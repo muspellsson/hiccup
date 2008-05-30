@@ -2,8 +2,8 @@
 module Hiccup (runTcl, runTclWithArgs, mkMainInterp, runInterp ) where
 
 import Util
-import Common
 import TclLib.Interp
+import TclLib.LibUtil
 import qualified TclObj as T
 
 import TclLib (libCmds)

@@ -10,6 +10,7 @@ import Control.Monad
 import System.Random
 import MathOp
 import Test.HUnit
+import TclLib.LibUtil
 
 mathCmds = mergeCmdLists [mathFuncs, mathOps]
 mathOps = makeNsCmdList "::tcl::mathop::" $

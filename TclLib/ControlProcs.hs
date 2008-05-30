@@ -8,6 +8,7 @@ import Control.Monad.Error
 import qualified TclObj as T
 import TclErr
 import TclObj ((.==))
+import TclLib.LibUtil
 import Util
 
 controlCmds = makeCmdList $

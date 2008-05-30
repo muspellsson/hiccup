@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 module Common (TclM
        ,TclState
-       ,applyTo,cmdBody
+       ,applyTo
+       ,cmdBody
        ,getOriginName
        ,runTclM
        ,makeState
@@ -12,9 +13,6 @@ module Common (TclM
        ,runCheckResult
        ,withLocalScope
        ,withNS
-       ,makeCmdList
-       ,makeNsCmdList
-       ,mergeCmdLists
        ,getCmd
        ,getCmdNS
        ,registerProc
@@ -73,6 +71,7 @@ import TclChan
 import VarName
 import TclErr
 import Util
+import CmdList
 
 import Test.HUnit
 
@@ -109,14 +108,6 @@ mkCmdAlias nsr pn = do
             p <- readRef cr
             p `applyTo` args
   
-type CmdSpec = (String,TclCmd)
-data CmdList = CmdList { unCmdList :: [CmdSpec] }
-
-makeCmdList = makeNsCmdList ""
-makeNsCmdList p = CmdList . mapFst (\n -> p ++ n)
-
-mergeCmdLists :: [CmdList] -> CmdList
-mergeCmdLists = CmdList . concat . map unCmdList
 
 emptyCmd = TclCmdObj { 
        cmdName = pack "",

@@ -11,6 +11,7 @@ import Common
 import Expr (runAsExpr, CBData(..))
 import Format
 import qualified TclObj as T
+import TclLib.LibUtil
 
 utilProcs = makeCmdList [
    ("time", cmdTime),

@@ -92,10 +92,12 @@ runInterp' t (Interpreter i) = do
                  (r,i') <- runTclM t bEnv
                  writeIORef i i'
                  return (fixErr r)
-  where perr e = case toEnum (errCode e) of
-                   EError  -> Left $ T.asBStr (errData e)
-                   EOk     ->  Right $ T.asBStr (errData e)
-                   EReturn ->  Right $ T.asBStr (errData e)
+  where perr e = 
+           let errDat = T.asBStr (errData e)
+           in case toEnum (errCode e) of
+                   EError  -> Left errDat
+                   EOk     ->  Right errDat
+                   EReturn ->  Right errDat
                    EBreak  ->  Left . pack $ "invoked \"break\" outside of a loop"
                    EContinue -> Left . pack $ "invoked \"continue\" outside of a loop"
         fixErr (Left x)  = perr x
