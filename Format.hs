@@ -21,5 +21,7 @@ formatString str xl =
            '%' -> (B.singleton '%') `withRest` xl
            's' -> argMod (return . T.asBStr)
            'c' -> argMod (\v -> T.asInt v >>= return . B.singleton . chr)
+           'd' -> argMod (\v -> T.asInt v >>= return . B.pack . show)
            _   -> fail $ "unknown format pattern: " ++ show c
+
                       

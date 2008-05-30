@@ -12,7 +12,7 @@ module TclParse ( TclWord(..)
  
 
 import BSParse
-import Util hiding (orElse)
+import Util 
 import qualified Data.ByteString.Char8 as B
 import Test.HUnit
 

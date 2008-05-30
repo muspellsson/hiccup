@@ -14,12 +14,23 @@ eDie s = Err e_ERROR (Just (T.fromStr s))
 
 errData (Err _ (Just v)) = v
 errData _                = T.empty
+{-# INLINE errData #-}
 
-errCode (Err i _) = i
-errCode (ErrTramp _) = e_RETURN
+errCode e = case e of
+     Err i _ -> i
+     ErrTramp _ -> e_RETURN
+{-# INLINE errCode #-}
 
 fromCode ec = Err (fromEnum ec) Nothing
+
 data ErrCode = EOk | EError | EReturn | EBreak | EContinue deriving (Enum,Eq,Show)
+
+orElse f1 f2 = f1 `catchError` (\e -> case e of
+                                        Err 1 _ -> f2
+                                        _       -> throwError e)
+{-# INLINE orElse #-}
+
+attempt f = (f >> return ()) `orElse` (return ())
 
 e_OK, e_ERROR, e_RETURN, e_BREAK, e_CONTINUE :: Int
 e_OK        = 0

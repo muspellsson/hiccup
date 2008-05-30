@@ -1117,7 +1117,12 @@ test "format" {
     assert_err { format "Oh %c" candy }
     assert_err { format "hi %s" }
     assert_err { format " % " }
+
+    checkthat [format "%d %d %d" 1 2 3] eq "1 2 3"
+
+    assert_err { format "%d" pants }
 }
+
 
 ::testlib::run_tests
 

@@ -12,7 +12,7 @@ import TclParse
 import VarName
 import Data.List (sortBy)
 import Data.Ord (comparing)
-import Util hiding (orElse)
+import Util
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 import Expr.TExp

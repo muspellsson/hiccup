@@ -6,6 +6,7 @@ import Proc.Params
 import Data.IORef
 import Core (evalTcl)
 import Control.Monad.Error
+import TclErr
 import Util
 import qualified TclObj as T
 

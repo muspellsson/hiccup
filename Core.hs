@@ -7,6 +7,7 @@ import qualified Data.ByteString.Char8 as B
 import RToken
 import qualified Expr as E
 import Util
+import TclErr
 import VarName (arrName, NSQual(..))
 
 import Test.HUnit

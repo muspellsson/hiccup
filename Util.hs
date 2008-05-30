@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module Util (BString, joinWith, joinWithBS, pack, unpack, bsNull,
              dropSpaces, mapFst, mapSnd, listEscape,
-             orElse, ifFails, attempt, commaList,
+             ifFails, commaList,
              downCase, slurpFile,
              utilTests )  where
 
@@ -10,7 +10,7 @@ import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
 import Data.Char (toLower)
-import Data.String
+-- import Data.String
 
 type BString = B.ByteString
 
@@ -37,10 +37,6 @@ mapFst f = map (\(a,b) -> (f a, b))
 
 ifFails f v = f `catchError` (\_ -> return v)
 {-# INLINE ifFails #-}
-
-orElse f f2 = f `catchError` (\_ -> f2)
-
-attempt f = (f >> return ()) `orElse` (return ())
 
 slurpFile fname = do dat <- B.readFile fname 
                      B.length dat `seq` return dat

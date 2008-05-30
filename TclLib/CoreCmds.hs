@@ -7,7 +7,6 @@ import Data.Char (isDigit)
 import TclErr 
 import System (getProgName)
 import Match (globMatches)
-import Util
 import Proc.Util (mkProc, mkLambda)
 import Core (evalTcl)
 
@@ -61,6 +60,7 @@ cmdEval args = case args of
                  [s]  -> evalTcl s
                  _    -> evalTcl (T.objconcat args)
 
+-- TODO: an error in the uplevel causes the other one to run.. wrong
 cmdUplevel args = case args of
               [p]    -> uplevel 1 (evalTcl p)
               (si:p) -> do 

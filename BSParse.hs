@@ -4,7 +4,7 @@ module BSParse where
 import qualified Data.ByteString.Char8 as B
 import Control.Monad (mplus)
 import Data.Ix
-import Util hiding (orElse)
+import Util 
 import Test.HUnit 
 
 type Parser a = BString -> Result a

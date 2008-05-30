@@ -7,6 +7,7 @@ import qualified TclObj as T
 import TclObj ((.==))
 import Control.Monad
 import TclLib.LibUtil
+import TclErr
 import qualified Data.Map as Map
 import VarName 
 import Text.Printf
