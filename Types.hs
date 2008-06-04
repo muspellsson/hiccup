@@ -13,6 +13,9 @@ import Util
 import TclErr
 import TclChan
 
+class Runnable t where
+  evalTcl :: t -> TclM T.TclObj
+
 newtype TclM a = TclM { unTclM :: ErrorT Err (StateT TclState IO) a }
  deriving (MonadState TclState, MonadError Err, MonadIO, Monad)
 

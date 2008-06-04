@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Core (Runnable(..), doCond, runCmd, callProc, evalArgs, coreTests) where
+module Core (doCond, runCmd, callProc, evalArgs, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -11,9 +11,6 @@ import TclErr
 import VarName (arrName, NSQual(..))
 
 import Test.HUnit
-
-class Runnable t where
-  evalTcl :: t -> TclM T.TclObj
 
 instance Runnable T.TclObj where
   evalTcl s = asParsed s >>= runCmds

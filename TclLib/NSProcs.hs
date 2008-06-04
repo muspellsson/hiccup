@@ -2,7 +2,7 @@
 module TclLib.NSProcs (nsCmds) where
 
 import Common
-import Core (evalTcl)
+import Core ()
 import TclLib.LibUtil
 import VarName
 import qualified TclObj as T

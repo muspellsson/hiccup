@@ -22,12 +22,12 @@ cmdList = return . T.fromList
 
 cmdLindex args = case args of
           [l]   -> return l
-          [l,i] -> do items <- T.asSeq l
-                      if T.isEmpty i then return l 
-                           else do
-                            let ilen = S.length items                            
-                            ind <- toIndex ilen i
-                            if ind >= ilen || ind < 0 then ret else return (S.index items ind)
+          [l,i] -> if T.isEmpty i then return l
+                      else do
+                        items <- T.asSeq l
+                        let ilen = S.length items                            
+                        ind <- toIndex ilen i
+                        if ind >= ilen || ind < 0 then ret else return (S.index items ind)
           _     -> argErr "lindex"
 
 cmdLlength args = case args of

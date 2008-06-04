@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Common (TclM
        ,TclState
+       ,Runnable(..)
        ,applyTo
        ,cmdBody
        ,getOriginName

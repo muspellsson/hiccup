@@ -4,7 +4,6 @@ import Common
 import Proc.Compiled
 import Proc.Params
 import Data.IORef
-import Core (evalTcl)
 import Control.Monad.Error
 import TclErr
 import Util

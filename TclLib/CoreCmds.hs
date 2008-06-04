@@ -8,7 +8,7 @@ import TclErr
 import System (getProgName)
 import Match (globMatches)
 import Proc.Util (mkProc, mkLambda)
-import Core (evalTcl)
+import Core ()
 
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T

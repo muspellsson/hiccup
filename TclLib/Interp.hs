@@ -7,7 +7,7 @@ import TclErr
 import qualified TclObj as T
 import TclLib.LibUtil
 import TclLib (libCmds)
-import Core (evalTcl)
+import Core ()
 
 import Data.Unique
 

@@ -3,7 +3,7 @@ import Common
 import Control.Monad (unless)
 import System.IO
 import System.Exit
-import Core (evalTcl)
+import Core ()
 import qualified TclObj as T
 import qualified TclChan as T
 import qualified System.IO.Error as IOE 

@@ -6,7 +6,7 @@ import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import System.Posix.Process (getProcessID)
-import Core (evalTcl, runCmd, callProc)
+import Core (runCmd, callProc)
 import Common
 import Expr (runAsExpr, CBData(..))
 import Format

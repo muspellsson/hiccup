@@ -72,9 +72,10 @@ mkTclDouble !d = TclDouble d bsval
  where bsval = pack (show d)
 
 empty = TclBStr BS.empty Nothing (Left "bad parse") (Left "emtpy expr")
-isEmpty (TclInt _ _) = False
-isEmpty (TclDouble _ _) = False
-isEmpty v = BS.null (asBStr v)
+isEmpty v = case v of
+        TclInt _ _    -> False
+        TclDouble _ _ -> False
+        _ -> BS.null (asBStr v)
 
 
 tclTrue = mkTclInt 1
