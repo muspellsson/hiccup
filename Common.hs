@@ -102,7 +102,7 @@ mkCmdAlias nsr pn = do
       Just cr -> do 
           newcmd <- readRef cr >>= \p -> 
                       return $! p { cmdAction = inner cr, cmdParent = Just cr, cmdOrigNS = Nothing } 
-          let adder x = io $ modifyIORef cr (\p -> p { cmdKids = x:(cmdKids p) })
+          let adder x = cr .= (\p -> p { cmdKids = x:(cmdKids p) })
           return (newcmd, adder)
  where inner cr args = do 
             p <- readRef cr
@@ -168,7 +168,7 @@ deleteInterp n = do
 makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans vlist cmdlst = do 
     (fr,nsr) <- makeGlobal
-    addChildNS nsr (pack "") nsr
+    nsr `modifyIORef` (addChildNS (pack "") nsr)
     st <- return $! mkState nsr fr
     execTclM runRegister st
  where mkState nsr fr = TclState { tclChans = chans,
@@ -264,16 +264,6 @@ evtGetDue = do
 upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in Map.lookup s sf)
 {-# INLINE upped #-}
 
-
-{-
- -- Intended for future caching of method lookups in AST
-data NsEpoch = NsEpoch (Maybe NSRef) !Int deriving (Eq) 
-getNsEpoch nst = do
-  nsr <- getNamespace nst
-  cmEpoch <- liftM cmdMapEpoch (getNsCmdMap nsr)
-  return $! (NsEpoch (Just nsr) cmEpoch)
--}
-  
 getCmd !pname = getCmdNS (parseProc pname)
 
 getCmdNS (NSQual nst n) = do
@@ -307,12 +297,11 @@ getCmdNorm !i !nsr = do
 
 
 rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
- where rmFromNS nsref = io $ changeCmds nsref (Map.delete n) 
+ where rmFromNS nsref = changeCmds nsref (Map.delete n) 
 
 removeCmd cmd = do 
  case cmdOrigNS cmd of
-   Just nsr -> do
-     io $ changeCmds nsr (Map.delete (cmdName cmd))
+   Just nsr -> changeCmds nsr (Map.delete (cmdName cmd))
    Nothing  -> return ()
 
 registerProc name body pr = 
@@ -327,7 +316,7 @@ registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
   pmInsert proc m = Map.insert k proc m
   regInNS nsr = do 
            newc <- io . newIORef $ newProc { cmdOrigNS = Just nsr }
-           io $ changeCmds nsr (pmInsert newc)
+           changeCmds nsr (pmInsert newc)
            return newc
 
 varSetRaw !n v = varSetNS (parseVarName n) v
@@ -386,10 +375,9 @@ varUnset vn frref = do
        modVar = do
          vm <- getFrameVars frref
          let str = vnName vn
-         let deleteVar = changeVars frref (Map.delete str)
          val <- maybe noExist return (Map.lookup str vm)
          case vnInd vn of
-           Nothing -> deleteVar
+           Nothing -> deleteVar frref str
            Just i  -> case val of
                         ArrayVar prev -> case Map.lookup i prev of 
                                            Nothing -> cantUnset "no such element in array"
@@ -478,10 +466,10 @@ deleteNS name = do
  ns <- getNamespace' nst >>= readRef
  kids <- mapM (`refExtract` cmdKids) (cmdMapElems (nsCmds ns))
  mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
- whenJust (nsParent ns) $ \p -> removeChild p (nsTail nst)
+ whenJust (nsParent ns) $ \p -> p .= removeChild (nsTail nst)
 
-removeChild nsr child = io (modifyIORef nsr (\v -> v { nsChildren = Map.delete child (nsChildren v) } ))
-addChildNS nsr name child = (modifyIORef nsr (\v -> v { nsChildren = Map.insert name child (nsChildren v) } ))
+removeChild child = (\v -> v { nsChildren = Map.delete child (nsChildren v) })
+addChildNS name child = (\v -> v { nsChildren = Map.insert name child (nsChildren v) } )
 
 getNamespace nst = case nst of 
         Nothing  -> getCurrNS
@@ -495,7 +483,7 @@ getNamespace' (NS gq nsl) = do
       [] -> return $! base
       _  -> foldM getKid base nsl
  where getKid !nsref !k = do 
-          kids <- nsref `refExtract`  nsChildren
+          kids <- nsref `refExtract` nsChildren
           case Map.lookup k kids of
              Nothing -> tclErr $ "can't find namespace " ++ show k ++ " in " ++ show nsl 
              Just v  -> return $! v
@@ -523,6 +511,7 @@ variableNS name val = do
  where
    ensureNotArr v = whenJust v $! \_ -> tclErr $ "can't define " ++ show name ++ ": name refers to value in array"
    varVal = maybe Undefined ScalarVar val
+   getTag = (`refExtract` frTag)
    sameTags f1 f2 = do
       t1 <- getTag f1
       t2 <- getTag f2
@@ -530,11 +519,11 @@ variableNS name val = do
 
 exportNS clear name = do
   nsr <- getCurrNS
-  io $ modifyIORef nsr (\n -> n { nsExport = (name:(getPrev n)) })
+  nsr .= (\n -> n { nsExport = (name:(getPrev n)) })
  where getPrev n = if clear then [] else nsExport n
 
 getExportsNS = 
-  getCurrNS >>= readRef >>= return . reverse . nsExport
+  getCurrNS >>= (`refExtract` (reverse . nsExport))
 
 whenJust x f = case x of
       Nothing -> return ()
@@ -570,7 +559,7 @@ forgetNS name = do
         nsr <- getNamespace nst
         exported <- getExports nsr n
         cns <- getCurrNS
-        mapM_ (\x -> io $ changeCmds cns (Map.delete x)) exported
+        mapM_ (\x -> changeCmds cns (Map.delete x)) exported
      Nothing -> do
        mCmd <- getCmdNS qns 
        case mCmd of
@@ -579,9 +568,6 @@ forgetNS name = do
                          Just _  -> removeCmd cmd
          Nothing -> fail "no such command to forget"
 
-getTag frref = do
-  f <- readRef frref
-  return (frTag f)
 
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
@@ -605,7 +591,7 @@ mkEmptyNS name parent = do
                               nsCmds = emptyCmdMap, nsFrame = emptyFr, 
                               nsExport = [],
                               nsParent = Just parent, nsChildren = Map.empty }
-    addChildNS parent name new
+    parent `modifyIORef` (addChildNS name new)
     setFrNS emptyFr new
     return $! new
 
@@ -642,11 +628,11 @@ readRef !r = (liftIO . readIORef) r
 refExtract !ref !f = liftIO (readIORef ref >>= \x -> (return $! f x)) 
 {-# INLINE refExtract #-}
 
-currentNS = getCurrNS >>= readRef >>= return . nsName
+currentNS = getCurrNS >>= (`refExtract` nsName)
 
 parentNS nst = do
- ns <- getNamespace nst >>= readRef
- case nsParent ns of
+ par <- getNamespace nst >>= (`refExtract` nsParent)
+ case par of
    Nothing -> return (pack "")
    Just v  -> readRef v >>= return . nsName
 
@@ -665,36 +651,28 @@ ret :: TclM T.TclObj
 ret = return T.empty
 {-# INLINE ret #-}
 
-createFrame !vref = do
-   tag <- liftM hashUnique newUnique
-   res <- newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = undefined }
-   return $! res
+createFrame !vref = createFrameWithNS undefined vref
+createFrameWithNS nsref !vref = do
+   tag <- uniqueInt
+   newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = nsref }
+ where uniqueInt = liftM hashUnique newUnique
 
-createFrameWithNS !nsref !vref = do
-   tag <- liftM hashUnique newUnique
-   res <- newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = nsref }
-   return $! res
+changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
 
-changeUpMap fr fun = io (modifyIORef fr (\f -> f { upMap = fun (upMap f) }))
+modFrVars fr fun = let !r = fun (frVars fr) in fr { frVars = r }
+{-# INLINE modFrVars #-}
 
-changeVars :: FrameRef -> (VarMap -> VarMap) -> TclM ()
-changeVars !fr fun = liftIO (modifyIORef fr (\f -> let !r = fun (frVars f) in f { frVars = r } ))
-{-# INLINE changeVars #-}
+(.=) r f = liftIO (modifyIORef r f)
+{-# INLINE (.=) #-}
 
-insertVar fr !k !v = changeVars fr (Map.insert k v)
+insertVar !fr !k !v = fr .= (`modFrVars` (Map.insert k v))
 {-# INLINE insertVar #-}
 
-changeCmds nsr fun = do 
-           ns <- readIORef nsr 
-           modKids (\x -> changeCmds x id) ns
-           writeIORef nsr (updateNS ns)
+deleteVar fr !k = fr .= (`modFrVars` (Map.delete k))
+
+changeCmds nsr fun = nsr .= updateNS
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
        updateNS ns = ns { nsCmds = update (nsCmds ns) }
-
-modKids f ns = let kidfun kr = do 
-                        kid <- readIORef kr
-                        when (nsParent kid /= Nothing) (f kr)
-              in mapM_ kidfun (Map.elems (nsChildren ns))
 
 emptyCmdMap = CmdMap 0 Map.empty
 emptyCmdList = CmdList []
