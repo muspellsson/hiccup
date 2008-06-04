@@ -8,6 +8,7 @@ import Proc.Util (mkLambda)
 import TclLib.LibUtil
 import qualified TclObj as T
 import Control.Monad
+import ArgParse
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
 
@@ -89,21 +90,22 @@ cmdLsearch args = case args of
 data SortType = AsciiSort | IntSort deriving (Eq,Show)
 data SortFlags = SF { sortType :: SortType, sortReverse :: Bool, noCase :: Bool } deriving (Eq, Show)
 
-accumFlags [] sf = return sf
-accumFlags (x:xs) sf = case T.asStr x of
-              "-ascii"      -> accumFlags xs (sf { sortType = AsciiSort })
-              "-integer"    -> accumFlags xs (sf { sortType = IntSort })
-              "-decreasing" -> accumFlags xs (sf { sortReverse = True })
-              "-increasing" -> accumFlags xs (sf { sortReverse = False })
-              "-nocase"     -> accumFlags xs (sf { noCase = True })
-              unrecognized  -> tclErr $ "unrecognized lsort option: " ++ unrecognized
+sortArgs = mkArgSpecs [
+       NoArg "ascii" (setSortType AsciiSort), 
+       NoArg "integer" (setSortType IntSort), 
+       NoArg "increasing" (setSortReverse False), 
+       NoArg "decreasing" (setSortReverse True), 
+       NoArg "nocase" (\x -> x { noCase = True })
+      ] 
+ where setSortType v = (\x -> x { sortType = v })
+       setSortReverse v = (\x -> x { sortReverse = v })
                         
 defaultSort = SF { sortType = AsciiSort, sortReverse = False, noCase = False }
 
 cmdLsort args = case args of
           []    -> argErr "lsort"
           alst  -> let (opts,lst) = (init alst, last alst)
-                   in do sf <- accumFlags opts defaultSort
+                   in do (sf,_) <- parseArgs sortArgs defaultSort opts
                          dosort sf lst
  where dosort sf lst = do
               items <- T.asList lst 

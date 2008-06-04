@@ -64,22 +64,24 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
         (tInt 3) `eql` (mint 3),
         ((tInt 5) + (tInt 5)) `eql` (mint 10),
         (((tInt 8) - (tInt 5)) + (tInt 5)) `eql` (mint 8),
-        (((tInt 8) - (tInt 5)) .> (tInt 5)) `eql` T.tclFalse,
-        "5 >= 5 -> true" ~: ((tInt 5) .>= (tInt 5)) `eql` (T.tclTrue),
-        "5 <= 5 -> true" ~: ((tInt 5) .<= (tInt 5)) `eql` (T.tclTrue),
-        ((tInt 6) .<= (tInt 5)) `eql` (T.tclFalse),
-        "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` T.tclTrue
+        (((tInt 8) - (tInt 5)) .> (tInt 5)) `eql` tclFalse,
+        "5 >= 5 -> true" ~: ((tInt 5) .>= (tInt 5)) `eql` tclTrue,
+        "5 <= 5 -> true" ~: ((tInt 5) .<= (tInt 5)) `eql` tclTrue,
+        ((tInt 6) .<= (tInt 5)) `eql` tclFalse,
+        "8 - 5 < 5 -> true" ~: (((tInt 8) - (tInt 5)) .< (tInt 5)) `eql` tclTrue
       ]
      where eql a b = (runExpr (return . make) a) ~=? Just b
            make (FunRef _) = T.fromStr "PROC"
            make _          = T.fromBStr "ERROR"
+           tclFalse = T.fromBool False
+           tclTrue = T.fromBool True
     
     var v = DepItem (DVar (parseVarName v))
     varEvalTests = TestList [
         "$num -> 4" ~: (var "num") `eql` (mint 4),
         ((var "num") + (tInt 3)) `eql` (mint 7),
         ((tInt 4) + ((var "num") - (tInt 1))) `eql` (mint 7),
-        "$boo == \"bean\" -> true" ~: ((var "boo") `eq` (tStr "bean")) `eql` T.tclTrue
+        "$boo == \"bean\" -> true" ~: ((var "boo") `eq` (tStr "bean")) `eql` (T.fromBool True)
       ]
      where eql a b = (runExpr lu a) ~=? Just b
            table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]

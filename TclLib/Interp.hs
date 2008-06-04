@@ -58,11 +58,10 @@ interp_create args = case args of
  where create n = do 
            let bsn = T.asBStr n
            ir <- createInterp bsn allCmds 
-           registerProc bsn (pack "NO.") (interpEnsem n ir)
+           registerCmd bsn (interpEnsem n ir)
            return n
 
-interpEnsem n ir = 
-  mkEnsemble (T.asStr n) [("eval", interpEval ir)]
+interpEnsem n ir = mkEnsemble (T.asStr n) [("eval", interpEval ir)]
 
 interp_eval args = case args of
    (n:xs) -> do

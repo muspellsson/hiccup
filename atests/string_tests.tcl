@@ -69,3 +69,10 @@ test "completion" {
   assert_err { string l "one" }
   checkthat [string le "one"] == 3
 }
+
+test "string equal" {
+    checkthat [string equal "boo" "boo"]
+    checkthat [string equal "boo" "foo"] == 0
+
+    checkthat [string equal -nocase "boo" "BOO"]
+}

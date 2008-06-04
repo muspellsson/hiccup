@@ -12,8 +12,6 @@ module TclObj (
  ,fromBool
  ,empty
  ,isEmpty
- ,tclTrue
- ,tclFalse
  ,asStr
  ,asBool
  ,asInt
@@ -24,6 +22,7 @@ module TclObj (
  ,asDouble
  ,asVarName
  ,(.==)
+ ,strEq
  ,trim
  ,objconcat
  ,tclObjTests ) where
@@ -85,8 +84,10 @@ tclFalse = mkTclInt 0
 trim = BS.reverse . dropSpaces . BS.reverse . dropSpaces
 
 bstrAsInt bs = case BS.readInt bs of
-               Nothing    -> fail ("Bad int: " ++ show bs)
-               Just (i,r) -> if BS.null r then return i else fail ("Bad int: " ++ show bs)
+               Nothing    -> badInt bs
+               Just (i,r) -> if BS.null r then return i else badInt bs
+
+badInt bi = fail ("expected integer, got " ++ show bi)
 
 bstrAsSeq s = case parseList s of
                     Left r  -> fail $ "list parse failure: " ++ r
@@ -115,9 +116,9 @@ instance ITObj TclObj where
   {-# INLINE asBool #-}
 
   asInt (TclInt i _) = return i
-  asInt (TclDouble _ b) = fail $ "expected integer, got " ++ show b
+  asInt (TclDouble _ b) = badInt b
   asInt (TclBStr _ (Just i) _ _) = return i
-  asInt (TclBStr v Nothing _ _) = fail $ "Bad int: " ++ show v
+  asInt (TclBStr v Nothing _ _) = badInt v
   asInt (TclList _ v)         = bstrAsInt v
   {-# INLINE asInt #-}
 
@@ -133,10 +134,11 @@ instance ITObj TclObj where
 
   {-# INLINE asDouble #-}
 
-  asBStr (TclBStr s _ _ _) = s
-  asBStr (TclInt _ b) = b
-  asBStr (TclDouble _ b) = b
-  asBStr (TclList _ b) = b
+  asBStr o = case o of
+    TclBStr s _ _ _ -> s
+    TclInt _ s      -> s
+    TclDouble _ s   -> s
+    TclList _ s     -> s
   {-# INLINE asBStr #-}
 
   asSeq (TclBStr s _ _ _) = bstrAsSeq s >>= return . fmap mkTclBStr

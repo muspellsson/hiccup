@@ -7,23 +7,24 @@ import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper)
+import Control.Monad (when)
 import TclLib.LibUtil
 
 import Test.HUnit
 
-stringProcs = makeCmdList [("string", procString), ("append", procAppend), ("split", procSplit)]
+stringProcs = makeCmdList [("string", cmdString), ("append", cmdAppend), ("split", cmdSplit)]
 
-procString = mkEnsemble "string" [
-   ("trim", string_Op "trim" T.trim), 
-   ("tolower", string_Op "tolower" (B.map toLower)),
-   ("toupper", string_Op "toupper" (B.map toUpper)),
-   ("reverse", string_Op "reverse" B.reverse),
+cmdString = mkEnsemble "string" [
+   ("trim", string_op "trim" T.trim), 
+   ("tolower", string_op "tolower" (B.map toLower)),
+   ("toupper", string_op "toupper" (B.map toUpper)),
+   ("reverse", string_op "reverse" B.reverse),
    ("length", string_length), ("range", string_range),
    ("match", string_match), ("compare", string_compare),
-   ("index", string_index)
+   ("equal", string_equal), ("index", string_index)
  ]
 
-string_Op name op args = case args of
+string_op name op args = case args of
    [s] -> treturn $! op (T.asBStr s)
    _   -> argErr $ "string " ++ name
 
@@ -40,9 +41,19 @@ string_compare args = case map T.asBStr args of
             GT -> T.fromInt 1
             EQ -> T.fromInt 0
 
+string_equal args = case args of
+  [s1,s2] -> eqcheck id s1 s2
+  [opt,s1,s2] -> do 
+     let optstr = T.asBStr opt
+     when (optstr /= "-nocase") $ tclErr ("bad option " ++ show optstr)
+     eqcheck downCase s1 s2
+  _       -> argErr "string equal"
+ where eqcheck f a b = return . T.fromBool $ f (T.asBStr a) == f (T.asBStr b)
+
+
 string_match args = case map T.asBStr args of
    [s1,s2]        -> domatch False s1 s2
-   [nocase,s1,s2] -> if nocase == pack "-nocase" then domatch True s1 s2 else argErr "string"
+   [nocase,s1,s2] -> if nocase == "-nocase" then domatch True s1 s2 else argErr "string match"
    _              -> argErr "string match"
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
@@ -65,20 +76,19 @@ string_range args = case args of
        treturn $ B.drop ind1 (B.take (ind2+1) str)
    _ -> argErr "string range"
 
-procAppend args = case args of
+cmdAppend args = case args of
             (v:vx) -> do val <- varGetNS (T.asVarName v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
                          varSetNS (T.asVarName v) cated
             _  -> argErr "append"
  where oconcat = T.fromBStr . B.concat . map T.asBStr
 
-procSplit args = case args of
+cmdSplit args = case args of
         [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
                        in if B.null splitChars then return $ (T.fromList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
                                                else dosplit (T.asBStr str) splitChars
         _           -> argErr "split"
-
  where dosplit str chars = return $ T.fromList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
 
 stringTests = TestList [ matchTests, toIndTests ]

@@ -17,6 +17,7 @@ module Common (TclM
        ,getCmd
        ,getCmdNS
        ,registerProc
+       ,registerCmd
        ,varGetNS
        ,varSetNS
        ,varSetHere
@@ -187,7 +188,7 @@ makeState' chans vlist cmdlst = do
        runRegister = do
            exportAll "::tcl::mathop"
            exportAll "::tcl::mathfunc"
-           toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmd (parseProc n) p)
+           toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
        globalNS fr = newIORef $ TclNS { nsName = nsSep, 
                          nsCmds = emptyCmdMap, nsFrame = fr, 
                          nsExport = [],
@@ -297,27 +298,30 @@ getCmdNorm !i !nsr = do
 {-# INLINE getCmdNorm #-}
 
 
-rmProcNS (NSQual nst n) = getNamespace nst >>= rmFromNS
- where rmFromNS nsref = changeCmds nsref (Map.delete n) 
+rmProcNS (NSQual nst n) = getNamespace nst >>= deleteCmd n
 
-removeCmd cmd = do 
- case cmdOrigNS cmd of
-   Just nsr -> changeCmds nsr (Map.delete (cmdName cmd))
-   Nothing  -> return ()
+deleteCmd name = (`changeCmds` (Map.delete name))
 
+removeCmd cmd = 
+ whenJust (cmdOrigNS cmd) $ deleteCmd (cmdName cmd)
+
+registerCmd name pr = 
+    let pn@(NSQual _ n) = parseProc name
+    in registerCmdObj pn (emptyCmd { cmdName = n,
+                                     cmdIsProc = False,
+                                     cmdAction = pr})
 registerProc name body pr = 
     let pn@(NSQual _ n) = parseProc name
-    in registerCmd pn (emptyCmd { cmdName = n,
-                                  cmdIsProc = True,
-                                  cmdBody =  body,
-                                  cmdAction = pr})
+    in registerCmdObj pn (emptyCmd { cmdName = n,
+                                     cmdIsProc = True,
+                                     cmdBody = body,
+                                     cmdAction = pr})
 
-registerCmd (NSQual nst k) newProc = getNamespace nst >>= regInNS
+registerCmdObj (NSQual nst k) newCmd = getNamespace nst >>= regInNS
  where 
-  pmInsert proc m = Map.insert k proc m
   regInNS nsr = do 
-           newc <- io . newIORef $ newProc { cmdOrigNS = Just nsr }
-           changeCmds nsr (pmInsert newc)
+           newc <- io . newIORef $ newCmd { cmdOrigNS = Just nsr }
+           changeCmds nsr (Map.insert k newc)
            return newc
 
 varSetRaw !n v = varSetNS (parseVarName n) v
@@ -396,8 +400,8 @@ usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  - knocks a few percent off the runtime of my benchmarks. -}
 usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
 usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
- where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame ns  = getNamespace ns >>= getNSFrame
+ where lookupNsFrame Nothing  = getFrame 
+       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
 {-# INLINE usingNsFrame2 #-}
 
 
@@ -543,7 +547,7 @@ importNS force name = do
             when (not force) $ do
                  oldp <- getCmdNS (NSQual Nothing n)
                  whenJust oldp $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            oldc <- registerCmd (NSQual Nothing n) np
+            oldc <- registerCmdObj (NSQual Nothing n) np
             add oldc
 
 getExports nsr pat = do 
@@ -560,13 +564,11 @@ forgetNS name = do
         nsr <- getNamespace nst
         exported <- getExports nsr n
         cns <- getCurrNS
-        mapM_ (\x -> changeCmds cns (Map.delete x)) exported
+        mapM_ (\x -> deleteCmd x cns) exported
      Nothing -> do
        mCmd <- getCmdNS qns 
        case mCmd of
-         Just cmd -> case cmdParent cmd of
-                         Nothing -> return ()
-                         Just _  -> removeCmd cmd
+         Just cmd -> whenJust (cmdParent cmd) $ \_ -> removeCmd cmd
          Nothing -> fail "no such command to forget"
 
 

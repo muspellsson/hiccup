@@ -97,13 +97,15 @@ test "lsort basic" {
 }
 
 test "lsort bad arg" {
-  assertErr { lsort -badarg {a b c} }
+  assert_err { lsort -badarg {a b c} }
 }
 
 test "lsort decreasing" {
   checkthat [lsort -increasing {c b a}] eq {a b c}
   checkthat [lsort -decreasing {c b a}] eq {c b a}
   checkthat [lsort -decreasing {a b c}] eq {c b a}
+
+  assert_err { lsort -decreasing batman [list 1 2 3] }
 }
 
 test "lsort nocase" {

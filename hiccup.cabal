@@ -20,7 +20,7 @@ Other-Modules:       Hiccup, TclObj, VarName, Common, Types, CmdList, Util, Core
                      TclLib.IOProcs, TclLib.StringProcs, TclLib.ListProcs, TclLib.ArrayProcs, TclLib.NSProcs, 
                      TclLib.LibUtil, TclChan,
                      TclLib.ControlProcs, TclLib.UtilProcs, TclLib.MathProcs, Expr, Expr.Parse, Expr.Eval, Expr.TExp, 
-                     Expr.Util, Match, Format, Proc.Params, Proc.Util, Proc.Compiled, Proc.CodeBlock
+                     Expr.Util, Match, Format, Proc.Params, Proc.Util, Proc.Compiled, Proc.CodeBlock, ArgParse
 Main-is:             Main.hs
 ghc-options:         -O2 -funbox-strict-fields -funfolding-use-threshold=16 -fvia-c -optc-O3 -W -fglasgow-exts
 ghc-prof-options:    -auto-all -prof

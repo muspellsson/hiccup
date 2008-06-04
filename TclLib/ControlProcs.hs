@@ -12,8 +12,9 @@ import TclLib.LibUtil
 import Util
 
 controlCmds = makeCmdList $
-  [("while", cmdWhile), ("if", cmdIf), ("for", cmdFor),
-   ("foreach", cmdForEach), ("switch", cmdSwitch)]
+  [("while", cmdWhile), ("if", cmdIf), 
+   ("for", cmdFor), ("foreach", cmdForEach), 
+   ("switch", cmdSwitch)]
 
 cmdIf (cond:yes:rest) = do
   condVal <- doCond cond

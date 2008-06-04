@@ -10,14 +10,12 @@ import Control.Monad.Error
 import Data.List(intersperse)
 import Test.HUnit
 import Data.Char (toLower)
--- import Data.String
+import Data.String
 
 type BString = B.ByteString
 
-{-
 instance IsString B.ByteString where
   fromString = B.pack
-  -}
 
 joinWithBS bsl bs = B.concat (intersperse bs bsl)
 joinWith bsl c = B.concat (intersperse (B.singleton c) bsl)
