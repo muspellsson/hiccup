@@ -31,41 +31,42 @@ runCmds cl = case cl of
 
 
 callProc :: BString -> [T.TclObj] -> TclM T.TclObj
-callProc pn args = getCmd pn >>= \pr -> doCall pn pr args
+callProc pn args = getCmd pn >>= doCall pn args
 
 evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
-            Lit s     -> nextWith (return . T.fromBStr $ s) -- evalRTokens xs ((T.fromBStr s):acc)
-            LitInt i  -> nextWith (return . T.fromInt $ i) -- evalRTokens xs ((T.fromInt i):acc)
+            Lit s     -> nextWith (return $! T.fromBStr s) 
+            LitInt i  -> nextWith (return $! T.fromInt i) 
             CmdTok t  -> nextWith (evalTcl t)
             VarRef vn -> nextWith (varGetNS vn)
-            Block s p e -> nextWith (return $ T.fromBlock s p e) -- evalRTokens xs ((T.fromBlock s p e):acc)
+            Block s p e -> nextWith (return $! T.fromBlock s p e) 
             ArrRef ns n i -> do
-                 ni <- evalRTokens [i] [] >>= return . T.asBStr . head
+                 ni <- evalArgs [i] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalRTokens l [] >>= return . T.fromBStr . B.concat . map T.asBStr) 
+            CatLst l -> nextWith (evalArgs l >>= return . T.fromBStr . B.concat . map T.asBStr) 
             ExpTok t -> do 
-                 [rs] <- evalRTokens [t] [] 
+                 [rs] <- evalArgs [t]
                  l <- T.asList rs
                  evalRTokens xs ((reverse l) ++ acc)
- where nextWith f = f >>= \r -> evalRTokens xs (r:acc)
+ where nextWith f = f >>= \(!r) -> evalRTokens xs (r:acc)
 
 evalArgs args = evalRTokens args []
+{-# INLINE evalArgs #-}
 
 runCmd :: Cmd -> TclM T.TclObj
 runCmd (Cmd n args) = do
-  evArgs <- evalRTokens args []
+  evArgs <- evalArgs args
   res <- go n evArgs
   return $! res
- where go (BasicCmd p@(NSQual _ name)) a = getCmdNS p >>= \pr -> doCall name pr a
+ where go (BasicCmd p@(NSQual _ name)) a = getCmdNS p >>= doCall name a 
        go (DynCmd rt) a = do 
-             lst <- evalRTokens [rt] []
+             lst <- evalArgs [rt]
              let (o:rs) = lst ++ a
              let name = T.asBStr o
-             getCmd name >>= \pr -> doCall name pr rs
+             getCmd name >>= doCall name rs 
 
 
-doCall pn !mproc args = do
+doCall pn args !mproc = do
    case mproc of
      Nothing   -> do ukproc <- getCmd (pack "unknown")
                      case ukproc of
@@ -75,6 +76,7 @@ doCall pn !mproc args = do
 {-# INLINE doCall #-}
 
 doCond obj = (E.runAsExpr obj exprCallback >>= return . T.asBool) `orElse` oldCond obj
+{-# INLINE doCond #-}
 
 exprCallback v = case v of
     E.VarRef n     -> varGetNS n
@@ -88,7 +90,6 @@ oldCond obj = do
         [x]      -> do r <- runCmd x
                        return $! T.asBool r
         _        -> tclErr "Too many statements in conditional"
-{-# INLINE doCond #-}
 
 coreTests = TestList []
 

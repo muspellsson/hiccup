@@ -12,11 +12,11 @@ type TclCmd = [T.TclObj] -> TclM T.TclObj
 
 type MRef a = (IORef (Maybe a))
 data CompCmd = CompCmd (Maybe (MRef TclCmd)) (Maybe [RToken CompCmd]) Cmd
-data CodeBlock = CodeBlock T.TclObj [CompCmd]
+data CodeBlock = CodeBlock [CompCmd]
 
 toCodeBlock o = do
    cmds <- asParsed o >>= mapM compCmd
-   return (CodeBlock o cmds)
+   return (CodeBlock cmds)
 
 compCmd :: Cmd -> TclM CompCmd
 compCmd c@(Cmd (BasicCmd _) args) = do
@@ -63,4 +63,4 @@ evalThem (x:xs) = evalCompC x >> evalThem xs
 instance Runnable CodeBlock where
   evalTcl = runCodeBlock
 
-runCodeBlock (CodeBlock _ cl) = evalThem cl
+runCodeBlock (CodeBlock cl) = evalThem cl
