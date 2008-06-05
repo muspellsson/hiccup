@@ -444,6 +444,10 @@ test "parsing corners" {
 
   set x four 
   checkthat "$x: 4" eq "four: 4"
+
+  # comment \
+  testlib::fail { should be still a comment }
+  testlib::pass 
 }
 
 test "ns parsing with array lookup" {

@@ -14,6 +14,21 @@ type MRef a = (IORef (Maybe a))
 data CompCmd = CompCmd (Maybe (MRef TclCmd)) (Maybe [RToken CompCmd]) Cmd
 data CodeBlock = CodeBlock [CompCmd]
 
+
+invalidate (CompCmd (Just r) nargs c) = do
+  writeIORef r Nothing
+  case nargs of
+    Nothing -> return ()
+    Just a  -> mapM_ invalidateTok a
+invalidate _ = return ()
+   
+invalidateTok tok = case tok of
+  CmdTok c -> invalidate c
+  ExpTok t -> invalidateTok t
+  ArrRef _ _ t -> invalidateTok t 
+  CatLst lst      -> mapM_ invalidateTok lst
+  _            -> return ()
+
 toCodeBlock o = do
    cmds <- asParsed o >>= mapM compCmd
    return (CodeBlock cmds)

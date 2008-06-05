@@ -37,7 +37,10 @@ parseStatement :: Parser [TclWord]
 parseStatement = choose [eatAndNext, parseEof, parseTokens]
  where stmtSep = parseOneOf "\n;" .>> eatSpaces 
        eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
-       parseComment = pchar '#' .>> getPred (/= '\n') .>> eatSpaces
+
+parseComment = pchar '#' .>> parseMany (ignored `orElse` (eat escapedChar)) .>> eatSpaces
+ where ignored = eat (getPred1 (`notElem` "\n\\") "not newline or slash")
+       eat p = p .>> emit ()
 
 parseTokens :: Parser [TclWord]
 parseTokens = parseMany1 (eatSpaces .>> parseToken)
@@ -165,7 +168,15 @@ tclParseTests = TestList [ runParseTests,
                            wordTokenTests, 
                            getInterpTests,
                            doInterpTests,
+                           commentTests,
                            testEscaped ]
+
+commentTests = "parseComment" ~: TestList [
+   "# hey there" `should_be` ""
+   ,"# hey there \n FISH" `should_be` "\n FISH"
+   ,"# hey there \\\n FISH" `should_be` ""
+ ]
+  where should_be str res = (B.unpack str) ~: Right ((),res) ~=? parseComment str
 
 runParseTests = "runParse" ~: TestList [
      "one token" ~: (pr ["exit"]) ?=? "exit",
