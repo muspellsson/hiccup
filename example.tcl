@@ -1,6 +1,8 @@
 # Here is an example of some stuff hiccup can do.
 # I think it's neat.
 
+namespace import ::tcl::mathop::*
+
 proc decr { v { i -1 } } {
   upvar $v loc
   incr loc $i
@@ -9,7 +11,7 @@ proc decr { v { i -1 } } {
 proc memfib x {
   set ::loc(0) 1
   set ::loc(1) 1
-  for {set ctr 2} { <= $ctr $x } {incr ctr} {
+  for {set ctr 2} { $ctr <= $x } {incr ctr} {
     set v1 $::loc([- $ctr 1])
     set v2 $::loc([- $ctr 2])
     set {the sum} [+ $v1 $v2]
@@ -20,7 +22,7 @@ proc memfib x {
 
 set fcount 21
 puts "First $fcount fibonacci numbers in descending order:"
-while {<= 2 $fcount} {
+while { 2 <= $fcount } {
   puts -nonewline "[memfib $fcount] "
   decr fcount
 }
