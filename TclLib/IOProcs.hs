@@ -13,11 +13,11 @@ import TclLib.LibUtil
 import Util
 
 ioCmds = makeCmdList $ 
- [("puts",procPuts),("gets",procGets),("read",cmdRead),
-  ("open", procOpen), ("close", procClose),("flush", procFlush),
-  ("exit", procExit), ("source", procSource), ("eof", procEof)]
+ [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
+  ("open", cmdOpen), ("close", cmdClose),("flush", cmdFlush),
+  ("exit", cmdExit), ("source", cmdSource), ("eof", cmdEof)]
 
-procEof args = case args of
+cmdEof args = case args of
   [ch] -> do h <- getReadable ch
              io (hIsEOF h) >>= return . T.fromBool 
   _    -> argErr "eof"
@@ -29,7 +29,7 @@ cmdRead args = case args of
         return $ c `seq` T.fromBStr c
      _ -> argErr "read"
 
-procPuts args = case args of
+cmdPuts args = case args of
                  [s] -> tPutLn stdout s
                  [a1,str] -> if a1 .== "-nonewline" then tPut stdout str
                                else do h <- getWritable a1
@@ -43,7 +43,7 @@ procPuts args = case args of
        getWritable c = lookupChan (T.asBStr c) >>= checkWritable . T.chanHandle
        bad = argErr "puts"
 
-procGets args = case args of
+cmdGets args = case args of
           [ch] -> do h <- getReadable ch
                      eof <- io (hIsEOF h)
                      if eof then ret else (io . B.hGetLine) h >>= treturn
@@ -58,7 +58,7 @@ procGets args = case args of
 
 getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 
-procSource args = case args of
+cmdSource args = case args of
                   [s] -> do 
                      let fn = T.asStr s 
                      dat <- useFile fn (slurpFile fn)
@@ -71,7 +71,7 @@ checkReadable c = do r <- io (hIsReadable c)
 checkWritable c = do r <- io (hIsWritable c)
                      if r then return c else (tclErr "channel wasn't opened for writing")
 
-procOpen args = case args of
+cmdOpen args = case args of
          [fn]   -> openChan fn ReadMode
          [fn,m] -> parseMode (T.asStr m) >>= openChan fn 
          _    -> argErr "open"
@@ -96,20 +96,20 @@ useFile fn fun = do
 	       else tclErr (show e)
    Right h -> return h
 
-procClose args = case args of
+cmdClose args = case args of
          [ch] -> do h <- lookupChan (T.asBStr ch)
                     removeChan h
                     io (hClose (T.chanHandle h))
                     ret
          _    -> argErr "close"
 
-procFlush args = case args of
+cmdFlush args = case args of
      [ch] -> do h <- lookupChan (T.asBStr ch)
                 io (hFlush (T.chanHandle h))
                 ret
      _    -> argErr "flush"
 
-procExit args = case args of
+cmdExit args = case args of
             [] -> io (exitWith ExitSuccess)
             [i] -> do v <- T.asInt i
                       let ecode = if v == 0 then ExitSuccess else ExitFailure v

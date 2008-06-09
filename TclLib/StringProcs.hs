@@ -86,10 +86,13 @@ cmdAppend args = case args of
 cmdSplit args = case args of
         [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
-                       in if B.null splitChars then return $ (T.fromList . map (T.fromBStr . B.singleton) . unpack) (T.asBStr str)
-                                               else dosplit (T.asBStr str) splitChars
+                       in case B.length splitChars of
+                            0 -> lreturn $ map (T.fromBStr . B.singleton) (T.asStr str)
+                            1 -> lreturn (map T.fromBStr (B.split (B.head splitChars) (T.asBStr str)))
+                            _ -> dosplit (T.asBStr str) splitChars
         _           -> argErr "split"
- where dosplit str chars = return $ T.fromList (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
+ where dosplit str chars = lreturn (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
+       lreturn = return . T.fromList
 
 stringTests = TestList [ matchTests, toIndTests ]
 
