@@ -17,6 +17,7 @@ data Dep c a = DCom c
 data Expr = Item Atom 
           | BinApp !Op Expr Expr  
           | UnApp !UnOp Expr 
+          | TernIf Expr Expr Expr
           | DepItem (Dep TokCmd Expr)
           | Paren Expr deriving (Eq,Show)
 
@@ -29,6 +30,7 @@ data UnOp = OpNot | OpNeg deriving (Eq,Show)
 
 data CExpr c = CApp2 !Op (CExpr c) (CExpr c) | CItem Atom 
                | CApp !UnOp (CExpr c)
+               | CTern (CExpr c) (CExpr c) (CExpr c)
                | DItem (Dep c (CExpr c)) deriving (Eq,Show)
 
 

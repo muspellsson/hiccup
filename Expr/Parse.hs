@@ -70,6 +70,7 @@ showExpr exp = case exp of
          DepItem x -> show x
          Paren e -> showExpr e
          UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
+         TernIf a b c -> "(if " ++ show a ++ " " ++ show b ++ " " ++ show c ++ ")"
          BinApp op a b -> showOpExpr (getOpName op) a b
 
 showOpExpr ops a b = "(" ++ ops ++ " " ++ showExpr a ++ " " ++ showExpr b ++ ")"
@@ -107,19 +108,25 @@ parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
 parseExpr = eatSpaces .>> expTerm
  where expTerm str = do
-        (i1,r) <- parseItem str
-        (pjoin (\op i2 -> fixApp i1 op i2) parseOp parseExpr) `orElse` (emit i1) $ r 
+         (i1,r) <- parseItem str
+         (binop i1) `orElse` (tern i1) `orElse` (emit i1) $ r 
+       binop a = pjoin (\op i2 -> fixApp a op i2) parseOp parseExpr
+       tern a = parseTernIf `wrapWith` (\(b,c) -> TernIf a b c)
 
+pchar_ c = eatSpaces .>> pchar c
+
+parseTernIf = pchar_ '?' .>> pjoin (,) parseExpr (pchar_ ':' .>> parseExpr)
 
 fixApp a@(BinApp op2 a2 b2) op b =  
-      if op `higherPrec` op2 then (BinApp op2 a2 (BinApp op b2 b)) 
+      if op `higherPrec` op2 then BinApp op2 a2 (BinApp op b2 b)
                              else BinApp op a b
+fixApp a op (TernIf t1 t2 t3) = TernIf (BinApp op a t1) t2 t3
 fixApp a op b@(BinApp op2 a2 b2) = 
-      if op `higherPrec` op2 then (BinApp op2 (BinApp op a a2) b2) 
+      if op `higherPrec` op2 then BinApp op2 (BinApp op a a2) b2
                              else BinApp op a b
 fixApp a op b = BinApp op a b
 
-paren p = (pchar '(' .>> p) `pass` (eatSpaces .>> pchar ')')
+paren p = (pchar '(' .>> p) `pass` (pchar_ ')')
 
 parseOp = eatSpaces .>> choose plist
  where sop s v = parseLit s .>> emit v
@@ -127,7 +134,7 @@ parseOp = eatSpaces .>> choose plist
        plist = map op2parser (reverse (sortBy (comparing (B.length . opName)) operators))
 
 
-bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, depTests, exprTests] where
+bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, depTests, ternIfTests, exprTests] where
   int i = Item (ANum (TInt i))
   dub d = Item (ANum (TDouble d))
   str s = Item (AStr s)
@@ -158,6 +165,13 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"![is_done]" `should_be` (UnApp OpNot (DepItem (DCom (Word "is_done", []))))
    ] where should_be = should_be_ parseItem
  
+  ternIfTests = TestList [
+     " 1 ? 3 : 4" `should_be` (int 1, int 3, int 4)
+     ,"1?3:4" `should_be` (int 1, int 3, int 4)
+     ,"true? 3 + 4 : 2 * 4" `should_be` (int 1, app2 (int 3) OpPlus (int 4), app2 (int 2) OpTimes (int 4))
+   ] where should_be dat (a,b,c) = (B.unpack dat) ~: Right ((a,(b,c)), "") ~=? (parseItem `pair` parseTernIf) dat
+           pair a b = pjoin (,) a b
+
   exprTests = TestList [
      "11" `should_be` (int 11)
      ,"(1 * 2) + 1" `should_be` (app2 (Paren (app2 (int 1) OpTimes (int 2))) OpPlus (int 1))
@@ -170,6 +184,8 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"!(3 == 5)" `should_be` (app1 OpNot (Paren (app2 (int 3) OpEql (int 5))))
      ,"4 in \"1 4 8\"" `should_be` (app2 (int 4) OpIn (str "1 4 8"))
      ,"4 in { 1 4 8 }" `should_be` (app2 (int 4) OpIn (str " 1 4 8 "))
+     ," 1 ? 55 : 44" `should_be` (TernIf (int 1) (int 55) (int 44))
+     ," 3 > 4 ? {yes} : {no}" `should_be` (TernIf (app2 (int 3) OpGt (int 4)) (str "yes") (str "no"))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
   
   numTests = TestList [

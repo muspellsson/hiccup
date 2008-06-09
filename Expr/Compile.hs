@@ -16,6 +16,7 @@ compileExpr fwr = comp
                 DepItem (DCom cmd)   -> DItem (DCom (fwr cmd))
                 BinApp op a b -> CApp2 op (comp a) (comp b)
                 UnApp op v -> CApp op (comp v)
+                TernIf a b c -> CTern (comp a) (comp b) (comp c)
                 Paren e       -> comp e
 
 getUnFun op = case op of

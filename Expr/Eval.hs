@@ -20,6 +20,11 @@ runCExpr lu exp = run exp
  where run e = case e of
                  CItem v -> getItem v
                  DItem v -> getDep v
+                 CTern a b c -> do
+                   va <- run a
+                   if T.asBool va 
+                       then run b
+                       else run c
                  CApp2 f a b -> do
                             va <- run a
                             vb <- run b
@@ -44,6 +49,11 @@ runExpr lu exp = run exp
  where run e = case e of
                 Item v        -> getItem v
                 DepItem v     -> getDep v
+                TernIf a b c -> do
+                   va <- run a
+                   if T.asBool va 
+                       then run b
+                       else run c
                 BinApp op a b -> do 
                         va <- run a
                         vb <- run b

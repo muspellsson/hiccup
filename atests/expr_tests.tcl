@@ -87,3 +87,13 @@ test "bool test" {
   checkthat [! false] == 1
   checkthat [! [! [! true]]] == 0
 }
+
+test "ternary if" {
+    checkthat [expr { 1 ? "yes" : "no" }] eq "yes"
+    checkthat [expr { 0 ? "yes" : "no" }] eq "no"
+    
+    set things [list cat mouse bird dog lizard]
+
+    checkthat [expr { "bird" in $things ? "there" : "not there"}] eq "there"
+    checkthat [expr { "fish" in $things ? "there" : "not there"}] eq "not there"
+}
