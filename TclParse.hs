@@ -126,7 +126,7 @@ parseInd :: Parser BString
 parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 
 wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
- where simple = getPred1 (`notElem` " ${}[]\n\t;\\") "inner word"
+ where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
        inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
        someVar = chain_ [pchar '$', parseVarBody, tryGet parseInd]
        someCmd = consumed (brackets parseTokens)
@@ -187,6 +187,7 @@ runParseTests = "runParse" ~: TestList [
      "unmatched" ~: "{ { }" `should_fail` (),
      "a b " ~: "a b " `should_be` ["a", "b"],
      "two vars" ~: (pr ["puts", "$one$two"]) ?=? "puts $one$two",
+     "brace inside" ~: (pr ["puts", "x{$a}x"]) ?=? "puts x{$a}x",
      "brace" ~: (pr ["puts", "${oh no}"]) ?=? "puts ${oh no}",
      "arr 1" ~: (pr ["set","buggy(4)", "11"]) ?=? "set buggy(4) 11",
      "arr 2" ~: (pr ["set","buggy($bean)", "11"]) ?=? "set buggy($bean) 11",
@@ -247,14 +248,18 @@ wordTokenTests = "wordToken" ~: TestList [
      "empty" ~: "" `should_fail` ()
      ,"Simple2" ~: ("$whoa", "") ?=? "$whoa"
      ,"Simple with bang" ~: ("whoa!", " ") ?=? "whoa! "
-     ,"braced, then normal" ~: ("${x}$x", "") ?=? "${x}$x"
+     ,"braced, then normal" ~: valid_word "${x}$x"
      ,"normal, then cmd" ~: ("fish[nop 5]", "") ?=? "fish[nop 5]"
      ,"non-var, then var" ~: ("**$x", "") ?=? "**$x"
-     ,"non-var, then var w/ space" ~: ( "**${a b}", "") ?=? "**${a b}"
-     ,"escaped" ~: ( "x\\ y", "")  ?=? "x\\ y"
+     ,"non-var, then var w/ space" ~: valid_word "**${a b}"
+     ,"escaped" ~: valid_word "x\\ y"
+     ,"inner bracket" ~: valid_word "a{{" 
+     ,"inner bracket 2" ~: valid_word "a}|" 
   ]
  where should_fail str _ = (wordToken str) `should_fail_` ()
        (?=?) res str = Right res ~=? wordToken str
+       should_be str res = Right res ~=? wordToken str
+       valid_word x = x `should_be` (x,"")
 
 parseVarRefTests = "parseVarRef" ~: TestList [
      "empty string" ~: "" `should_fail` ()
