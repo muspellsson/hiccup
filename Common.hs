@@ -344,7 +344,7 @@ varSet vn v frref = do
              Nothing -> case Map.lookup str vm of
                           Just (ArrayVar _) -> cantSetErr "variable is array"
                           _                 -> return (ScalarVar v)
-             Just i  -> case Map.findWithDefault (ArrayVar Map.empty) str vm of
+             Just i  -> case Map.findWithDefault Undefined str vm of
                           ArrayVar prev -> return (ArrayVar (Map.insert i v prev))
                           Undefined     -> return (ArrayVar (Map.singleton i v))
                           _     -> cantSetErr "variable isn't array"
@@ -360,8 +360,6 @@ renameCmd old new = do
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProcNS pold
                  unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr) >> return ())
-
-varUnsetRaw name = varUnsetNS (parseVarName name)
 
 varUnsetNS :: NSQual VarName -> TclM RetVal
 varUnsetNS qns = usingNsFrame qns varUnset
@@ -754,7 +752,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
      ]
 
   unsetTests = TestList [
-       "non-exist" ~: (varUnsetRaw (b "boo")) `checkErr` "can't unset \"boo\": no such variable"
+       "non-exist" ~: (varUnsetNS (parseVarName (b "boo"))) `checkErr` "can't unset \"boo\": no such variable"
      ]
 
 -- # ENDTESTS # --

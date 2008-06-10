@@ -38,10 +38,11 @@ cmdPuts args = case args of
                                   h <- getWritable a2
                                   tPut h str 
                  _        -> bad
- where tPut h s = (io . B.hPutStr h . T.asBStr) s >> ret
-       tPutLn h s = (io . B.hPutStrLn h . T.asBStr) s >> ret
+ where tPut = putFun B.hPutStr
+       tPutLn = putFun B.hPutStrLn
        getWritable c = lookupChan (T.asBStr c) >>= checkWritable . T.chanHandle
-       bad = argErr "puts"
+       bad = vArgErr "puts ?-nonewline? ?channelId? string"
+       putFun f h s = (io . f h . T.asBStr) s >> ret
 
 cmdGets args = case args of
           [ch] -> do h <- getReadable ch

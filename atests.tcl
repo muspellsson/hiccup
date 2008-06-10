@@ -647,6 +647,22 @@ test "unset array elt" {
   checkthat [array size x] == 1
 }
 
+test "unset multiple" {
+    set x 1
+    set y 2
+    set z 3
+
+    foreach vn {x y z} {
+        checkthat [info exists $vn]
+    }
+
+    unset x y z
+
+    foreach vn {x y z} {
+        checkthat [info exists $vn] == 0
+    }
+}
+
 test "proc must be complete" {
   assertErr { proc banana }
   assertErr { proc banana { puts "banana" } }

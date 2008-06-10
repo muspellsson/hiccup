@@ -45,8 +45,8 @@ cmdSet args = case args of
      _       -> vArgErr "set varName ?newValue?"
 
 cmdUnset args = case args of
-     [n]     -> varUnsetNS (T.asVarName n)
-     _       -> argErr "unset"
+     []       -> argErr "unset"
+     vl       -> mapM_ (varUnsetNS . T.asVarName) vl >> ret
 
 cmdRename args = case args of
     [old,new] -> renameCmd (T.asBStr old) (T.asBStr new) >> ret
