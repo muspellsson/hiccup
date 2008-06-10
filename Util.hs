@@ -42,8 +42,7 @@ slurpFile fname = do dat <- B.readFile fname
 listEscape s = if (B.elem ' ' s && not hasBracks) || B.null s 
                  then B.concat [B.singleton '{', s, B.singleton '}'] 
                  else if hasBracks then B.concat (escapeStr s) else s
-  where hasBracks = bdepth /= 0
-        bdepth    = brackDepth s
+  where hasBracks = (brackDepth s) /= 0
 
 downCase = B.map toLower
 

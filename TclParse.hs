@@ -51,13 +51,18 @@ parseToken str = do
    case h of
      '{'  -> (parseExpand `orElse` parseNoSub) str
      '['  -> (parseSub `wrapWith` Subcommand) str
-     '"'  -> (parseStr `wrapWith` Word) str
+     '"'  -> (parseRichStr `wrapWith` Word) str
      '\\' -> handleEsc str
      _    -> (wordToken `wrapWith` Word) str
  where parseNoSub = parseBlock `wrapWith` mkNoSub
        parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
 
 mkNoSub s = NoSub s (runParse s)
+
+parseRichStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
+ where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
+       inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
+       inner_var = consumed (doVarParse `orElse` pchar '$')
 
 parseSub :: Parser TokCmd
 parseSub s = do 
@@ -167,6 +172,7 @@ tclParseTests = TestList [ runParseTests,
                            parseTokensTests,
                            wordTokenTests, 
                            getInterpTests,
+                           parseRichStrTests,
                            doInterpTests,
                            commentTests,
                            testEscaped ]
@@ -314,6 +320,17 @@ parseListTests = "parseList" ~: TestList [
  where (?=>) str res = Right res ~=? parseList str
        fails str = (parseList str) `should_fail_` ()
        should_be str res = (B.unpack str) ~: Right res ~=? parseList str
+
+parseRichStrTests = "parseRichStr" ~: TestList [
+       full_parse ""
+      ,full_parse "\\\""
+      ,full_parse "how [list \"are\"] you?"
+      ,full_parse "eat [list {\"}]"
+      ,full_parse "say ${\"}"
+      ,full_parse "dolla $ bill"
+   ]
+  where should_be str res = (B.unpack str) ~: Right res ~=? parseRichStr str
+        full_parse str = (B.concat ["\"", str, "\""]) `should_be` (str,"")
 
 parseTokensTests = "parseTokens" ~: TestList [
      " x " ~: "x" ?=> ([Word "x"], "")

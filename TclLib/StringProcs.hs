@@ -87,12 +87,12 @@ cmdSplit args = case args of
         [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
                        in case B.length splitChars of
-                            0 -> lreturn $ map (T.fromBStr . B.singleton) (T.asStr str)
-                            1 -> lreturn (map T.fromBStr (B.split (B.head splitChars) (T.asBStr str)))
+                            0 -> lreturn $ map B.singleton (T.asStr str)
+                            1 -> lreturn $! B.split (B.head splitChars) (T.asBStr str)
                             _ -> dosplit (T.asBStr str) splitChars
         _           -> argErr "split"
- where dosplit str chars = lreturn (map T.fromBStr (B.splitWith (\v -> v `B.elem` chars) str))
-       lreturn = return . T.fromList
+ where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
+       lreturn l = return $! T.fromList . map T.fromBStr $ l
 
 stringTests = TestList [ matchTests, toIndTests ]
 
