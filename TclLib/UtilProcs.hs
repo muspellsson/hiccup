@@ -6,9 +6,8 @@ import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import System.Posix.Process (getProcessID)
-import Core (runCmd, callProc)
+import Core (evalExpr)
 import Common
-import Expr (runAsExpr, CBData(..))
 import Format
 import qualified TclObj as T
 import TclLib.LibUtil
@@ -77,14 +76,9 @@ cmdUpdate args = case args of
                        uplevel sl f
 
 cmdExpr args = case args of
-  [s] -> runAsExpr s exprCallback
+  [s] -> evalExpr s 
   []  -> argErr "expr"
-  _   -> runAsExpr (T.objconcat args) exprCallback
-
-exprCallback !v = case v of
-    VarRef n     -> varGetNS n
-    FunRef (n,a) -> callProc n a
-    CmdEval cmd  -> runCmd cmd
+  _   -> evalExpr (T.objconcat args) 
 
 cmdFormat args = case args of
    (x:xs) -> formatString (T.asBStr x) xs >>= return . T.fromBStr

@@ -37,15 +37,15 @@ getOpFun !op = case op of
     OpGte -> up Math.greaterThanEq
     OpStrEq -> sup T.strEq
     OpStrNe -> sup T.strNe
-    OpAnd -> procBool (&&)
-    OpOr -> procBool (||)
+    OpAnd -> cmdBool (&&)
+    OpOr -> cmdBool (||)
     OpLShift -> Math.leftShift
     OpRShift -> Math.rightShift
     OpIn     -> Math.opIn
  where up f a b = return (f a b)
        sup f a b = return (T.fromBool (f a b))
 
-procBool f a b = do 
+cmdBool f a b = do 
    let ab = T.asBool a
    let bb = T.asBool b
    return $! T.fromBool (ab `f` bb)

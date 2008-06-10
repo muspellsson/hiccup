@@ -222,10 +222,9 @@ getCmdCount = gets tclCmdCount
 stackLevel = getStack >>= return . pred . length
 globalVars = getGlobalNS >>= getNSFrame >>= getFrameVars >>= return . Map.keys 
 localVars = getFrame >>= getFrameVars >>= return . Map.keys 
-currentVars = do f <- getFrame
-                 vs <- getFrameVars f
-                 mv <- getUpMap f
-                 return $ Map.keys vs ++ Map.keys mv
+currentVars = do mv <- getFrame >>= getUpMap
+                 vs <- localVars
+                 return $ vs ++ Map.keys mv
 
 commandNames procsOnly = nsList >>= mapM mapElems >>= return . map fst . filt . concat
  where mapElems e = getNsCmdMap e >>= mapM readSnd . Map.toList . unCmdMap
@@ -696,7 +695,6 @@ errWithEnv t =
 mkEmptyState = makeState [] emptyCmdList
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
-
   b = pack
 
   evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
@@ -708,25 +706,19 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   checkErr a s = errWithEnv a >>= \v -> assertEqual "err match" (Left (eDie s)) v
   checkNoErr a = errWithEnv a >>= \v -> assertBool "err match" (isRight v)
+   where isRight (Right _) = True
+         isRight _         = False
 
-  checkExists a n = do (_,(v:_)) <- evalWithEnv a
-                       vExists n v
+  vExists vn env = readVars env >>= \vm -> assert (Map.member (b vn) vm)
+  readVars frref = readIORef frref >>= return . frVars 
 
-  vExists vn env = readIORef env >>= \fr -> return (frVars fr) >>= \vm -> assert (Map.member (b vn) vm)
 
-  checkEq :: TclM t -> String -> T.TclObj -> Assertion
-  checkEq a n val = do (_,(v:_)) <- evalWithEnv a
-                       vEq n v val
-
-  vEq vn env val = do
-     vm <- readIORef env >>= return . frVars 
+  vEq vn frref val = do
+     vm <- readVars frref
      assert ((Map.lookup (b vn) vm) == (Just (ScalarVar val)))
 
   value = int 666
   name = b "varname"
-
-  isRight (Right _) = True
-  isRight _         = False
   int = T.fromInt
 
   setTests = TestList [
@@ -734,6 +726,10 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
        ,"set exists2" ~: (varSetRaw (b "boogie") (int 1)) `checkExists` "boogie"
        ,"checkeq" ~: checkEq (varSetRaw name value) "varname" value
      ]
+    where evalGetHead a = evalWithEnv a >>= return . head . snd 
+          checkExists a n = evalGetHead a >>= vExists n
+          checkEq a n val = evalGetHead a >>= \v -> vEq n v val
+
   withScopeTests = TestList [
       "with scope" ~: getVM (varSetRaw (b "x") (int 1)) (\m -> not (Map.null m))
     ]
@@ -741,8 +737,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
                         (res,_) <- evalWithEnv (withScope vmr f)
                         case res of
                          Left e -> error (show e)
-                         Right _ -> do fr <- readIORef vmr
-                                       vm <- return (frVars fr) 
+                         Right _ -> do vm <- readVars vmr
                                        assertBool "getVM" (c vm)
                         
 

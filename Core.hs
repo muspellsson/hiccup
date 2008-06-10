@@ -1,5 +1,5 @@
-{-# LANGUAGE BangPatterns #-}
-module Core (doCond, runCmd, callProc, evalArgs, coreTests) where
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
+module Core (doCond, evalExpr, evalArgs, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -7,8 +7,7 @@ import qualified Data.ByteString.Char8 as B
 import RToken
 import qualified Expr as E
 import Util
-import TclErr
-import VarName (arrName, NSQual(..))
+import VarName (arrName, NSQual(..), parseNSTag, toBStr)
 
 import Test.HUnit
 
@@ -27,8 +26,8 @@ runCmds cl = case cl of
 {-# INLINE runCmds #-}
 
 
-callProc :: BString -> [T.TclObj] -> TclM T.TclObj
-callProc pn args = getCmd pn >>= doCall pn args
+callProc :: NSQual BString -> [T.TclObj] -> TclM T.TclObj
+callProc pn args = getCmdNS pn >>= doCall (toBStr pn) args
 
 evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
@@ -72,21 +71,18 @@ doCall pn args !mproc = do
      Just proc -> proc `applyTo` args 
 {-# INLINE doCall #-}
 
-doCond obj = (E.runAsExpr obj exprCallback >>= return . T.asBool) `orElse` oldCond obj
+doCond obj = evalExpr obj >>= return . T.asBool
 {-# INLINE doCond #-}
+
+evalExpr e = E.runAsExpr e exprCallback
+{-# INLINE evalExpr #-}
 
 exprCallback v = case v of
     E.VarRef n     -> varGetNS n
-    E.FunRef (n,a) -> callProc n a
+    E.FunRef (n,a) -> callProc (NSQual mathfuncTag n) a
     E.CmdEval cmd  -> runCmd cmd
 
-oldCond :: T.TclObj -> TclM Bool
-oldCond obj = do
-      p <- asParsed obj
-      case p of
-        [x]      -> do r <- runCmd x
-                       return $! T.asBool r
-        _        -> tclErr "Too many statements in conditional"
+mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
 
 coreTests = TestList []
 
