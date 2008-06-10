@@ -5,6 +5,19 @@ import qualified Data.ByteString.Char8 as B
 import Data.Bits
 import Data.Char (ord)
 
+data Hashed a = Hashed { hshDat :: !a, hshVal :: !Int } deriving (Eq,Show)
+
+toHashed v = Hashed v (hashVal v)
+
+class Hashable a where
+   hashVal :: a -> Int
+
+instance Hashable (Hashed a) where
+    hashVal = hshVal
+
+instance Hashable B.ByteString where
+    hashVal = mainhash
+
 sumhash :: B.ByteString -> Int
 sumhash = B.foldl' (\a b -> a + (fromIntegral (ord b))) 0
 
