@@ -15,6 +15,7 @@ module VarName (parseVarName,
                 noNsQual,
                 splitWith,
                 nsSep,
+                BStringable(..),
                 varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
@@ -31,8 +32,14 @@ data VarName = VarName { vnName :: !BString, vnInd :: Maybe BString } deriving (
 class BStringable a where
   toBStr :: a -> BString
 
+instance BStringable B.ByteString where
+  toBStr = id
 instance BStringable NSTag where
   toBStr (NS g lst) = B.append (if g then nsSep else B.empty) (B.intercalate nsSep lst)
+
+instance (BStringable a) => BStringable (NSQual a) where
+  toBStr (NSQual (Just t) s) = B.append (toBStr t) (toBStr s)
+  toBStr (NSQual _ s) = toBStr s
 
 arrName !an !ind = VarName an (Just ind)
 {-# INLINE arrName #-}
