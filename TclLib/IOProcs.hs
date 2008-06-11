@@ -12,10 +12,10 @@ import TclObj ((.==))
 import TclLib.LibUtil
 import Util
 
-ioCmds = makeCmdList $ 
- [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
-  ("open", cmdOpen), ("close", cmdClose),("flush", cmdFlush),
-  ("exit", cmdExit), ("source", cmdSource), ("eof", cmdEof)]
+ioCmds = nsCmdList "" $ safe ++ unsafe
+ where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
+                        ("close", cmdClose),("flush", cmdFlush),("eof", cmdEof)]
+       unsafe = unsafeCmds [("exit", cmdExit), ("source", cmdSource),("open", cmdOpen)]
 
 cmdEof args = case args of
   [ch] -> do h <- getReadable ch

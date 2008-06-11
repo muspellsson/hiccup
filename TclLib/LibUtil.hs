@@ -5,8 +5,11 @@ module TclLib.LibUtil (
     ,toIndex
     ,mkEnsemble
     ,makeCmdList
+    ,nsCmdList
     ,mergeCmdLists
     ,makeNsCmdList
+    ,safeCmds
+    ,unsafeCmds
   ) where
 
 import Common
