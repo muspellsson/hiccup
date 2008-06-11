@@ -77,7 +77,7 @@ doCond obj = evalExpr obj >>= return . T.asBool
 evalExpr e = E.runAsExpr e exprCallback
 {-# INLINE evalExpr #-}
 
-exprCallback v = case v of
+exprCallback !v = case v of
     E.VarRef n     -> varGetNS n
     E.FunRef (n,a) -> callProc (NSQual mathfuncTag n) a
     E.CmdEval cmd  -> runCmd cmd

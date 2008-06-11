@@ -4,6 +4,7 @@ module Hash (mainhash, sumhash) where
 import qualified Data.ByteString.Char8 as B
 import Data.Bits
 import Data.Char (ord)
+import Data.Array.IO
 
 data Hashed a = Hashed { hshDat :: !a, hshVal :: !Int } deriving (Eq,Show)
 
@@ -39,3 +40,24 @@ pcombine !val !c = let v1 = val + (fromIntegral (ord c))
 {-# INLINE pcombine #-}
 
 
+data HT k v = HT Int (IOArray Int [(k,v)])
+
+newHT :: (Ord k, Hashable k) => Int -> IO (HT k v)
+newHT size = do 
+  arr <- newArray (0,size) []
+  return (HT size arr)
+
+blahHT :: Int -> IO (HT B.ByteString Int)
+blahHT size = newHT size
+
+htInsert k v (HT size arr) = do
+   let ind = (hashVal k) `mod` size
+   olde <- readArray arr ind
+   writeArray arr ind ((k,v):olde)
+
+htLookup k (HT size arr) = do
+   let ind = (hashVal k) `mod` size
+   eltl <- readArray arr ind
+   return (lookup k eltl)
+
+   
