@@ -144,6 +144,12 @@ test "lsearch" {
   checkthat [lsearch [list AAA BBB CCC] A??] == 0
 }
 
+test "lsearch -exact/-glob" {
+  checkthat [lsearch -exact [list AAA BBB CCC] A??] == -1
+  checkthat [lsearch -exact [list AAA BBB CCC] AAA] == 0
+  checkthat [lsearch -glob [list AAA BBB CCC] C??] == 2
+}
+
 test "lrepeat" {
   checkthat [lrepeat 1 x] eq [list x]
   checkthat [lrepeat 3 x] eq [list x x x]

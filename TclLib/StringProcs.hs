@@ -7,8 +7,8 @@ import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper)
-import Control.Monad (when)
 import TclLib.LibUtil
+import ArgParse
 
 import Test.HUnit
 
@@ -32,29 +32,51 @@ string_length args = case args of
     [s] -> return $ T.fromInt (B.length (T.asBStr s))
     _   -> argErr "string length"
 
-string_compare args = case map T.asBStr args of
-    [s1,s2] -> return (ord2int (compare s1 s2))
-    ["-nocase",s1,s2] -> return (ord2int (compare (downCase s1) (downCase s2)))
-    _       -> argErr "string compare"
+data CompSpec = CompSpec { csNoCase :: Bool, csLen :: Maybe T.TclObj }
+
+
+compSpecs = mkArgSpecs 2 [
+     NoArg "nocase" (\cs -> cs { csNoCase = True }),
+     OneArg "length" (\i cs -> cs { csLen = Just i })
+ ]
+
+specCompare (CompSpec nocase len) s1 s2 = do
+  let modder1 = if nocase then downCase else id
+  modder2 <- lengthMod
+  let modder = modder1 . modder2 . T.asBStr
+  return (compare (modder s1) (modder s2))
+ where lengthMod = case len of
+                    Nothing -> return id
+                    Just o  -> do
+                       i <- T.asInt o
+                       if i < 0 then return id
+                                else return (B.take i)
+
+string_compare args_ = do
+   (cspec, args) <- parseArgs compSpecs (CompSpec False Nothing) args_
+   case args of
+     [s1,s2] -> specCompare cspec s1 s2 >>= return . ord2int 
+     _       -> argErr "string compare"
  where ord2int o = case o of
+            EQ -> T.fromInt 0
             LT -> T.fromInt (-1)
             GT -> T.fromInt 1
-            EQ -> T.fromInt 0
-
-string_equal args = case args of
-  [s1,s2] -> eqcheck id s1 s2
-  [opt,s1,s2] -> do 
-     let optstr = T.asBStr opt
-     when (optstr /= "-nocase") $ tclErr ("bad option " ++ show optstr)
-     eqcheck downCase s1 s2
-  _       -> argErr "string equal"
- where eqcheck f a b = return . T.fromBool $ f (T.asBStr a) == f (T.asBStr b)
 
 
-string_match args = case map T.asBStr args of
-   [s1,s2]        -> domatch False s1 s2
-   [nocase,s1,s2] -> if nocase == "-nocase" then domatch True s1 s2 else argErr "string match"
-   _              -> argErr "string match"
+string_equal args_ = do
+  (cspec, args) <- parseArgs compSpecs (CompSpec False Nothing) args_
+  case args of
+    [s1,s2] -> specCompare cspec s1 s2 >>= return . T.fromBool . (== EQ)
+    _       -> argErr "string equal"
+
+boolFlagSpec name keep = mkArgSpecs keep [NoArg name (const True)]
+
+matchNoCase = boolFlagSpec "nocase" 2
+string_match args_ = do
+   (nocase,args) <- parseArgs matchNoCase False args_
+   case args of
+       [s1,s2]        -> domatch nocase (T.asBStr s1) (T.asBStr s2)
+       _              -> argErr "string match"
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
 string_index args = case args of

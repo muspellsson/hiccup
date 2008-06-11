@@ -1,7 +1,7 @@
 module TclLib.ListProcs (listCmds) where
 import Common
 import Util
-import Match (globMatch)
+import Match (MatchType(..),matchFun)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Proc.Util (mkLambda)
@@ -78,35 +78,43 @@ cmdLappend args = case args of
              varSetNS vn $ T.fromSeq (items >< (S.fromList news))
         _        -> argErr "lappend"
 
-cmdLsearch args = case args of
+searchArgs = mkArgSpecs 2 [
+     NoArg "exact" (setMatchType ExactMatch),
+     NoArg "glob" (setMatchType GlobMatch)
+   ]
+ where setMatchType = const
+
+cmdLsearch args_ = do
+     (mtype,args) <- parseArgs searchArgs GlobMatch args_
+     case args of
        [lsto,pat] -> do 
               let p = T.asBStr pat
               ilst <- liftM (zip [0..]) (T.asList lsto)
-              return $ T.fromInt $ findIt p ilst
+              return $ T.fromInt $ findIt (matchFun mtype) p ilst
        _         -> argErr "lsearch"
- where findIt _ [] = -1
-       findIt p ((i,e):xs) = if globMatch p (T.asBStr e) then i else findIt p xs
+ where findIt _ _ []         = -1
+       findIt f p ((i,e):xs) = if f p (T.asBStr e) then i else findIt f p xs
 
 data SortType = AsciiSort | IntSort deriving (Eq,Show)
 data SortFlags = SF { sortType :: SortType, sortReverse :: Bool, noCase :: Bool } deriving (Eq, Show)
 
-sortArgs = mkArgSpecs [
+sortArgs = mkArgSpecs 1 [
        NoArg "ascii" (setSortType AsciiSort), 
        NoArg "integer" (setSortType IntSort), 
        NoArg "increasing" (setSortReverse False), 
        NoArg "decreasing" (setSortReverse True), 
        NoArg "nocase" (\x -> x { noCase = True })
-      ] 
+      ]
  where setSortType v = (\x -> x { sortType = v })
        setSortReverse v = (\x -> x { sortReverse = v })
                         
 defaultSort = SF { sortType = AsciiSort, sortReverse = False, noCase = False }
 
-cmdLsort args = case args of
-          []    -> argErr "lsort"
-          alst  -> let (opts,lst) = (init alst, last alst)
-                   in do (sf,_) <- parseArgs sortArgs defaultSort opts
-                         dosort sf lst
+cmdLsort args_ = do 
+    (sf,args) <- parseArgs sortArgs defaultSort args_
+    case args of
+       [lst] -> dosort sf lst
+       _     -> argErr "lsort"
  where dosort sf lst = do
               items <- T.asList lst 
               sortEm sf items >>= return . T.fromList

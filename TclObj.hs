@@ -87,7 +87,7 @@ bstrAsInt bs = case BS.readInt bs of
                Nothing    -> badInt bs
                Just (i,r) -> if BS.null r then return i else badInt bs
 
-badInt bi = fail ("expected integer, got " ++ show bi)
+badInt bi = fail ("expected integer but got " ++ show bi)
 
 bstrAsSeq s = case parseList s of
                     Left r  -> fail $ "list parse failure: " ++ r

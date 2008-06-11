@@ -53,6 +53,19 @@ test "string compare -nocase" {
   checkthat [string compare "hi" "HI"] != 0 {hi /= HI without -nocase}
   checkthat [string compare -nocase "hi" "HI"] == 0
   checkthat [string compare -nocase "hi9" "HI"] != 0
+  checkthat [string compare -nocase -nocase] == 0
+  checkthat [string compare -nocase -nocase -nocase] == 0
+  checkthat [string compare -nocase -nocase -nocase -nocase] == 0
+  checkthat [get_err {string compare -nocase duck duck goose}] eq {bad option "duck": must be -nocase or -length}
+}
+
+test "string compare -length" {
+  checkthat [string compare -length 4 "abcdYES" "abcdNO"] == 0
+  checkthat [get_err {string compare -length button x x}] eq {expected integer but got "button"}
+
+  checkthat [string compare -length -10 boo boo] == 0
+  checkthat [string compare -length -1 bot boo] == 1
+  checkthat [string compare -length -1 boo bot] == -1
 }
 
 test "string range" {
@@ -75,4 +88,5 @@ test "string equal" {
     checkthat [string equal "boo" "foo"] == 0
 
     checkthat [string equal -nocase "boo" "BOO"]
+    checkthat [string equal -length 2 XXa XXb]
 }

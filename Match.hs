@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Match (match 
+              ,MatchType(..)
+              ,matchFun
               ,globMatch
               ,globMatches
               ,exactMatch
@@ -9,6 +11,11 @@ module Match (match
 import Test.HUnit
 import qualified Data.ByteString.Char8 as B
 import Data.Char (toLower)
+
+data MatchType = ExactMatch | GlobMatch deriving (Eq,Show)
+
+matchFun ExactMatch = exactMatch
+matchFun GlobMatch  = globMatch
 
 globMatch pat = match False pat
 exactMatch pat = (== pat)

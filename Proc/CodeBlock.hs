@@ -15,7 +15,7 @@ data CompCmd = CompCmd (Maybe (MRef TclCmd)) (Maybe [RToken CompCmd]) Cmd
 data CodeBlock = CodeBlock [CompCmd]
 
 
-invalidate (CompCmd (Just r) nargs c) = do
+invalidate (CompCmd (Just r) nargs _) = do
   writeIORef r Nothing
   case nargs of
     Nothing -> return ()
