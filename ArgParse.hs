@@ -12,10 +12,10 @@ argLabel (NoArg s _) = s
 argLabel (OneArg s _) = s
 
 mkArgSpecs keep al = (Map.fromList (map (\x -> (B.pack (argLabel x), x)) al),keep)
-badList m = commaList "or" (map (('-':) . B.unpack) (reverse (Map.keys m)))
+choiceList m = commaList "or" (map (('-':) . B.unpack) (reverse (Map.keys m)))
 
 parseArgs (as,keep) i al = inner (length al) al i
- where badOpt n = fail $ "bad option " ++ show (T.asBStr n) ++ ": must be " ++ badList as
+ where badOpt n = fail $ "bad option " ++ show (T.asBStr n) ++ ": must be " ++ choiceList as
        inner  _ []        !acc = return (acc,[])
        inner !r xl@(x:xs) !acc
          | r <= keep = return (acc,xl)
@@ -30,6 +30,4 @@ parseArgs (as,keep) i al = inner (length al) al i
                                case xs of
                                   (b:xxs) -> inner (r-2) xxs (f b acc)
                                   _  -> fail $ "flag requires argument: -" ++ n
-                _     -> if r /= keep 
-                              then badopt
-                              else return (acc,xl)
+                _     -> badopt

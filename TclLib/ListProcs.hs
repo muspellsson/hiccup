@@ -90,7 +90,7 @@ cmdLsearch args_ = do
        [lsto,pat] -> do 
               let p = T.asBStr pat
               ilst <- liftM (zip [0..]) (T.asList lsto)
-              return $ T.fromInt $ findIt (matchFun mtype) p ilst
+              return . T.fromInt $ findIt (matchFun mtype) p ilst
        _         -> argErr "lsearch"
  where findIt _ _ []         = -1
        findIt f p ((i,e):xs) = if f p (T.asBStr e) then i else findIt f p xs
