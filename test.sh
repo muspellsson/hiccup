@@ -4,5 +4,5 @@ die() {
 }
 
 ghc -e Tests.runUnit Tests.hs || die "build failure"
-runghc Main.hs atests.tcl
+runghc -W Main.hs atests.tcl
 
