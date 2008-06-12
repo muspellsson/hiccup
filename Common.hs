@@ -3,6 +3,7 @@ module Common (TclM
        ,TclState
        ,Runnable(..)
        ,applyTo
+       ,registerWatcher
        ,cmdBody
        ,getOriginName
        ,runTclM
@@ -178,7 +179,8 @@ makeState' chans vlist cmdlst = do
                                    tclEvents = Evt.emptyMgr,
                                    tclStack = [fr],
                                    tclGlobalNS = nsr,
-                                   tclCmdCount = 0 }
+                                   tclCmdCount = 0,
+                                   tclCmdWatchers = [] }
        makeGlobal = do 
            fr <- createFrame (makeVarMap vlist) 
            nsr <- globalNS fr
@@ -206,6 +208,11 @@ putStack s = modify (\v -> v { tclStack = s })
 modStack :: (TclStack -> TclStack) -> TclM ()
 modStack f = get >>= put . (\v -> let !v2 = v { tclStack = f (tclStack v) } in v2)
 {-# INLINE modStack #-}
+
+registerWatcher cb = modify (\t -> t { tclCmdWatchers = cb:(tclCmdWatchers t) })
+
+notifyWatchers = do
+  gets tclCmdWatchers >>= io . sequence_
 
 getFrame = do st <- gets tclStack
               case st of
@@ -670,7 +677,7 @@ insertVar !fr !k !v = fr .= (`modFrVars` (Map.insert k v))
 
 deleteVar fr !k = fr .= (`modFrVars` (Map.delete k))
 
-changeCmds nsr fun = nsr .= updateNS
+changeCmds nsr fun = nsr .= updateNS >> notifyWatchers
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
        updateNS ns = ns { nsCmds = update (nsCmds ns) }
 

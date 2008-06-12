@@ -18,13 +18,15 @@ import Util
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 
 type CmdName = NSQual BString
+type CmdTag = (Int, CmdName)
 
 data CompCmd = CompCmd (Maybe CmdTag) (Maybe [RToken CompCmd]) Cmd
 
 data CodeBlock = CodeBlock CmdCache [CompCmd]
-data CmdCache = CmdCache (IOArray Int (Maybe TclCmd, CmdName))
 
-type CmdTag = (Int, CmdName)
+type CacheEntry = (Maybe TclCmd, CmdName)
+data CmdCache = CmdCache (IOArray Int CacheEntry)
+
 
 type CmdIds = M.Map CmdName Int
 data CState = CState Int CmdIds deriving (Show)
@@ -38,10 +40,11 @@ runCompM code s = runStateT (runErrorT (unCompM code)) s
 toCodeBlock :: T.TclObj -> TclM CodeBlock
 toCodeBlock o = do
    (e_cmds,st) <- asParsed o >>= liftIO . compile
-   carr <- makeCmdArray st
+   carr <- makeCmdArray st >>= return . CmdCache
+   registerWatcher (invalidateCache carr)
    case e_cmds of
      Left e -> tclErr e
-     Right cmds -> return (CodeBlock (CmdCache carr) cmds)
+     Right cmds -> return (CodeBlock carr cmds)
 
 compile p = runCompM (mapM compCmd p) (CState 0 M.empty)
 

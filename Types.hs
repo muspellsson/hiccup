@@ -47,7 +47,8 @@ data TclState = TclState {
     tclEvents :: Evt.EventMgr T.TclObj,
     tclStack :: !TclStack, 
     tclGlobalNS :: !NSRef,
-    tclCmdCount :: !Int }
+    tclCmdCount :: !Int,
+    tclCmdWatchers :: [IO ()] }
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 

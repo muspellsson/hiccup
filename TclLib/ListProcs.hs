@@ -1,16 +1,17 @@
 module TclLib.ListProcs (listCmds) where
-import Common
-import Util
-import Match (MatchType(..),matchFun)
 import Data.List (sortBy)
 import Data.Ord (comparing)
-import Proc.Util (mkLambda)
-import TclLib.LibUtil
-import qualified TclObj as T
 import Control.Monad
-import ArgParse
 import qualified Data.Sequence as S
 import Data.Sequence ((><))
+
+import qualified TclObj as T
+import Common
+import ArgParse
+import Util
+import Match (MatchType(..),matchFun)
+import Proc.Util (mkLambda)
+import TclLib.LibUtil
 
 listCmds = makeCmdList $
   [("list", cmdList),("lindex",cmdLindex),
