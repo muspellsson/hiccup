@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Core (doCond, evalExpr, evalArgs, coreTests) where
+module Core (doCond, evalExpr, evalArgs, evalArgsF, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -29,25 +29,29 @@ runCmds cl = case cl of
 callProc :: NSQual BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = getCmdNS pn >>= doCall (toBStr pn) args
 
-evalRTokens []     acc = return $! reverse acc
-evalRTokens (x:xs) acc = case x of
+evalRTokens f a b = evalRTokens_ a b where
+  evalRTokens_ []     acc = return $! reverse acc
+  evalRTokens_ (x:xs) acc = case x of
             Lit s     -> nextWith (return $! T.fromBStr s) 
             LitInt i  -> nextWith (return $! T.fromInt i) 
-            CmdTok t  -> nextWith (evalTcl t)
+            CmdTok t  -> nextWith (f t)
             VarRef vn -> nextWith (varGetNS vn)
             Block s p e -> nextWith (return $! T.fromBlock s p e) 
             ArrRef ns n i -> do
-                 ni <- evalArgs [i] >>= return . T.asBStr . head
+                 ni <- evalArgs_ [i] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalArgs l >>= return . T.fromBStr . B.concat . map T.asBStr) 
+            CatLst l -> nextWith (evalArgs_ l >>= return . T.fromBStr . B.concat . map T.asBStr) 
             ExpTok t -> do 
-                 [rs] <- evalArgs [t]
+                 [rs] <- evalArgs_ [t]
                  l <- T.asList rs
-                 evalRTokens xs ((reverse l) ++ acc)
- where nextWith f = f >>= \(!r) -> evalRTokens xs (r:acc)
+                 evalRTokens_ xs ((reverse l) ++ acc)
+   where nextWith f = f >>= \(!r) -> evalRTokens_ xs (r:acc)
+         evalArgs_ args = evalRTokens_ args []
 
-evalArgs args = evalRTokens args []
+evalArgs args = evalRTokens runCmd args []
 {-# INLINE evalArgs #-}
+
+evalArgsF f args = evalRTokens f args []
 
 runCmd :: Cmd -> TclM T.TclObj
 runCmd (Cmd n args) = do

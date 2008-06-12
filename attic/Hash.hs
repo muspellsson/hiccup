@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Hash (mainhash, sumhash) where
+module Hash where
 
 import qualified Data.ByteString.Char8 as B
 import Data.Bits

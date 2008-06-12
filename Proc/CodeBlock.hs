@@ -1,43 +1,74 @@
+{-# OPTIONS_GHC -XGeneralizedNewtypeDeriving #-}
 module Proc.CodeBlock where
-import RToken
-import Common
+
+import Control.Monad.State
+import Control.Monad.Error
 import Data.IORef
-import Core
+import Data.Array.IO
+import qualified Data.Map as M
+
 import Types (TclCmdObj(..))
+import Core
+import VarName (NSQual)
+import RToken hiding (CmdName)
+import Common 
 import qualified TclObj as T
 import Util
 
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 
+type CmdName = NSQual BString
+
+
+type CmdTag_ = (MRef TclCmd, CmdName)
 type MRef a = (IORef (Maybe a))
-data CompCmd = CompCmd (Maybe (MRef TclCmd)) (Maybe [RToken CompCmd]) Cmd
-data CodeBlock = CodeBlock [CompCmd]
+data CompCmd = CompCmd (Maybe CmdTag_) (Maybe [RToken CompCmd]) Cmd
 
+data CodeBlock = CodeBlock CmdCache [CompCmd]
+data CmdCache = CmdCache (IOArray Int (Maybe TclCmd, CmdName))
 
-invalidate (CompCmd (Just r) nargs _) = do
-  writeIORef r Nothing
-  case nargs of
-    Nothing -> return ()
-    Just a  -> mapM_ invalidateTok a
-invalidate _ = return ()
-   
-invalidateTok tok = case tok of
-  CmdTok c -> invalidate c
-  ExpTok t -> invalidateTok t
-  ArrRef _ _ t -> invalidateTok t 
-  CatLst lst      -> mapM_ invalidateTok lst
-  _            -> return ()
+type CmdTag = (NSQual BString, Int)
 
+type CmdIds = M.Map CmdName Int
+data CState = CState Int CmdIds deriving (Show)
+type CErr = String
+
+newtype CompM a = CompM { unCompM :: ErrorT CErr (StateT CState IO) a }
+ deriving (MonadState CState, MonadError CErr, MonadIO, Monad)
+
+runCompM code s = runStateT (runErrorT (unCompM code)) s
+
+toCodeBlock :: T.TclObj -> TclM CodeBlock
 toCodeBlock o = do
-   cmds <- asParsed o >>= mapM compCmd
-   return (CodeBlock cmds)
+   (e_cmds,st) <- asParsed o >>= liftIO . compile
+   carr <- makeCmdArray st
+   case e_cmds of
+     Left e -> tclErr e
+     Right cmds -> return (CodeBlock (CmdCache carr) cmds)
 
-compCmd :: Cmd -> TclM CompCmd
-compCmd c@(Cmd (BasicCmd _) args) = do
-       r <- io $ newIORef Nothing
+compile p = runCompM (mapM compCmd p) (CState 0 M.empty)
+
+makeCmdArray :: CState -> TclM (IOArray Int (Maybe TclCmd, CmdName))
+makeCmdArray (CState _ m) = do
+   let size = M.size m
+   liftIO $ newListArray (0,size-1) (map (\k -> (Nothing,k))(M.keys m))
+
+getTag cn = do
+  (CState i mi) <- get
+  case M.lookup cn mi of
+    Just ct -> return (ct,cn)
+    Nothing -> do 
+        put (CState (succ i) (M.insert cn i mi))
+        return (i,cn)
+
+
+compCmd :: Cmd -> CompM CompCmd
+compCmd c@(Cmd (BasicCmd cn) args) = do
+       r <- liftIO $ newIORef Nothing
+       getTag cn
        nargs <- (mapM compToken args >>= return . Just) `ifFails` Nothing
-       return $ CompCmd (Just r) nargs c
+       return $ CompCmd (Just (r,cn)) nargs c
 compCmd _ = fail "no compile"
 
 compToken tok = case tok of
@@ -50,32 +81,36 @@ compToken tok = case tok of
   LitInt i        -> return $! (LitInt i)
   CatLst lst      -> mapM compToken lst >>= return . CatLst
 
-instance Runnable CompCmd where
-  evalTcl = evalCompC
 
-evalCompC (CompCmd Nothing _ c) = evalTcl c
-evalCompC (CompCmd (Just cref) nargs c@(Cmd (BasicCmd cn) args)) = do
-   mcmd <- io $ readIORef cref
+getCacheCmd (CmdCache _) (cref,cn) = do
+  mcmd <- liftIO $ readIORef cref
+  case mcmd of
+    Just cmd -> return (Just cmd)
+    Nothing -> do
+       mcmd2 <- getCmdNS cn
+       case mcmd2 of
+         Nothing -> return Nothing
+         Just cmd -> do
+           let act = cmdAction cmd
+           liftIO $ writeIORef cref (Just act)
+           return (Just act)
+
+evalCompC _ (CompCmd Nothing _ c) = evalTcl c
+evalCompC cc (CompCmd (Just ct) nargs c@(Cmd (BasicCmd _) args)) = do
+   mcmd <- getCacheCmd cc ct
    case mcmd of
      Just cmd -> eArgs >>= cmd
-     Nothing  -> do
-      mcmd2 <- getCmdNS cn
-      case mcmd2 of 
-        Nothing -> evalTcl c
-        Just cmd -> do 
-           let act = cmdAction cmd
-           io $ writeIORef cref (Just act)
-           eArgs >>= act
+     Nothing  -> evalTcl c
  where eArgs = case nargs of 
                 Nothing -> evalArgs args
-                Just al -> evalArgs al
-evalCompC (CompCmd (Just _) _ _) = error "SHOULD NEVER HAPPEN"
+                Just al -> evalArgsF (evalCompC cc) al
+evalCompC _ (CompCmd (Just _) _ _) = error "SHOULD NEVER HAPPEN"
 
-evalThem [] = ret
-evalThem [x] = evalCompC x
-evalThem (x:xs) = evalCompC x >> evalThem xs
+evalThem _ [] = ret
+evalThem cc [x] = evalCompC cc x
+evalThem cc (x:xs) = evalCompC cc x >> evalThem cc xs
 
 instance Runnable CodeBlock where
   evalTcl = runCodeBlock
 
-runCodeBlock (CodeBlock cl) = evalThem cl
+runCodeBlock (CodeBlock cc cl) = evalThem cc cl

@@ -23,7 +23,7 @@ import Data.ByteString (findSubstrings)
 import Test.HUnit
 
 
-data NSQual a = NSQual !(Maybe NSTag) !a deriving (Eq,Show)
+data NSQual a = NSQual !(Maybe NSTag) !a deriving (Eq,Ord,Show)
 
 data NSTag = NS !Bool [BString] deriving (Eq,Show,Ord)
 
