@@ -3,7 +3,6 @@ module Proc.CodeBlock where
 
 import Control.Monad.State
 import Control.Monad.Error
-import Data.IORef
 import Data.Array.IO
 import qualified Data.Map as M
 
@@ -20,15 +19,12 @@ type TclCmd = [T.TclObj] -> TclM T.TclObj
 
 type CmdName = NSQual BString
 
-
-type CmdTag_ = (MRef TclCmd, CmdName)
-type MRef a = (IORef (Maybe a))
-data CompCmd = CompCmd (Maybe CmdTag_) (Maybe [RToken CompCmd]) Cmd
+data CompCmd = CompCmd (Maybe CmdTag) (Maybe [RToken CompCmd]) Cmd
 
 data CodeBlock = CodeBlock CmdCache [CompCmd]
 data CmdCache = CmdCache (IOArray Int (Maybe TclCmd, CmdName))
 
-type CmdTag = (NSQual BString, Int)
+type CmdTag = (Int, CmdName)
 
 type CmdIds = M.Map CmdName Int
 data CState = CState Int CmdIds deriving (Show)
@@ -54,6 +50,7 @@ makeCmdArray (CState _ m) = do
    let size = M.size m
    liftIO $ newListArray (0,size-1) (map (\k -> (Nothing,k))(M.keys m))
 
+getTag :: CmdName -> CompM CmdTag
 getTag cn = do
   (CState i mi) <- get
   case M.lookup cn mi of
@@ -65,10 +62,9 @@ getTag cn = do
 
 compCmd :: Cmd -> CompM CompCmd
 compCmd c@(Cmd (BasicCmd cn) args) = do
-       r <- liftIO $ newIORef Nothing
-       getTag cn
+       ti <- getTag cn
        nargs <- (mapM compToken args >>= return . Just) `ifFails` Nothing
-       return $ CompCmd (Just (r,cn)) nargs c
+       return $ CompCmd (Just ti) nargs c
 compCmd _ = fail "no compile"
 
 compToken tok = case tok of
@@ -81,9 +77,14 @@ compToken tok = case tok of
   LitInt i        -> return $! (LitInt i)
   CatLst lst      -> mapM compToken lst >>= return . CatLst
 
+invalidateCache (CmdCache carr) = do
+   (a,z) <- liftIO $ getBounds carr
+   mapM_ (\i -> modInd i (\(_,cn) -> (Nothing,cn))) [a..z]
+ where modInd i f = readArray carr i >>= writeArray carr i . f
 
-getCacheCmd (CmdCache _) (cref,cn) = do
-  mcmd <- liftIO $ readIORef cref
+
+getCacheCmd (CmdCache carr) (cind,cn) = do
+  (mcmd,_) <- liftIO $ readArray carr cind
   case mcmd of
     Just cmd -> return (Just cmd)
     Nothing -> do
@@ -92,7 +93,7 @@ getCacheCmd (CmdCache _) (cref,cn) = do
          Nothing -> return Nothing
          Just cmd -> do
            let act = cmdAction cmd
-           liftIO $ writeIORef cref (Just act)
+           liftIO $ writeArray carr cind (Just act,cn)
            return (Just act)
 
 evalCompC _ (CompCmd Nothing _ c) = evalTcl c
