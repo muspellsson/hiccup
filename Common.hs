@@ -9,7 +9,7 @@ module Common (TclM
        ,runTclM
        ,makeState
        ,setErrorInfo
-       ,createInterp
+       ,registerInterp
        ,getInterp
        ,deleteInterp
        ,runCheckResult
@@ -146,13 +146,10 @@ makeVarMap = Map.fromList . mapSnd ScalarVar
 makeState :: [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
 
-createInterp n safe clist = do
+registerInterp n interp = do
   st <- get
   let im = tclInterps st
-  let icmds = if safe then onlySafe clist else clist
-  newi <- io $ makeState [] icmds >>= newIORef >>= \ir -> return (Interp safe ir)
-  put (st { tclInterps = Map.insert n newi im })
-  return newi
+  put (st { tclInterps = Map.insert n interp im })
   
 getInterp n = do
   st <- get

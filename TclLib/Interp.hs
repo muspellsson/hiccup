@@ -10,6 +10,7 @@ import TclLib (libCmds)
 import Core ()
 import ArgParse
 import Types (Interp(..))
+import CmdList 
 
 import Data.Unique
 
@@ -62,7 +63,8 @@ interp_create args_ = do
     _   -> argErr "interp create"
  where create safe n = do 
            let bsn = T.asBStr n
-           ir <- createInterp bsn safe allCmds 
+           ir <- io $ createInterp safe [] allCmds 
+           registerInterp bsn ir
            registerCmd bsn (interpEnsem n ir)
            return n
 
@@ -75,23 +77,24 @@ interp_eval args = case args of
    _      -> argErr "interp eval"
 
 interpEval ir cmds = do
-   res <- io $ runInterp' (evalTcl (T.objconcat cmds)) (Interpreter (interpState ir))
+   res <- io $ runInterp' (evalTcl (T.objconcat cmds)) ir
    case res of
      Left e -> tclErr (unpack e)
      Right v -> return (T.fromBStr v)
 
-data Interpreter = Interpreter (IORef TclState)
+createInterp safe vars cmds = do
+   st <- makeState vars icmds
+   stref <- newIORef st
+   return (Interp safe stref)
+ where icmds = if safe then onlySafe cmds else cmds
 
 mkInterp = mkInterpWithVars []
-mkInterpWithVars vars cmds = do
-              st <- makeState vars cmds
-              stref <- newIORef st
-              return (Interpreter stref)
+mkInterpWithVars = createInterp False
 
-runInterp :: BString -> Interpreter -> IO (Either BString BString)
-runInterp s = runInterp' (evalTcl ((T.fromBStr s) :: T.TclObj))
+runInterp :: BString -> Interp -> IO (Either BString BString)
+runInterp s i = runInterp' (evalTcl ((T.fromBStr s) :: T.TclObj)) i
 
-runInterp' t (Interpreter i) = do
+runInterp' t (Interp _ i) = do
                  bEnv <- readIORef i
                  (r,i') <- runTclM t bEnv
                  writeIORef i i'
