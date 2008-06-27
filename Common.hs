@@ -757,4 +757,5 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
        "non-exist" ~: (varUnsetNS (parseVarName (b "boo"))) `checkErr` "can't unset \"boo\": no such variable"
      ]
 
+
 -- # ENDTESTS # --

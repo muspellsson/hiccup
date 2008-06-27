@@ -12,10 +12,12 @@ import Util (utilTests)
 import VarName (varNameTests)
 import Expr (exprTests)
 import Proc.Util (procUtilTests)
+import ArgParse (argParseTests)
 import Test.HUnit 
 
 allTests = TestList [ bsParseTests, tclParseTests, utilTests, tclObjTests, commonTests, 
-                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprTests
+                      coreTests, rtokenTests, stringTests, mathTests, varNameTests, exprTests,
+                      argParseTests
                       ]
 runUnit = runTestTT allTests
 

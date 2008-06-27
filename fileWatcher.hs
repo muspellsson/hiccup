@@ -20,7 +20,7 @@ watcher files = watchLoop 0 where
       when (latest > 0) $ putStrLn $ show (nlatest - latest) ++ "s"
       evalCmd "sh ./test.sh"
       watchLoop nlatest 
-    else sleep 3 >> watchLoop latest
+    else sleep 2 >> watchLoop latest
    
 latestMod fnl = mapM modTime fnl >>= return . maximum
 modTime fn = getFileStatus fn >>= return . modificationTime

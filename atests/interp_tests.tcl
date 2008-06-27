@@ -33,6 +33,11 @@ test "interp issafe" {
     assert_err { interp issafe pinochet }
 }
 
+test "safe interp create" {
+    assert_noerr { interp create -safe xxx }
+    finalize { interp xxx }
+}
+
 test "interp create (no name)" {
     set n [interp create]
     interp eval $n {set x 4}

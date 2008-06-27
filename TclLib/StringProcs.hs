@@ -69,8 +69,6 @@ string_equal args_ = do
     [s1,s2] -> specCompare cspec s1 s2 >>= return . T.fromBool . (== EQ)
     _       -> argErr "string equal"
 
-boolFlagSpec name keep = mkArgSpecs keep [NoArg name (const True)]
-
 matchNoCase = boolFlagSpec "nocase" 2
 string_match args_ = do
    (nocase,args) <- parseArgs matchNoCase False args_

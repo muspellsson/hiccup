@@ -8,6 +8,7 @@ import qualified TclObj as T
 import TclLib.LibUtil
 import TclLib (libCmds)
 import Core ()
+import ArgParse
 
 import Data.Unique
 
@@ -51,11 +52,14 @@ uniqueName = do
    i <- newUnique >>= return . hashUnique
    return . pack $ "interp" ++ show i
 
-interp_create args = case args of
-    [] -> io uniqueName >>= create . T.fromBStr
-    [n] -> create n
+safeFlag = boolFlagSpec "safe" 1
+interp_create args_ = do
+   (safe,args) <- parseArgs safeFlag False args_
+   case args of
+    [] -> io uniqueName >>= create safe . T.fromBStr
+    [n] -> create safe n
     _   -> argErr "interp create"
- where create n = do 
+ where create _ n = do 
            let bsn = T.asBStr n
            ir <- createInterp bsn allCmds 
            registerCmd bsn (interpEnsem n ir)
