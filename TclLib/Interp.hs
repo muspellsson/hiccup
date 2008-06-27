@@ -9,6 +9,7 @@ import TclLib.LibUtil
 import TclLib (libCmds)
 import Core ()
 import ArgParse
+import Types (Interp(..))
 
 import Data.Unique
 
@@ -41,8 +42,8 @@ interp_delete args = case args of
 interp_issafe args = case args of
   []  -> return (T.fromBool False)
   [n] -> do
-     getInterp (T.asBStr n)
-     return (T.fromBool False)
+     ir <- getInterp (T.asBStr n)
+     return (T.fromBool (interpSafe ir))
   _   -> argErr "interp issafe"
 
 
@@ -59,9 +60,9 @@ interp_create args_ = do
     [] -> io uniqueName >>= create safe . T.fromBStr
     [n] -> create safe n
     _   -> argErr "interp create"
- where create _ n = do 
+ where create safe n = do 
            let bsn = T.asBStr n
-           ir <- createInterp bsn allCmds 
+           ir <- createInterp bsn safe allCmds 
            registerCmd bsn (interpEnsem n ir)
            return n
 
@@ -74,7 +75,7 @@ interp_eval args = case args of
    _      -> argErr "interp eval"
 
 interpEval ir cmds = do
-   res <- io $ runInterp' (evalTcl (T.objconcat cmds)) (Interpreter ir)
+   res <- io $ runInterp' (evalTcl (T.objconcat cmds)) (Interpreter (interpState ir))
    case res of
      Left e -> tclErr (unpack e)
      Right v -> return (T.fromBStr v)

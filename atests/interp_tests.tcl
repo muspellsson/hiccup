@@ -35,7 +35,19 @@ test "interp issafe" {
 
 test "safe interp create" {
     assert_noerr { interp create -safe xxx }
-    finalize { interp xxx }
+    checkthat [interp issafe xxx] == 1
+
+    interp create dirty
+    checkthat [interp issafe dirty] == 0
+
+    finalize { interp xxx interp dirty }
+}
+
+test "safe really safe" {
+    interp create -safe whee
+    whee eval {set x 4}
+    assert_err {whee eval {exit}}
+    finalize {interp whee}
 }
 
 test "interp create (no name)" {

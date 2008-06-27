@@ -146,10 +146,11 @@ makeVarMap = Map.fromList . mapSnd ScalarVar
 makeState :: [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
 
-createInterp n clist = do
+createInterp n safe clist = do
   st <- get
   let im = tclInterps st
-  newi <- io $ makeState [] clist >>= newIORef
+  let icmds = if safe then onlySafe clist else clist
+  newi <- io $ makeState [] icmds >>= newIORef >>= \ir -> return (Interp safe ir)
   put (st { tclInterps = Map.insert n newi im })
   return newi
   

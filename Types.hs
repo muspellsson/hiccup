@@ -39,7 +39,8 @@ data TclFrame = TclFrame {
 
 type TclStack = [FrameRef]
 
-type InterpMap = Map.Map BString (IORef TclState)
+data Interp = Interp { interpSafe :: Bool, interpState :: IORef TclState }
+type InterpMap = Map.Map BString Interp
 
 data TclState = TclState { 
     tclChans :: ChanMap, 
