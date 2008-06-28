@@ -2,6 +2,7 @@
 module ArgParse ( 
      mkArgSpecs, 
      parseArgs, 
+     flagSpan,
      ArgSpec(..),
      boolFlagSpec,
      argParseTests ) where
@@ -26,6 +27,15 @@ choiceList m = commaList "or" (map (('-':) . B.unpack) (reverse (Map.keys m)))
 
 boolFlagSpec name keep = mkArgSpecs keep [NoArg name (const True)]
 
+flagSpan :: [T.TclObj] -> ([T.TclObj], [T.TclObj])
+flagSpan = go []
+  where go y []     = (reverse y,[])
+        go y (x:xs) = case B.uncons (T.asBStr x) of
+                               Just ('-',r) -> if r /= B.pack "-" 
+                                                  then go (x:y) xs 
+                                                  else (reverse y, xs)
+                               _            -> (reverse y, (x:xs))
+
 parseArgs (as,keep) i al = inner (length al) al i
  where badOpt n = fail $ "bad option " ++ show (T.asBStr n) ++ ": must be " ++ choiceList as
        inner  _ []        !acc = return (acc,[])
@@ -46,6 +56,7 @@ parseArgs (as,keep) i al = inner (length al) al i
 
 argParseTests = TestList [
     "boolFlagSpec" ~: boolFlagTests
+    ,(s2l "-a -b", s2l "c") ~=? flagSpan (s2l "-a -b -- c") 
   ]
 
 boolFlagTests = TestList [ 
@@ -57,7 +68,8 @@ boolFlagTests = TestList [
     ,(noCase,False,"-eatpie candy shop") `should_fail` ()
   ]
  where noCase = boolFlagSpec "nocase" 2
-       should_be (spec,i,l) (r,al) = Right (r, sl al) ~=? (parseArgs spec i (sl l) :: Either String (Bool, [T.TclObj]))
-       should_fail (spec,i,l) _ = Nothing ~=? parseArgs spec i (sl l)
-       sl :: String -> [T.TclObj] 
-       sl s = map T.fromStr (words s)
+       should_be (spec,i,l) (r,al) = Right (r, s2l al) ~=? (parseArgs spec i (s2l l) :: Either String (Bool, [T.TclObj]))
+       should_fail (spec,i,l) _ = Nothing ~=? parseArgs spec i (s2l l)
+
+s2l :: String -> [T.TclObj] 
+s2l s = map T.fromStr (words s)

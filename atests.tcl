@@ -774,6 +774,25 @@ test "switch exact" {
   }
 }
 
+test "switch arg parse" {
+    assert_err {
+        switch -glob -exact x { 
+            x { testlib::fail "bad" }
+        }
+    }
+
+    assert_noerr {
+        switch -glob -- x { 
+            x { set x 4 }
+        }
+    }
+
+    switch -exact -- -glob {
+        -glob { testlib::pass }
+        default { testlib::fail "didn't match -glob" }
+    }
+}
+
 test "switch glob" {
   set x been
   switch -glob $x {

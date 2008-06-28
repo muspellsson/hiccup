@@ -3,13 +3,14 @@ module TclLib.ControlProcs (controlCmds) where
 
 import Common
 import Core
-import Match (globMatch, exactMatch)
+import Match (MatchType(..), matchFun)
 import Control.Monad.Error
 import qualified TclObj as T
 import TclErr
 import TclObj ((.==))
 import TclLib.LibUtil
 import Util
+import ArgParse
 
 controlCmds = makeCmdList $
   [("while", cmdWhile), ("if", cmdIf), 
@@ -74,16 +75,24 @@ cmdForEach args =
 chunkBy lst n = let (a,r) = splitAt n lst
                 in a : (if null r then [] else r `chunkBy` n)
 
-cmdSwitch args = case args of
-   [str,pairlst]     -> T.asList pairlst >>= doSwitch (exacter str) 
-   [opt,str,pairlst] -> if opt .== "--" || opt .== "-exact"
-                         then T.asList pairlst >>= doSwitch (exacter str) 
-                         else if opt .== "-glob" 
-                                 then T.asList pairlst >>= doSwitch (globber str)
-                                 else tclErr $ "switch: bad option " ++ show opt
+switchArgs = mkArgSpecs 0 [
+                NoArg "exact" ((ExactMatch):), 
+                NoArg "glob" ((GlobMatch):)] 
+
+cmdSwitch args_ = do
+  let (fl,args) = flagSpan args_
+  (tl,_) <- parseArgs switchArgs [] fl
+  mt <- mtype tl
+  case args of
+   [str,pairlst]     -> T.asList pairlst >>= doSwitch (matcher mt str) 
    _                 -> argErr "switch"
- where globber s = let bs = T.asBStr s in \o -> globMatch (T.asBStr o) bs
-       exacter s = let bs = T.asBStr s in \o -> exactMatch (T.asBStr o) bs
+ where matcher m s = let bs = T.asBStr s in \o -> matchFun m (T.asBStr o) bs
+       showMatch ExactMatch = "-exact"
+       showMatch GlobMatch = "-glob"
+       mtype ml = case ml of
+         []  -> return ExactMatch
+         [x] -> return x
+         (x:y:_) -> tclErr $ "bad option " ++ showMatch y ++ ": " ++ showMatch x ++ " option already found"
 
 doSwitch matchP lst = do 
    pl <- toPairs lst
