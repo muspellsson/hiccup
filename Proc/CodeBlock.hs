@@ -1,15 +1,18 @@
 {-# OPTIONS_GHC -XGeneralizedNewtypeDeriving #-}
-module Proc.CodeBlock where
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
+module Proc.CodeBlock (toCodeBlock, runCodeBlock, CodeBlock) where
 
 import Control.Monad.State
 import Control.Monad.Error
 import Data.Array.IO
 import qualified Data.Map as M
+import VarName (arrName, NSQual(..), VarName, NSTag)
 
+import qualified Data.ByteString.Char8 as B
 import Types (TclCmdObj(..))
 import Core
-import VarName (NSQual)
-import RToken hiding (CmdName)
+import qualified RToken as R
+import RToken (asParsed,Cmd(..))
 import Common 
 import qualified TclObj as T
 import Util
@@ -20,7 +23,7 @@ type TclCmd = [T.TclObj] -> TclM T.TclObj
 type CmdName = NSQual BString
 type CmdTag = (Int, CmdName)
 
-data CompCmd = CompCmd (Maybe CmdTag) (Maybe [RToken CompCmd]) Cmd
+data CompCmd = CompCmd (Maybe CmdTag) (Either [R.RToken Cmd] [CToken]) Cmd
 
 data CodeBlock = CodeBlock CmdCache [CompCmd]
 
@@ -39,7 +42,7 @@ runCompM code s = runStateT (runErrorT (unCompM code)) s
 
 toCodeBlock :: T.TclObj -> TclM CodeBlock
 toCodeBlock o = do
-   (e_cmds,st) <- asParsed o >>= liftIO . compile
+   (e_cmds,st) <- R.asParsed o >>= liftIO . compile
    carr <- makeCmdArray st >>= return . CmdCache
    registerWatcher (invalidateCache carr)
    case e_cmds of
@@ -64,21 +67,26 @@ getTag cn = do
 
 
 compCmd :: Cmd -> CompM CompCmd
-compCmd c@(Cmd (BasicCmd cn) args) = do
+compCmd c@(Cmd (R.BasicCmd cn) args) = do
        ti <- getTag cn
-       nargs <- (mapM compToken args >>= return . Just) `ifFails` Nothing
+       nargs <- (mapM compToken args >>= return . Right) `ifFails` (Left args)
        return $ CompCmd (Just ti) nargs c
 compCmd _ = fail "no compile"
 
+data CToken = Lit !T.TclObj | CatLst [CToken] 
+              | CmdTok !CompCmd | ExpTok (CToken)
+              | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (CToken)
+              | Block !T.TclObj
+
 compToken tok = case tok of
-  CmdTok t -> compCmd t >>= return . CmdTok
-  ExpTok t -> compToken t >>= return . ExpTok
-  ArrRef mtag n t -> compToken t >>= \nt -> return $ ArrRef mtag n nt
-  VarRef v -> return $ VarRef v
-  Block s t e -> return (Block s t e)
-  Lit s           -> return $! (Lit s)
-  LitInt i        -> return $! (LitInt i)
-  CatLst lst      -> mapM compToken lst >>= return . CatLst
+  R.CmdTok t -> compCmd t >>= return . CmdTok
+  R.ExpTok t -> compToken t >>= return . ExpTok
+  R.ArrRef mtag n t -> compToken t >>= \nt -> return $ ArrRef mtag n nt
+  R.VarRef v -> return $ VarRef v
+  R.Block s t e -> return (Block (T.fromBlock s t e))
+  R.Lit s           -> return $! Lit (T.fromBStr s)
+  R.LitInt i        -> return $! Lit (T.fromInt i)
+  R.CatLst lst      -> mapM compToken lst >>= return . CatLst
 
 invalidateCache (CmdCache carr) = do
    (a,z) <- liftIO $ getBounds carr
@@ -99,19 +107,38 @@ getCacheCmd (CmdCache carr) (cind,cn) = do
            liftIO $ writeArray carr cind (Just act,cn)
            return (Just act)
 
-evalCompC _ (CompCmd Nothing _ c) = evalTcl c
-evalCompC cc (CompCmd (Just ct) nargs c@(Cmd (BasicCmd _) args)) = do
-   mcmd <- getCacheCmd cc ct
-   case mcmd of
-     Just cmd -> eArgs >>= cmd
-     Nothing  -> evalTcl c
+evalCompC cc (CompCmd mct nargs c) = 
+  case mct of
+    Nothing -> evalTcl c
+    Just ct -> do
+      mcmd <- getCacheCmd cc ct
+      case mcmd of
+        Just cmd -> eArgs >>= cmd
+        Nothing  -> evalTcl c
  where eArgs = case nargs of 
-                Nothing -> evalArgs args
-                Just al -> evalArgsF (evalCompC cc) al
-evalCompC _ (CompCmd (Just _) _ _) = error "SHOULD NEVER HAPPEN"
+                Left args -> evalArgs args
+                Right al  -> evalCTokens (evalCompC cc) al []
 
-evalThem _ [] = ret
-evalThem cc [x] = evalCompC cc x
+evalCTokens f a b = evalCTokens_ a b where
+  evalCTokens_ []     acc = return $! reverse acc
+  evalCTokens_ (x:xs) acc = case x of
+            Lit s     -> nextWith (return $! s) 
+            CmdTok t  -> nextWith (f t)
+            Block o   -> nextWith (return $! o)
+            VarRef vn -> nextWith (varGetNS vn)
+            ArrRef ns n i -> do
+                 ni <- evalArgs_ [i] >>= return . T.asBStr . head
+                 nextWith (varGetNS (NSQual ns (arrName n ni))) 
+            CatLst l -> nextWith (evalArgs_ l >>= return . T.fromBStr . B.concat . map T.asBStr) 
+            ExpTok t -> do 
+                 [rs] <- evalArgs_ [t]
+                 l <- T.asList rs
+                 evalCTokens_ xs ((reverse l) ++ acc)
+   where nextWith f = f >>= \(!r) -> evalCTokens_ xs (r:acc)
+         evalArgs_ args = evalCTokens_ args []
+
+evalThem _  []     = ret
+evalThem cc [x]    = evalCompC cc x
 evalThem cc (x:xs) = evalCompC cc x >> evalThem cc xs
 
 instance Runnable CodeBlock where

@@ -1161,6 +1161,21 @@ test "changed proc" {
     finalize { proc inner proc outer ns temp } 
 }
 
+test "proc diff context" {
+    namespace eval temp {
+        proc fancy {} { return NS }
+    }
+
+    proc fancy {} { return GL }
+
+    proc fancier {} { return [fancy] }
+
+    checkthat [fancier] eq GL
+    checkthat [namespace eval temp { fancier }] eq NS
+
+    finalize { proc fancy proc fancier ns temp }
+}
+
 test "format" {
     checkthat [format "hi %s" billy] eq "hi billy"
     checkthat [format "hi %%"] eq "hi %"

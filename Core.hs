@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Core (doCond, evalExpr, evalArgs, evalArgsF, coreTests) where
+module Core (doCond, evalExpr, evalArgs, coreTests) where
 
 import Common
 import qualified TclObj as T
@@ -17,7 +17,6 @@ instance Runnable T.TclObj where
 
 instance Runnable Cmd where
   evalTcl = runCmd
-
 
 runCmds cl = case cl of
    [x]    -> runCmd x
@@ -50,8 +49,6 @@ evalRTokens f a b = evalRTokens_ a b where
 
 evalArgs args = evalRTokens runCmd args []
 {-# INLINE evalArgs #-}
-
-evalArgsF f args = evalRTokens f args []
 
 runCmd :: Cmd -> TclM T.TclObj
 runCmd (Cmd n args) = do
