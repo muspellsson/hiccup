@@ -1171,7 +1171,7 @@ test "proc diff context" {
     proc fancier {} { return [fancy] }
 
     checkthat [fancier] eq GL
-    checkthat [namespace eval temp { fancier }] eq NS
+    checkthat [namespace eval temp { fancier }] eq GL
 
     finalize { proc fancy proc fancier ns temp }
 }
