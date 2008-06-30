@@ -781,6 +781,12 @@ test "switch arg parse" {
         }
     }
 
+    assert_err {
+        switch -glob -glob x { 
+            x { testlib::fail "bad" }
+        }
+    }
+
     assert_noerr {
         switch -glob -- x { 
             x { set x 4 }
@@ -790,6 +796,14 @@ test "switch arg parse" {
     switch -exact -- -glob {
         -glob { testlib::pass }
         default { testlib::fail "didn't match -glob" }
+    }
+}
+
+test "switch -glob -- --" {
+    switch -glob -- -- {
+        ++ { testlib::fail "bad match" }
+        ?? { testlib::pass }
+        default { testlib::fail "bad match" }
     }
 }
 
@@ -1161,17 +1175,18 @@ test "changed proc" {
     finalize { proc inner proc outer ns temp } 
 }
 
-test "proc diff context" {
+test "proc diff namespace" {
     namespace eval temp {
         proc fancy {} { return NS }
     }
-
     proc fancy {} { return GL }
-
     proc fancier {} { return [fancy] }
 
     checkthat [fancier] eq GL
     checkthat [namespace eval temp { fancier }] eq GL
+
+    proc temp::fancier {} { return [fancy] }
+    checkthat [namespace eval temp { fancier }] eq NS
 
     finalize { proc fancy proc fancier ns temp }
 }

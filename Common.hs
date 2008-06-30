@@ -577,7 +577,7 @@ forgetNS name = do
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
 withLocalScope vl f = do
-    ns <- getCurrNS
+    ns <- getCurrNS -- TODO: Wrong.
     fr <- io $! createFrameWithNS ns $! makeVarMap vl
     withScope fr f
 {-# INLINE withLocalScope #-}
@@ -610,7 +610,7 @@ withExistingNS f !nsref = do
   withScope fr f
 
 getFrameVars :: FrameRef -> TclM VarMap
-getFrameVars !frref = (frref `refExtract` frVars) 
+getFrameVars !frref = frref `refExtract` frVars
 {-# INLINE getFrameVars #-}
 
 getUpMap !frref = frref `refExtract` upMap 

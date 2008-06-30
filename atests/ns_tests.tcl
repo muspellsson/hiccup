@@ -431,3 +431,16 @@ test "info commands has all accessable" {
     }
     finalize { ns panther }
 }
+
+test "origin namespace proc eval" {
+    proc is_glob {} { return 1 }
+    proc check_global {} { is_glob }
+    namespace eval boo {
+        proc is_glob {} { return 0 }
+        proc try_glob {} { is_glob }
+    }
+
+    checkthat [namespace eval boo { check_global }] == 1
+    checkthat [namespace eval boo { try_glob }] == 0
+    finalize { proc is_glob ns boo }
+}
