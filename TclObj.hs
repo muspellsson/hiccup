@@ -30,9 +30,10 @@ module TclObj (
 import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
-import RToken (Parsed, asParsed, tryParsed, singleTok, Parseable, makeCExpr, Cmd)
+import RToken (asParsed, tryParsed, singleTok, Parseable, makeCExpr, Cmd,
+               TokResult, ExprResult)
 import TObj
-import Expr.TExp (CExpr,Exprable(..))
+import Expr.TExp (Exprable(..))
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -44,7 +45,8 @@ import Test.HUnit
 data TclObj = TclInt !Int BString |
               TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
-              TclBStr !BString (Maybe Int) (Either String Parsed) (Either String (CExpr Cmd)) deriving (Show,Eq)
+              TclBStr !BString (Maybe Int) TokResult ExprResult
+  deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
 mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) (makeCExpr s)

@@ -32,7 +32,7 @@ mkProc pname alst body = do
           return (procRunner cproc count params body)
        else return $! interpretProc params body
 
-cMAX_ATTEMPTS = 3
+cMAX_ATTEMPTS = 1
 
 procRunner compref attempts params body args = do
   num_attempts <- readRef attempts 
@@ -50,8 +50,6 @@ procRunner compref attempts params body args = do
          runCompiled cp args
 
 
-interpretProc pl body args = do
-  locals <- bindArgs pl args
-  withLocalScope locals (procCatcher (evalTcl body))
+interpretProc pl body args = runProc (evalTcl body) pl args
 
 procUtilTests = TestList [] 

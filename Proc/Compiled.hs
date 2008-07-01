@@ -1,4 +1,4 @@
-module Proc.Compiled where
+module Proc.Compiled (compileProc, runCompiled, runProc) where
 import TclErr
 import Control.Monad.Error
 import Common
@@ -11,10 +11,11 @@ compileProc params body = do
   cb <- toCodeBlock body
   return (CProc cb params)
 
+runCompiled (CProc cb pl) args = runProc (runCodeBlock cb) pl args
 
-runCompiled (CProc cb pl) args = do
+runProc f pl args = do
   locals <- bindArgs pl args
-  withLocalScope locals (procCatcher (runCodeBlock cb))
+  withLocalScope locals (procCatcher f)
 
 procCatcher f = f `catchError` herr
  where herr (ErrTramp e) = throwError e 

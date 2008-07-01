@@ -1,5 +1,7 @@
 module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable, Parsed, 
   tokCmdToCmd,
+  TokResult,
+  ExprResult,
   makeCExpr,
   asParsed, rtokenTests ) where
 
