@@ -279,6 +279,12 @@ test "namespace origin after import" {
   finalize { ns boo }
 }
 
+test "info body after import" {
+  namespace eval boo { namespace export eep; proc eep {} { return OK } }
+  namespace import ::boo::*
+  checkthat [info body eep] eq { return OK }
+}
+
 test "imported procs go away when parent is deleted" {
   namespace eval boo { namespace export fancy; proc fancy {} { return OK } }
   checkthat [namespace origin ::boo::fancy] eq {::boo::fancy}

@@ -1,7 +1,5 @@
-module Proc.Compiled (compileProc, runCompiled, runProc) where
-import TclErr
+module Proc.Compiled (compileProc, runCompiled) where
 import Control.Monad.Error
-import Common
 import Proc.Params
 import Proc.CodeBlock
 
@@ -11,18 +9,5 @@ compileProc params body = do
   cb <- toCodeBlock body
   return (CProc cb params)
 
-runCompiled (CProc cb pl) args = runProc (runCodeBlock cb) pl args
+runCompiled (CProc cb _) = runCodeBlock cb
 
-runProc f pl args = do
-  locals <- bindArgs pl args
-  withLocalScope locals (procCatcher f)
-
-procCatcher f = f `catchError` herr
- where herr (ErrTramp e) = throwError e 
-       herr e = case toEnum (errCode e) of 
-                   EReturn   -> return $! (errData e)
-                   EBreak    -> tclErr "invoked \"break\" outside of a loop"
-                   EContinue -> tclErr "invoked \"continue\" outside of a loop"
-                   _         -> throwError e
-
-{-# INLINE procCatcher #-}

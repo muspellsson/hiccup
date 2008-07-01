@@ -149,8 +149,6 @@ should_fail_ act _ = let res = case act of
                                  _      -> False
                      in TestCase $ assertBool "should fail" res
 
-
-
 parseStrTests = "parseStr" ~: TestList [
       "Escaped works" ~: ("Oh \\\"yeah\\\" baby.", "") ?=? "\"Oh \\\"yeah\\\" baby.\"",
       "Parse Str with leftover" ~: ("Hey there.", " 44") ?=? "\"Hey there.\" 44",

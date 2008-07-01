@@ -9,7 +9,6 @@ import qualified Data.Map as M
 import VarName (arrName, NSQual(..), VarName, NSTag)
 
 import qualified Data.ByteString.Char8 as B
-import Types (TclCmdObj(..))
 import Core
 import qualified RToken as R
 import RToken (asParsed,Cmd(..))
@@ -18,7 +17,6 @@ import qualified TclObj as T
 import Util
 
 
-type TclCmd = [T.TclObj] -> TclM T.TclObj
 
 type CmdName = NSQual BString
 type CmdTag = (Int, CmdName)
@@ -27,6 +25,7 @@ data CompCmd = CompCmd (Maybe CmdTag) (Either [R.RToken Cmd] [CToken]) Cmd
 
 data CodeBlock = CodeBlock CmdCache [CompCmd]
 
+type TclCmd = [T.TclObj] -> TclM T.TclObj
 type CacheEntry = (Maybe TclCmd, CmdName)
 data CmdCache = CmdCache (IOArray Int CacheEntry)
 
@@ -103,7 +102,7 @@ getCacheCmd (CmdCache carr) (cind,cn) = do
        case mcmd2 of
          Nothing -> return Nothing
          Just cmd -> do
-           let act = cmdAction cmd
+           let act al = cmd `applyTo` al
            liftIO $ writeArray carr cind (Just act,cn)
            return (Just act)
 

@@ -1,28 +1,27 @@
 {-# LANGUAGE BangPatterns #-}
-module Proc.Params (parseParams, bindArgs, ParamList) where
+module Proc.Params (parseParams, bindArgs, ParamList, listParams) where
 import Util
 import qualified TclObj as T
 import Common
+import Types (ArgSpec, ArgList, ParamList(..))
 import Control.Monad
 import qualified Data.ByteString.Char8 as B
 
-type ArgSpec = Either BString (BString,T.TclObj)
-type ArgList = [ArgSpec]
-
 showParams :: ParamList -> String
-showParams (n,hasArgs,pl) = 
-   show $ unpack ((n:(map (arg2name True) pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+showParams (ParamList (n,hasArgs,pl)) = 
+   show $ unpack ((n:(map (arg2name True) pl)) `joinWith` ' ') 
+             ++ if hasArgs then " ..." else ""
 
 arg2name q arg = case arg of
-               Left s      -> s
-               Right (k,_) -> if q then B.cons '?' (B.snoc k '?') else k
+    Left s      -> s
+    Right (k,_) -> if q then B.cons '?' (B.snoc k '?') else k
 
-type ParamList = (BString, Bool, ArgList)
 
-listParams (_,_,al) = map (arg2name False) al
+listParams (ParamList (_,hasArgs,al)) = 
+     map (arg2name False) al ++ if hasArgs then [pack "args"] else []
 
 mkParamList :: BString -> ArgList -> ParamList
-mkParamList name lst = (name, hasArgs, used)
+mkParamList name lst = ParamList (name, hasArgs, used)
  where hasArgs = (not . null) lst && (lastIsArgs lst)
        used = if hasArgs then init lst else lst
        lastIsArgs = either (== (pack "args")) (const False)  . last
@@ -40,7 +39,7 @@ parseParams name args = T.asList args >>= countRet
                        _     -> fail $ "too many fields in argument specifier " ++ show (T.asBStr s)
 
 bindArgs :: ParamList -> [T.TclObj] -> TclM [(BString,T.TclObj)]
-bindArgs params@(_,hasArgs,pl) args = walkBoth pl args [] 
+bindArgs params@(ParamList (_,hasArgs,pl)) args = walkBoth pl args [] 
   where walkBoth ((Left v):xs)      (a:as) !acc = walkBoth xs as ((v,a):acc)
         walkBoth ((Left _):_)       []      _   = badArgs
         walkBoth ((Right (k,_)):xs) (a:as) !acc = walkBoth xs as ((k,a):acc)

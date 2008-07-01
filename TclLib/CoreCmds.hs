@@ -1,5 +1,6 @@
 module TclLib.CoreCmds (coreCmds) where
 import Common
+import Types (CmdCore(..))
 import Control.Monad.Error
 import TclLib.LibUtil
 import Control.Monad (liftM)
@@ -8,6 +9,7 @@ import TclErr
 import System (getProgName)
 import Match (globMatches)
 import Proc.Util (mkProc, mkLambda)
+import Proc.Params
 import Core ()
 
 import qualified Data.ByteString.Char8 as B
@@ -34,7 +36,7 @@ cmdProc args = case args of
   [name,alst,body] -> do
     let pname = T.asBStr name
     proc <- mkProc pname alst body
-    registerProc pname (T.asBStr body) proc
+    registerProc pname proc
     ret
   _               -> argErr "proc"
 
@@ -164,14 +166,14 @@ info_exists args = case args of
         _   -> argErr "info exists"
 
 info_args args = case args of
-   [n] -> tclErr "not implemented yet"
+   [n] -> do
+     pr <- getProcInfo (T.asBStr n)
+     return $ T.fromList . map T.fromBStr $ listParams (procArgs pr)
    _   -> vArgErr "info args procname"
 
 info_body args = case args of
-       [n] -> do p <- getCmd (T.asBStr n)
-                 case p of
-                   Nothing -> tclErr $ show (T.asBStr n) ++ " isn't a procedure"
-                   Just p  -> treturn (cmdBody p)
+       [n] -> do p <- getProcInfo (T.asBStr n)
+                 treturn (procBody p)
        _   -> argErr "info body"
 
 asTclList = return . T.fromList . map T.fromBStr

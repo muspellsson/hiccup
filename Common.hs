@@ -4,7 +4,7 @@ module Common (TclM
        ,Runnable(..)
        ,applyTo
        ,registerWatcher
-       ,cmdBody
+       ,procBody
        ,getOriginName
        ,runTclM
        ,makeState
@@ -16,6 +16,7 @@ module Common (TclM
        ,withLocalScope
        ,withNS
        ,getCmd
+       ,getProcInfo
        ,getCmdNS
        ,registerProc
        ,registerCmd
@@ -95,7 +96,7 @@ fixNSName rt t = if rt == nsSep then B.append rt t
 
 applyTo !f args = do 
    -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
-   (cmdAction f) args
+   (cmdAction . cmdCore $! f) args
 {-# INLINE applyTo #-}
 
 mkCmdAlias nsr pn = do
@@ -103,8 +104,9 @@ mkCmdAlias nsr pn = do
     case mcr of
       Nothing -> fail "trying to import proc that doesn't exist"
       Just cr -> do 
-          newcmd <- readRef cr >>= \p -> 
-                      return $! p { cmdAction = inner cr, cmdParent = Just cr, cmdOrigNS = Nothing } 
+          newcmd <- do 
+            p <- readRef cr 
+            return $! p { cmdCore = (cmdCore p) { cmdAction = inner cr }, cmdParent = Just cr, cmdOrigNS = Nothing } 
           let adder x = cr .= (\p -> p { cmdKids = x:(cmdKids p) })
           return (newcmd, adder)
  where inner cr args = do 
@@ -114,9 +116,7 @@ mkCmdAlias nsr pn = do
 
 emptyCmd = TclCmdObj { 
        cmdName = pack "",
-       cmdBody = pack "",
-       cmdAction = (\_ -> fail "empty command"),
-       cmdIsProc = False,
+       cmdCore = CmdCore (\_ -> fail "empty command"),
        cmdOrigNS = Nothing,
        cmdParent = Nothing,
        cmdKids = [] }
@@ -124,10 +124,8 @@ emptyCmd = TclCmdObj {
 toCmdObjs = mapM toTclCmdObj . unCmdList
 
 toTclCmdObj cs = return (bsn, emptyCmd { cmdName = bsn,
-                                         cmdBody = errStr,
-                                         cmdAction = v} )
- where errStr = pack $ show n ++ " isn't a procedure"
-       bsn = pack n
+                                         cmdCore = CmdCore v} )
+ where bsn = pack n
        n = cmdSpecName cs
        v = cmdSpecCmd cs
 
@@ -272,6 +270,16 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in Map.lookup s sf)
 
 getCmd !pname = getCmdNS (parseProc pname)
 
+getProcInfo !pname = do
+  mcmd <- getCmd pname
+  case mcmd of
+   Nothing -> err
+   Just cmd -> case cmdCore cmd of
+                  CmdCore _ -> err
+                  pi        -> return pi
+ where err = tclErr $ ""
+
+
 getCmdNS (NSQual nst n) = do
   res <- tryHere `ifFails` Nothing
   case res of
@@ -312,14 +320,11 @@ removeCmd cmd =
 registerCmd name pr = 
     let pn@(NSQual _ n) = parseProc name
     in registerCmdObj pn (emptyCmd { cmdName = n,
-                                     cmdIsProc = False,
-                                     cmdAction = pr})
-registerProc name body pr = 
+                                     cmdCore = CmdCore pr })
+registerProc name pr = 
     let pn@(NSQual _ n) = parseProc name
     in registerCmdObj pn (emptyCmd { cmdName = n,
-                                     cmdIsProc = True,
-                                     cmdBody = body,
-                                     cmdAction = pr})
+                                     cmdCore = pr })
 
 registerCmdObj (NSQual nst k) newCmd = getNamespace nst >>= regInNS
  where 
@@ -363,7 +368,7 @@ renameCmd old new = do
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
    Just pr -> do rmProcNS pold
-                 unless (bsNull new) (registerProc new (cmdBody pr) (cmdAction pr) >> return ())
+                 unless (bsNull new) (registerCmdObj (parseProc new) pr >> return ())
 
 varUnsetNS :: NSQual VarName -> TclM RetVal
 varUnsetNS qns = usingNsFrame qns varUnset

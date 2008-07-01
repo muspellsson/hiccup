@@ -57,12 +57,23 @@ type CmdRef = IORef TclCmdObj
 
 data TclCmdObj = TclCmdObj { 
                    cmdName :: BString, 
-                   cmdIsProc :: Bool,
-                   cmdBody :: BString,  
                    cmdOrigNS :: Maybe NSRef,
                    cmdParent :: Maybe CmdRef,
                    cmdKids :: [CmdRef],
-                   cmdAction :: !TclCmd }
+                   cmdCore :: !CmdCore }
+
+cmdIsProc cmd = case cmdCore cmd of
+                  ProcCore {} -> True
+                  _        -> False
+
+type ArgSpec = Either BString (BString,T.TclObj)
+type ArgList = [ArgSpec]
+newtype ParamList = ParamList (BString, Bool, ArgList)
+
+data CmdCore = CmdCore { cmdAction :: !TclCmd } 
+             | ProcCore { procBody :: BString, 
+                          procArgs :: ParamList,
+                          cmdAction :: !TclCmd }
 
 type ProcKey = BString
 data CmdMap = CmdMap { 

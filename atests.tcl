@@ -97,7 +97,11 @@ test "info args" {
     assert_err { info args }
     proc blah {x y {z 3}} {}
     checkthat [info args blah] eq [list x y z]
-    finalize { proc blah }
+
+    proc argsproc { one two args } { }
+    checkthat [info args argsproc] eq [list one two args]
+
+    finalize { proc blah proc argsproc }
 }
 
 test "upvar create" {
