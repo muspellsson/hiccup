@@ -17,7 +17,7 @@ mkLambda fn = do
          [al,body] -> mkProc (pack "lambda") al body
          _         -> fail "invalid lambda"
 
-useCompiledProcs = False
+useCompiledProcs = True
 
 ref = io . newIORef
 readRef = io . readIORef

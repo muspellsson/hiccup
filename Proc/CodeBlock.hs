@@ -119,11 +119,11 @@ evalCompC cc (CompCmd mct nargs c) =
                 Left args -> evalArgs args
                 Right al  -> evalCTokens (evalCompC cc) al []
 
-evalCTokens f a b = evalCTokens_ a b where
+evalCTokens cmdFn = evalCTokens_ where
   evalCTokens_ []     acc = return $! reverse acc
   evalCTokens_ (x:xs) acc = case x of
             Lit s     -> nextWith (return $! s) 
-            CmdTok t  -> nextWith (f t)
+            CmdTok t  -> nextWith (cmdFn t)
             Block o   -> nextWith (return $! o)
             VarRef vn -> nextWith (varGetNS vn)
             ArrRef ns n i -> do

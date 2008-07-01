@@ -28,12 +28,12 @@ runCmds cl = case cl of
 callProc :: NSQual BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = getCmdNS pn >>= doCall (toBStr pn) args
 
-evalRTokens f a b = evalRTokens_ a b where
+evalRTokens cmdFn = evalRTokens_ where
   evalRTokens_ []     acc = return $! reverse acc
   evalRTokens_ (x:xs) acc = case x of
             Lit s     -> nextWith (return $! T.fromBStr s) 
             LitInt i  -> nextWith (return $! T.fromInt i) 
-            CmdTok t  -> nextWith (f t)
+            CmdTok t  -> nextWith (cmdFn t)
             VarRef vn -> nextWith (varGetNS vn)
             Block s p e -> nextWith (return $! T.fromBlock s p e) 
             ArrRef ns n i -> do

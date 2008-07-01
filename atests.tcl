@@ -92,6 +92,14 @@ test "info commands vs info procs" {
   finalize { proc this_is_a_proc }
 }
 
+test "info args" {
+    assert_err { info args puts }
+    assert_err { info args }
+    proc blah {x y {z 3}} {}
+    checkthat [info args blah] eq [list x y z]
+    finalize { proc blah }
+}
+
 test "upvar create" {
   proc xxx {} { upvar up local; set local 5 }
   checkthat [info exists up] == 0

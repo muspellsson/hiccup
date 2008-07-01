@@ -144,7 +144,8 @@ cmdInfo = mkEnsemble "info" [
   noarg "nameofexecutable" (liftM T.fromStr (io getProgName)),
   ("exists", info_exists),
   noarg "tclversion" (getVar "::tcl_version"),
-  ("body", info_body)]
+  ("body", info_body),
+  ("args", info_args)]
  where noarg n f = (n, no_args n f)
        matchp n f = (n, matchList ("info " ++ n) f)
        getVar = varGetNS . T.asVarName . T.fromStr
@@ -161,6 +162,10 @@ matchList name f args = case args of
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
         _   -> argErr "info exists"
+
+info_args args = case args of
+   [n] -> tclErr "not implemented yet"
+   _   -> vArgErr "info args procname"
 
 info_body args = case args of
        [n] -> do p <- getCmd (T.asBStr n)

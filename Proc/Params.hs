@@ -11,13 +11,15 @@ type ArgList = [ArgSpec]
 
 showParams :: ParamList -> String
 showParams (n,hasArgs,pl) = 
-   show $ unpack ((n:(map arg2name pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
+   show $ unpack ((n:(map (arg2name True) pl)) `joinWith` ' ') ++ if hasArgs then " ..." else ""
 
-arg2name arg = case arg of
+arg2name q arg = case arg of
                Left s      -> s
-               Right (k,_) -> B.cons '?' (B.snoc k '?')
+               Right (k,_) -> if q then B.cons '?' (B.snoc k '?') else k
 
 type ParamList = (BString, Bool, ArgList)
+
+listParams (_,_,al) = map (arg2name False) al
 
 mkParamList :: BString -> ArgList -> ParamList
 mkParamList name lst = (name, hasArgs, used)
