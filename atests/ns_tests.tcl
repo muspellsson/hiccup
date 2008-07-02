@@ -249,6 +249,8 @@ test "namespace import/export simple" {
     assertErr { bat }
     assertErr { buz }
   }
+
+  finalize { ns foo ns goo }
 }
 
 test "namespace origin, global" {
@@ -283,6 +285,7 @@ test "info body after import" {
   namespace eval boo { namespace export eep; proc eep {} { return OK } }
   namespace import ::boo::*
   checkthat [info body eep] eq { return OK }
+  finalize { ns boo }
 }
 
 test "imported procs go away when parent is deleted" {
@@ -376,6 +379,8 @@ test "default to global" {
     foo::ret5
     assert_noerr { foo::ret5 }
   }
+
+  finalize { ns foo ns other }
 }
 
 test "default ns path" {
@@ -383,6 +388,8 @@ test "default ns path" {
   namespace eval foo {
     checkthat [namespace path] eq {}
   }
+
+  finalize { ns foo }
 }
 
 test "simple forget unqualified" {

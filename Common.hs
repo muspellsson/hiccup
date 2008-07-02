@@ -158,11 +158,9 @@ runInterp t (Interp i) = do
   return (cleanScope r)
  where cleanScope (Right v) = Right v
        cleanScope (Left e) = case toEnum (errCode e) of
-          EError -> Left e
-          EOk    -> Right (errData e)
-          EReturn -> Right  (errData e)
           EBreak  -> Left $ eDie "invoked \"break\" outside of a loop"
           EContinue -> Left $ eDie "invoked \"continue\" outside of a loop"
+          _ -> Left e
 
 
 inInterp c i = io (runInterp c i) >>= fixres

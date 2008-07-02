@@ -110,3 +110,13 @@ test "interp slaves" {
     checkthat [lsort [interp slaves]] eq [list bar foo]
     finalize {interp foo interp bar}
 }
+
+test "interp code" {
+    interp create candyxr
+    checkthat [catch {candyxr eval { return 11 }}] == 0
+    checkthat [catch {candyxr eval { set x 11 }}] == 0
+    checkthat [catch { candyxr eval { break } }] == 3
+    checkthat [catch { candyxr eval { continue } }] == 4
+    assert_err { candyxr eval { error "Eep" } }
+    finalize { interp candyxr }
+}

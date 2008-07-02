@@ -90,7 +90,10 @@ interp_eval args = case args of
 interpEval ir cmds = do
    res <- io $ runInterp (evalTcl (T.objconcat cmds)) ir
    case res of
-     Left e -> throwError e
+     Left e -> case toEnum (errCode e) of
+        EOk -> return (errData e)
+        EReturn -> return (errData e)
+        _ -> throwError e
      Right v -> return v
 
 createInterp safe vars cmds = do

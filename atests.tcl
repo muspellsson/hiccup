@@ -1010,17 +1010,18 @@ test "procs declared in foo namespace" {
 }
 
 test "proc in namespace that doesn't exist fails" {
-  assertErr {
+  checkthat [namespace exists foo] == 0
+  assert_err {
     proc foo::bar {} { return 1 }
   }
 
-  assertErr {
+  assert_err {
     proc ::foo::bar {} { return 1 }
   }
 
   namespace eval foo {}
 
-  assertNoErr {
+  assert_noerr {
     proc foo::bar {} { return 1 }
   }
 
@@ -1032,7 +1033,7 @@ test "rename with ns qualifiers" {
     proc bar {} { return "omg!" }
   }
 
-  assertNoErr { ::foo::bar }
+  assert_noerr { ::foo::bar }
 
   rename ::foo::bar ::foo::baz
 
@@ -1054,6 +1055,7 @@ test "uplevel in ns" {
   }
   
   checkthat $g eq {::}
+  finalize { ns foo }
 }
 
 test "globally qualified proc in ns" {
@@ -1069,7 +1071,7 @@ test "globally qualified proc in ns" {
       rename ::blah {}
     }
   }
-  assertErr { ::blah }
+  assert_err { ::blah }
   finalize { ns foo } 
 }
 
