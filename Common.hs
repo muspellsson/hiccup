@@ -155,13 +155,7 @@ runInterp t (Interp i) = do
   bEnv <- readIORef i
   (r,i') <- runTclM t bEnv
   writeIORef i i'
-  return (cleanScope r)
- where cleanScope (Right v) = Right v
-       cleanScope (Left e) = case toEnum (errCode e) of
-          EBreak  -> Left $ eDie "invoked \"break\" outside of a loop"
-          EContinue -> Left $ eDie "invoked \"continue\" outside of a loop"
-          _ -> Left e
-
+  return $! r
 
 inInterp c i = io (runInterp c i) >>= fixres
  where fixres (Right x) = return x
