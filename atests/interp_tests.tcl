@@ -16,6 +16,15 @@ test "interp eval" {
   finalize { interp foo }
 }
 
+test "interp errors" {
+    interp create foo
+    assert_err { foo eval Do The Monkey Dance }
+    assert_err { foo eval set a b c d }
+    interp create { foo bar }
+    assert_err { foo eval bar eval die }
+    finalize { interp foo }
+}
+
 test "interp proc" {
   interp create pizz
   pizz eval {set pizz_x 4}
@@ -50,9 +59,54 @@ test "safe really safe" {
     finalize {interp whee}
 }
 
+test "safe interp issafe" { 
+    interp create -safe ii
+    checkthat [interp issafe ii]
+    checkthat [ii eval { interp issafe }]
+
+    interp create uu
+    checkthat [interp issafe uu] == 0
+    checkthat [uu eval {interp issafe}] == 0
+    finalize {interp ii interp uu}
+}
+
 test "interp create (no name)" {
     set n [interp create]
     interp eval $n {set x 4}
     checkthat [$n eval {info exists x}]
     interp delete $n
+}
+
+test "interp delete" {
+    interp create a
+    interp create {a b}
+    checkthat [interp exists {a b}]
+    assert_noerr { a eval b eval set x 4 }
+    interp delete {a b}
+    checkthat [interp exists {a b}] == 0
+    checkthat [interp exists a]
+
+    assert_err { a eval b eval { puts "OH NO" } }
+    assert_noerr { a eval { set x 4 } }
+    finalize { interp a }
+}
+
+test "interp path 1" {
+    interp create a
+    interp create {a b}
+    checkthat [interp exists a] == 1 {normal 'create a' works}
+    checkthat [interp exists {a b}] == 1 { {a b} exists}
+    checkthat [interp exists b] == 0
+
+    checkthat [interp eval {a b} {expr { 3 + 3 }}] == 6
+    checkthat [a eval b eval set x 4] == 4
+    finalize {interp a}
+}
+
+test "interp slaves" {
+    checkthat [interp slaves] eq {}
+    interp create foo
+    interp create bar
+    checkthat [lsort [interp slaves]] eq [list bar foo]
+    finalize {interp foo interp bar}
 }

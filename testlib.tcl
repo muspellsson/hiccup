@@ -9,6 +9,12 @@ namespace eval testlib {
   variable tests
   variable passcount 0
   variable assertcount 0
+  variable ignorecount 0
+}
+
+proc ::testlib::ignore {} {
+    incr ::testlib::ignorecount
+    return -code return
 }
 
 proc ::testlib::pass {} {
@@ -89,6 +95,9 @@ proc ::testlib::run_tests {} {
     uplevel "::testlib::run_test {$tn}"
   }
   puts stdout "\nDone. Passed $testlib::passcount / $testlib::assertcount checks."
+  if {$::testlib::ignorecount > 0} {
+      puts "($::testlib::ignorecount ignored)"
+  }
 }
 
 proc ::testlib::run_test tname {

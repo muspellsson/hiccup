@@ -2,8 +2,7 @@
 module Proc.Params (parseParams, bindArgs, ParamList, listParams) where
 import Util
 import qualified TclObj as T
-import Common
-import Types (ArgSpec, ArgList, ParamList(..))
+import Types (TclM,ArgSpec, ArgList, ParamList(..))
 import Control.Monad
 import qualified Data.ByteString.Char8 as B
 
@@ -47,4 +46,4 @@ bindArgs params@(ParamList (_,hasArgs,pl)) args = walkBoth pl args []
         walkBoth []                 xl     !acc = if hasArgs then return $! ((pack "args"),(T.fromList xl)):acc
                                                              else if null xl then return $! acc 
                                                                              else badArgs
-        badArgs = argErr $ "should be " ++ showParams params
+        badArgs = fail $ "should be " ++ showParams params

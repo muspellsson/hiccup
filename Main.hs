@@ -19,6 +19,6 @@ main = do args <- getArgs
                         Nothing -> return ()
                         Just "" -> runRepl i
                         Just ln -> do addHistory ln 
-                                      v <- runInterp (B.pack ln) i
+                                      v <- interpEvalStr (B.pack ln) i
                                       v `unlessErr` (\o -> unless (B.null o) (B.putStrLn o))
                                       runRepl i

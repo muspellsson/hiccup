@@ -9,8 +9,10 @@ module Common (TclM
        ,runTclM
        ,makeState
        ,setErrorInfo
+       ,runInterp
        ,registerInterp
        ,getInterp
+       ,getInterps
        ,deleteInterp
        ,runCheckResult
        ,withLocalScope
@@ -96,7 +98,9 @@ fixNSName rt t = if rt == nsSep then B.append rt t
 
 applyTo !f args = do 
    -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
-   (cmdAction . cmdCore $! f) args
+   case cmdCore f of
+     CmdCore c      -> c args
+     ProcCore _ _ c -> c args
 {-# INLINE applyTo #-}
 
 mkCmdAlias nsr pn = do
@@ -106,12 +110,15 @@ mkCmdAlias nsr pn = do
       Just cr -> do 
           newcmd <- do 
             p <- readRef cr 
-            return $! p { cmdCore = (cmdCore p) { cmdAction = inner cr }, cmdParent = Just cr, cmdOrigNS = Nothing } 
+            return $! p { cmdCore = (cmdCore p) `withAct` (inner cr), cmdParent = Just cr, cmdOrigNS = Nothing } 
           let adder x = cr .= (\p -> p { cmdKids = x:(cmdKids p) })
           return (newcmd, adder)
  where inner cr args = do 
             p <- readRef cr
             p `applyTo` args
+       withAct core a = case core of
+          CmdCore _ -> CmdCore a
+          ProcCore n b _ -> ProcCore n b a
   
 
 emptyCmd = TclCmdObj { 
@@ -141,36 +148,87 @@ setErrorInfo s = do
 
 makeVarMap = Map.fromList . mapSnd ScalarVar
 
-makeState :: [(BString,T.TclObj)] -> CmdList -> IO TclState
+makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
 
-registerInterp n interp = do
-  st <- get
-  let im = tclInterps st
-  put (st { tclInterps = Map.insert n interp im })
+runInterp t (Interp i) = do
+  bEnv <- readIORef i
+  (r,i') <- runTclM t bEnv
+  writeIORef i i'
+  return (cleanScope r)
+ where cleanScope (Right v) = Right v
+       cleanScope (Left e) = case toEnum (errCode e) of
+          EError -> Left e
+          EOk    -> Right (errData e)
+          EReturn -> Right  (errData e)
+          EBreak  -> Left $ eDie "invoked \"break\" outside of a loop"
+          EContinue -> Left $ eDie "invoked \"continue\" outside of a loop"
+
+
+inInterp c i = io (runInterp c i) >>= fixres
+ where fixres (Right x) = return x
+       fixres (Left e) = throwError e
+
+registerInterp path interp cmd = inner path
+ where regInterp n = do 
+             modify (modInterps (Map.insert n interp))
+             registerCmd n cmd
+       modInterps f s = s { tclInterps = f (tclInterps s) }
+       inner path = case path of
+          [n] -> regInterp n >> ret
+          (x:xs) -> do
+              st <- get
+              let cir = Map.lookup x (tclInterps st)
+              case cir of
+                Nothing -> tclErr $ "could not find interpreter " ++ show x
+                Just v  -> (inner xs) `inInterp` v
+          [] -> fail "invalid interpreter path"
   
-getInterp n = do
-  st <- get
-  let im = tclInterps st
-  case Map.lookup n im of
-    Nothing -> tclErr $ "could not find interpreter " ++ show n
-    Just v  -> return $! v
+lookupInterp n = do
+   st <- get
+   let cir = Map.lookup n (tclInterps st)
+   case cir of
+     Nothing -> tclErr $ "could not find interpreter " ++ show n
+     Just v  -> return v
 
-deleteInterp n = do
-  st <- get
-  let im = tclInterps st
-  case Map.lookup n im of
-    Nothing -> tclErr $ "could not find interpreter " ++ show n
-    Just _  -> put (st { tclInterps = Map.delete n im })
+getInterp nl = do
+  ir <- get >>= io . newIORef >>= return . Interp
+  inner ir nl
+ where inner ir []     = return ir
+       inner (Interp ir) (x:xs) = do
+         cir <- ir `refExtract` tclInterps >>= return . Map.lookup x
+         case cir of
+            Nothing -> tclErr $ "could not find interpreter " ++ show x
+            Just v  -> inner v xs
+
+getInterps :: TclM [BString]
+getInterps = do
+ get >>= return . Map.keys . tclInterps
+
+deleteInterp path = case path of
+ [n] -> do
+   st <- get
+   let im = tclInterps st
+   case Map.lookup n im of
+     Nothing -> tclErr $ "could not find interpreter " ++ show n
+     Just _  -> do 
+       put (st { tclInterps = Map.delete n im }) 
+       renameCmd n (pack "")
+       ret
+ (n:nx) -> do 
+   i <- lookupInterp n
+   (deleteInterp nx) `inInterp` i
+ _ -> fail "invalid interp path"
 
 
-makeState' :: ChanMap -> [(BString,T.TclObj)] -> CmdList -> IO TclState
-makeState' chans vlist cmdlst = do 
+makeState' :: ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
+makeState' chans safe vlist cmdlst = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
     st <- return $! mkState nsr fr
     execTclM runRegister st
- where mkState nsr fr = TclState { tclChans = chans,
+ where mkState nsr fr = TclState { interpSafe = safe,
+                                   tclChans = chans,
                                    tclInterps = Map.empty,
                                    tclEvents = Evt.emptyMgr,
                                    tclStack = [fr],
@@ -702,7 +760,7 @@ errWithEnv t =
        retv <- liftM fst (runTclM t st)
        return retv
 
-mkEmptyState = makeState [] emptyCmdList
+mkEmptyState = makeState False [] emptyCmdList
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   b = pack

@@ -39,10 +39,11 @@ data TclFrame = TclFrame {
 
 type TclStack = [FrameRef]
 
-data Interp = Interp { interpSafe :: Bool, interpState :: IORef TclState }
+data Interp = Interp { interpState :: IORef TclState }
 type InterpMap = Map.Map BString Interp
 
 data TclState = TclState { 
+    interpSafe :: Bool,
     tclChans :: ChanMap, 
     tclInterps :: InterpMap,
     tclEvents :: Evt.EventMgr T.TclObj,
@@ -70,10 +71,14 @@ type ArgSpec = Either BString (BString,T.TclObj)
 type ArgList = [ArgSpec]
 newtype ParamList = ParamList (BString, Bool, ArgList)
 
-data CmdCore = CmdCore { cmdAction :: !TclCmd } 
+coreAction c = case c of 
+   CmdCore a -> a
+   ProcCore _ _ a -> a
+
+data CmdCore = CmdCore !TclCmd 
              | ProcCore { procBody :: BString, 
-                          procArgs :: ParamList,
-                          cmdAction :: !TclCmd }
+                          procArgs :: !ParamList,
+                          procAction :: !TclCmd }
 
 type ProcKey = BString
 data CmdMap = CmdMap { 

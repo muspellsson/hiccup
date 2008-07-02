@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module Hiccup (runTcl, runTclWithArgs, mkMainInterp, runInterp ) where
+module Hiccup (runTcl, runTclWithArgs, mkMainInterp, interpEvalStr ) where
 
 import Util
 import TclLib.Interp
@@ -22,8 +22,8 @@ hiccupVersion = 0.48
 
 mkMainInterp = mkInterpWithVars (interpVars []) baseCmds
 
-runTcl v = mkMainInterp >>= runInterp v
+runTcl v = mkMainInterp >>= interpEvalStr v
 
-runTclWithArgs v args = mkInterpWithVars mainVars baseCmds >>= runInterp v
+runTclWithArgs v args = mkInterpWithVars mainVars baseCmds >>= interpEvalStr v
  where mainVars = interpVars args
 

@@ -15,7 +15,7 @@ import Test.HUnit
 mkLambda fn = do
         lst <- T.asList fn
         case lst of
-         [al,body] -> mkProc (pack "lambda") al body >>= return . cmdAction
+         [al,body] -> mkProc (pack "lambda") al body >>= return . procAction
          _         -> fail "invalid lambda"
 
 useCompiledProcs = False
@@ -36,6 +36,10 @@ mkProc pname alst body = do
        else return $! ProcCore bsbody params (runProc (evalTcl body) params)
  where bsbody = T.asBStr body
 
+runProc f pl args = do
+  locals <- bindArgs pl args
+  withLocalScope locals (procCatcher f)
+
 cMAX_ATTEMPTS = 1
 
 procRunner compref attempts params body = do
@@ -53,9 +57,6 @@ procRunner compref attempts params body = do
          compref .<- Just cp
          runCompiled cp
 
-runProc f pl args = do
-  locals <- bindArgs pl args
-  withLocalScope locals (procCatcher f)
 
 procCatcher f = f `catchError` herr
  where herr (ErrTramp e) = throwError e 

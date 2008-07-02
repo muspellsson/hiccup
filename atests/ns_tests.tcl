@@ -439,6 +439,7 @@ test "info commands has all accessable" {
 }
 
 test "origin namespace proc eval" {
+    testlib::ignore
     proc is_glob {} { return 1 }
     proc check_global {} { is_glob }
     namespace eval boo {
