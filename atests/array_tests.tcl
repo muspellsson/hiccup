@@ -33,7 +33,6 @@ test "array size" {
 test "ns qualified set/size" {
     namespace eval yarr {
         variable fishy
-    #    array set fishy { 1 one 2 two 3 three }
     }
 
     array set ::yarr::fishy { 1 one 2 two 3 three }

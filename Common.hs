@@ -332,9 +332,10 @@ getProcInfo !pname = do
    Just cmd -> case cmdCore cmd of
                   CmdCore _ -> err
                   pi        -> return pi
- where err = tclErr $ ""
+ where err = tclErr $ show pname ++ " isn't a procedure"
 
-
+{-# TODO: Should the tryHere stuff be rendered redundant by
+    global fallback elsewhere? #-}
 getCmdNS (NSQual nst n) = do
   res <- tryHere `ifFails` Nothing
   case res of
