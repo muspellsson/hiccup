@@ -1190,7 +1190,6 @@ test "changed proc" {
 }
 
 test "proc diff namespace" {
-    testlib::ignore
     namespace eval temp {
         proc fancy {} { return NS }
     }

@@ -12,10 +12,14 @@ import qualified TclObj as T
 
 import Test.HUnit
 
+mkLambda :: T.TclObj -> TclM ([T.TclObj] -> TclM T.TclObj)
 mkLambda fn = do
         lst <- T.asList fn
         case lst of
-         [al,body] -> mkProc (pack "lambda") al body >>= return . procAction
+         [al,body] -> do 
+           pr <- mkProc (pack "lambda") al body 
+           nsr <- getCurrNS
+           return $ withProcScope (procArgs pr) nsr (procAction pr) 
          _         -> fail "invalid lambda"
 
 useCompiledProcs = False
@@ -32,13 +36,9 @@ mkProc pname alst body = do
           cproc <- ref Nothing
           count <- ref (0 :: Int)
           let procInner = procRunner cproc count params body
-          return $! ProcCore bsbody params (runProc procInner params)
-       else return $! ProcCore bsbody params (runProc (evalTcl body) params)
+          return $! ProcCore bsbody params (procCatcher procInner)
+       else return $! ProcCore bsbody params (procCatcher (evalTcl body))
  where bsbody = T.asBStr body
-
-runProc f pl args = do
-  locals <- bindArgs pl args
-  withLocalScope locals (procCatcher f)
 
 cMAX_ATTEMPTS = 1
 

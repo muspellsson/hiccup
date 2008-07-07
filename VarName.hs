@@ -6,6 +6,7 @@ module VarName (parseVarName,
                 parseProc,
                 VarName(..), 
                 arrName,
+                arrNameNS,
                 isArr,
                 showVN, 
                 NSQual(..), 
@@ -41,8 +42,13 @@ instance (BStringable a) => BStringable (NSQual a) where
   toBStr (NSQual (Just t) s) = B.append (toBStr t) (toBStr s)
   toBStr (NSQual _ s) = toBStr s
 
+
 arrName !an !ind = VarName an (Just ind)
 {-# INLINE arrName #-}
+
+arrNameNS !an !ind = (parseNSQual an) `withIndex` ind
+ where withIndex (NSQual mt s) ind = NSQual mt (VarName s (Just ind))
+{-# INLINE arrNameNS #-}
 
 isArr (VarName _ (Just _)) = True
 isArr _                    = False

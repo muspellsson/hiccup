@@ -34,7 +34,7 @@ proc verify { code { msg "" } } {
     if { $::testlib::trace_test == 1 } { puts "\"$code\" was true" }
     ::testlib::pass
   } else {
-    testlib::fail "\"$code\" was not true ($msg)"
+    ::testlib::fail "\"$code\" was not true ($msg)"
   }
 }
 
@@ -51,9 +51,9 @@ proc checkthat { var { op == } { r 1 } { msg "" } } {
 proc assertNoErr code {
   set ret [catch "uplevel {$code}"]
   if { $ret == 0 } {
-    testlib::pass
+    ::testlib::pass
   } else {
-    testlib::fail "code failed: $code"
+    ::testlib::fail "code failed: $code"
   }
 }
 
@@ -85,8 +85,8 @@ proc assert code {
 }
 
 proc test {name body} {
-  set testlib::tests($name) $body
-  set testlib::test_results($name) "not run"
+  set ::testlib::tests($name) $body
+  set ::testlib::test_results($name) "not run"
 }
 
 proc ::testlib::run_tests {} {
@@ -94,7 +94,7 @@ proc ::testlib::run_tests {} {
   foreach tn [array names ::testlib::tests] {
     uplevel "::testlib::run_test {$tn}"
   }
-  puts stdout "\nDone. Passed $testlib::passcount / $testlib::assertcount checks."
+  puts stdout "\nDone. Passed $::testlib::passcount / $::testlib::assertcount checks."
   if {$::testlib::ignorecount > 0} {
       puts "($::testlib::ignorecount ignored)"
   }
@@ -110,7 +110,7 @@ proc ::testlib::run_test tname {
 }
 
 proc with_test {tn code} {
-  variable testlib::current_test
+  variable ::testlib::current_test
   set old_test $current_test
   set current_test "$old_test -> $tn"
   uplevel $code

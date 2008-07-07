@@ -446,15 +446,32 @@ test "info commands has all accessable" {
 }
 
 test "origin namespace proc eval" {
-    testlib::ignore
-    proc is_glob {} { return 1 }
+    proc is_glob {} { return is_global }
     proc check_global {} { is_glob }
     namespace eval boo {
-        proc is_glob {} { return 0 }
+        proc is_glob {} { return not_global }
         proc try_glob {} { is_glob }
     }
 
-    checkthat [namespace eval boo { check_global }] == 1
-    checkthat [namespace eval boo { try_glob }] == 0
+    checkthat [namespace eval boo { check_global }] == is_global
+    checkthat [namespace eval boo { try_glob }] == not_global
     finalize { proc is_glob ns boo }
+}
+
+test "ns qualifications" {
+    namespace eval ::gax {
+        variable misc
+    }
+
+    proc setitup {} {
+        set ::gax::misc(1) "ONE"
+    }
+
+    proc gax::fishy {} {
+        setitup
+        return $gax::misc(1)
+    }
+
+    checkthat [gax::fishy] == ONE
+    finalize { ns gax proc setitup }
 }

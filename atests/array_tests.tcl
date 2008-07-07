@@ -30,6 +30,21 @@ test "array size" {
   checkthat [array size boo] == 3
 }
 
+test "ns qualified set/size" {
+    namespace eval yarr {
+        variable fishy
+    #    array set fishy { 1 one 2 two 3 three }
+    }
+
+    array set ::yarr::fishy { 1 one 2 two 3 three }
+    checkthat [array size ::yarr::fishy] == 3
+    checkthat [array size yarr::fishy] == 3
+
+    namespace eval yarr {
+        checkthat [array size fishy] == 3
+    }
+}
+
 test "array names" {
   set arr(0) 1
   set arr(feed) people

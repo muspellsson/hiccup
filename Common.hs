@@ -15,11 +15,12 @@ module Common (TclM
        ,getInterps
        ,deleteInterp
        ,runCheckResult
-       ,withLocalScope
+       ,withProcScope
        ,withNS
        ,getCmd
        ,getProcInfo
        ,getCmdNS
+       ,getCurrNS
        ,registerProc
        ,registerCmd
        ,varGetNS
@@ -67,6 +68,8 @@ import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
 
+import Proc.Params
+
 import Types
 
 import Match (globMatch, globMatches)
@@ -100,7 +103,9 @@ applyTo !f args = do
    -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
    case cmdCore f of
      CmdCore c      -> c args
-     ProcCore _ _ c -> c args
+     p@(ProcCore _ _ c) -> case cmdOrigNS f of
+                              Nothing -> error "can't find orig namespace"
+                              Just nsr -> withProcScope (procArgs p) nsr c args
 {-# INLINE applyTo #-}
 
 mkCmdAlias nsr pn = do
@@ -118,7 +123,7 @@ mkCmdAlias nsr pn = do
             p `applyTo` args
        withAct core a = case core of
           CmdCore _ -> CmdCore a
-          ProcCore n b _ -> ProcCore n b a
+          ProcCore n b c -> ProcCore n b c
   
 
 emptyCmd = TclCmdObj { 
@@ -448,9 +453,10 @@ varUnset vn frref = do
                         _             -> noExist
 
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
-usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
+usingNsFrame (NSQual !ns !vn) f = (lookupNsFrame ns) >>= f vn
  where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
+       lookupNsFrame (Just n) = (getNamespace' n `orElse` tryGlobal n) >>= getNSFrame
+       tryGlobal (NS _ t) = getNamespace' (NS True t)
 {-# INLINE usingNsFrame #-}
 
 {- This specialization is ugly, but GHC hasn't been doing it for me and it
@@ -458,7 +464,8 @@ usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
 usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
 usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  where lookupNsFrame Nothing  = getFrame 
-       lookupNsFrame (Just n) = getNamespace' n >>= getNSFrame
+       lookupNsFrame (Just n) = (getNamespace' n `orElse` tryGlobal n) >>= getNSFrame
+       tryGlobal (NS _ t) = getNamespace' (NS True t)
 {-# INLINE usingNsFrame2 #-}
 
 
@@ -631,11 +638,11 @@ forgetNS name = do
 
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
-withLocalScope vl f = do
-    ns <- getCurrNS -- TODO: Wrong.
-    fr <- io $! createFrameWithNS ns $! makeVarMap vl
+withProcScope pl nsr f args = do
+    vl <- bindArgs pl args
+    fr <- io $! createFrameWithNS nsr $! makeVarMap vl
     withScope fr f
-{-# INLINE withLocalScope #-}
+{-# INLINE withProcScope #-}
 
 withScope :: FrameRef -> TclM a -> TclM a
 withScope !frref fun = do

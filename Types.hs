@@ -71,14 +71,10 @@ type ArgSpec = Either BString (BString,T.TclObj)
 type ArgList = [ArgSpec]
 newtype ParamList = ParamList (BString, Bool, ArgList)
 
-coreAction c = case c of 
-   CmdCore a -> a
-   ProcCore _ _ a -> a
-
 data CmdCore = CmdCore !TclCmd 
              | ProcCore { procBody :: BString, 
                           procArgs :: !ParamList,
-                          procAction :: !TclCmd }
+                          procAction :: !(TclM T.TclObj) }
 
 type ProcKey = BString
 data CmdMap = CmdMap { 

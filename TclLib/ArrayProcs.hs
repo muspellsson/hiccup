@@ -12,9 +12,9 @@ import qualified Data.Map as Map
 import VarName 
 import Text.Printf
 
-arrayProcs = makeCmdList [("array", procArray), ("parray", procParray)]
+arrayProcs = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
 
-procParray args = case args of
+cmdParray args = case args of
      [name] -> do let n = T.asBStr name 
                   arr <- getArray n `orElse` (tclErr ((show n) ++ " isn't an array"))
                   mapM_ (showFun n) (Map.toList arr)
@@ -23,13 +23,13 @@ procParray args = case args of
  where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (unpack a) (T.asStr b))
 
 
-procArray = mkEnsemble "array" [
+cmdArray = mkEnsemble "array" [
               ("get", array_get), ("size", array_size), 
               ("exists", array_exists), ("set", array_set), 
               ("names", array_names), ("unset", array_unset)
     ]
 
-arrSet n i v = varSetHere (arrName n i) v
+arrSet n i v = varSetNS (arrNameNS n i) v
 
 toPairs (a:b:xs) = (a,b) : toPairs xs
 toPairs _ = [] 
