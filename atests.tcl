@@ -10,7 +10,6 @@ source atests/ns_tests.tcl
 source atests/interp_tests.tcl
 
 test "upvar" {
-
   proc uptest {var v} {
     upvar $var loc
     set loc $v
@@ -1219,6 +1218,20 @@ test "format" {
     assert_err { format "%d" pants }
 }
 
+test "subst" {
+    checkthat [subst {A cat}] eq "A cat"
+    set cat 44
+    checkthat [subst {A $cat}] eq "A $cat"
+    checkthat [subst {one \n two}] eq "one \n two"
+    checkthat [subst -nobackslashes {one \n two}] eq {one \n two}
+
+    set boo(\n) 4
+    checkthat [subst { $boo(\n) }] eq " 4 "
+    checkthat [subst -nobackslashes { $boo(\n) }] eq " 4 "
+
+    set fish WOO
+    checkthat [subst -nobackslashes { \$fish }] eq { \WOO }
+}
 
 ::testlib::run_tests
 

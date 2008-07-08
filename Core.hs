@@ -1,13 +1,14 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Core (doCond, evalExpr, evalArgs, coreTests) where
+module Core (doCond, evalExpr, evalArgs, subst, coreTests) where
 
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
+import TclParse (parseSubst, Subst(..))
 import RToken
 import qualified Expr as E
 import Util
-import VarName (arrName, NSQual(..), parseNSTag, toBStr)
+import VarName (arrName, NSQual(..), parseNSTag, toBStr, parseVarName, VarName(..))
 
 import Test.HUnit
 
@@ -84,6 +85,29 @@ exprCallback !v = case v of
     E.CmdEval cmd  -> runCmd cmd
 
 mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
+
+
+subst :: Bool -> BString -> TclM BString
+subst slash str = do 
+   lst <- mlift $ parseSubst (True,slash,True) str
+   mapM f lst >>= return . B.concat
+ where 
+    mlift x = case x of
+               Left e -> tclErr e
+               Right (v,_) -> return v
+    f x = case x of
+        SStr s -> return s
+        SCmd c -> evalTcl (tokCmdToCmd c) >>= return . T.asBStr
+        SEsc c -> return . B.singleton $ case c of
+                                 'n' -> '\n'
+                                 't' -> '\t'
+                                 _   -> c
+        SVar v -> do 
+           val <- case parseVarName v of 
+                    NSQual ns (VarName n (Just ind)) -> 
+                         subst True ind >>= \i2 -> varGetNS (NSQual ns (arrName n i2))
+                    vn                               -> varGetNS vn
+           return (T.asBStr val)
 
 coreTests = TestList []
 

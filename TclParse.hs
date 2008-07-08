@@ -7,6 +7,8 @@ module TclParse ( TclWord(..)
                  ,doVarParse
                  ,parseSub
                  ,TokCmd
+                 ,parseSubst
+                 ,Subst(..)
                  ,tclParseTests
                 )  where
  
@@ -111,8 +113,29 @@ getInterp str = do
      then dorestfrom loc str
      else let res = pjoin (,) (parseLen loc) interpItem
           in (res `orElse` dorestfrom loc) str
- where dorestfrom loc = (pjoin (\s (p,v) -> (B.append s p, v)) (parseLen (loc+1)) getInterp) 
+ where dorestfrom loc = eatAndContinue (parseLen (loc+1)) 
        interpItem = (doVarParse `wrapWith` Left) `orElse` (parseSub `wrapWith` Right) 
+       eatAndContinue f = pjoin (\s (p,v) -> (B.append s p, v)) f getInterp
+
+data Subst = SStr !BString | SEsc !Char | 
+             SVar !BString | SCmd TokCmd deriving (Eq,Show)
+
+parseSubst :: (Bool,Bool,Bool) -> Parser [Subst]
+parseSubst (vars,esc,cmds) = inner `wrapWith` sreduce
+ where no_special = getPred1 (`notElem` "\\[$") "non-special chars"
+       inner = parseMany (choose [st no_special, 
+                                  may vars SVar doVarParse,
+                                  may cmds SCmd parseSub,
+                                  tryEsc,
+                                  st parseAny])
+       st x = x `wrapWith` SStr
+       may b c f = if b then f `wrapWith` c else st (consumed f)
+       tryEsc = if esc then (escChar `wrapWith` SEsc) else (\_ -> fail "no esc") 
+       escChar = pchar '\\' .>> (parseAny `wrapWith` B.head)
+       sreduce lst = case lst of
+               []                 -> []
+               (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
+               (x:xs) -> x : sreduce xs
 
 doVarParse :: Parser BString
 doVarParse = pchar '$' .>> parseVarRef
@@ -141,9 +164,9 @@ parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
        pthing = getPred1 (`notElem` "( ${}[]\n\t;") "inner word"
 
 escaped v s = escaped' v
- where escaped' !i = if i <= 0 
-                         then False 
-                         else (B.index s (i-1) == '\\') && not (escaped' (i-1))
+ where escaped' !i
+         | i <= 0    = False 
+         | otherwise = (B.index s (i-1) == '\\') && not (escaped' (i-1))
 
 doInterp str = case getInterp str of
                    Left _ -> Left (escapeStr str)
@@ -175,7 +198,8 @@ tclParseTests = TestList [ runParseTests,
                            parseRichStrTests,
                            doInterpTests,
                            commentTests,
-                           testEscaped ]
+                           testEscaped,
+                           parseSubstTests]
 
 commentTests = "parseComment" ~: TestList [
    "# hey there" `should_be` ""
@@ -341,3 +365,19 @@ parseTokensTests = "parseTokens" ~: TestList [
    ]
  where (?=>) str (res,r) = Right (res, r) ~=? parseTokens str
        nosub = mkNoSub
+
+parseSubstTests = "parseSubst" ~: TestList [
+    (all_on, "A cat") `should_be` [SStr "A cat"]
+    ,(all_on, "A $cat") `should_be` [SStr "A ", SVar "cat"]
+    ,(no_var, "A $cat") `should_be` [SStr "A $cat"]
+    ,(all_on, "A \\cat") `should_be` [SStr "A ", SEsc 'c', SStr "at"]
+    ,(no_esc, "A \\cat") `should_be` [SStr "A \\cat"]
+    ,(all_on, "\\[fish]") `should_be` [SEsc '[', SStr "fish]"]
+    ,(all_on, "[fish face") `should_be` [SStr "[fish face"]
+    ,(no_esc, "One \\n Two") `should_be` [SStr "One \\n Two"]
+    ,(no_esc, " \\$fish ") `should_be` [SStr " \\", SVar "fish", SStr " "]
+  ]
+ where should_be (opt, str) res = (B.unpack str) ~: Right (res,"") ~=? parseSubst opt str
+       all_on = (True,True,True)
+       no_esc = (True,False,True)
+       no_var = (False,True,True)

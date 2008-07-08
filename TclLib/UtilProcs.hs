@@ -6,9 +6,10 @@ import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import System.Posix.Process (getProcessID)
-import Core (evalExpr)
+import Core (evalExpr,subst)
 import Common
 import Format
+import ArgParse
 import qualified TclObj as T
 import TclLib.LibUtil
 
@@ -17,6 +18,7 @@ utilProcs = makeCmdList [
    ("incr", cmdIncr), 
    ("expr", cmdExpr),
    ("pid", cmdPid),
+   ("subst", cmdSubst),
    ("format", cmdFormat),
    ("after", cmdAfter), ("update", cmdUpdate)]
 
@@ -83,3 +85,11 @@ cmdExpr args = case args of
 cmdFormat args = case args of
    (x:xs) -> formatString (T.asBStr x) xs >>= return . T.fromBStr
    _      -> argErr "format"
+
+substArgs = boolFlagSpec "nobackslashes" 1
+
+cmdSubst args_ = do
+  (noslash,args) <- parseArgs substArgs False args_
+  case args of
+   [x] -> subst (not noslash) (T.asBStr x) >>= return . T.fromBStr
+   _   -> argErr "subst"
