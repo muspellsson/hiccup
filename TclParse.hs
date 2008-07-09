@@ -141,10 +141,12 @@ doVarParse :: Parser BString
 doVarParse = pchar '$' .>> parseVarRef
 
 parseVarRef :: Parser BString
-parseVarRef = chain [ parseVarTerm `orElse` getNS
-                      ,tryGet parseVarRef
+parseVarRef = chain [ initial 
+                      ,tryGet getNS
                       ,tryGet parseInd ]
- where getNS = chain [parseLit "::", parseVarTerm, tryGet getNS]
+ where getNS = chain [sep, parseVarTerm, tryGet getNS]
+       initial = chain [tryGet sep, parseVarTerm]
+       sep = parseLit "::"
 
 parseVarTerm :: Parser BString
 parseVarTerm = getVar `orElse` braceVar
