@@ -46,6 +46,10 @@ test "expr shift" {
   assert_err { expr { 3 << -2 } }
 }
 
+test "expr multi-subexpression" {
+    set x 3
+    checkthat [expr { [set y 99; set x] + 1 }] == 4
+}
 
 test "expr precedence" {
   checkthat [expr { 3 << 1 < 4 }] == 0
