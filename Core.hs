@@ -29,26 +29,24 @@ runCmds cl = case cl of
 callProc :: NSQual BString -> [T.TclObj] -> TclM T.TclObj
 callProc pn args = getCmdNS pn >>= doCall (toBStr pn) args
 
-evalRTokens cmdFn = evalRTokens_ where
-  evalRTokens_ []     acc = return $! reverse acc
-  evalRTokens_ (x:xs) acc = case x of
+evalRTokens []     acc = return $! reverse acc
+evalRTokens (x:xs) acc = case x of
             Lit s     -> nextWith (return $! T.fromBStr s) 
             LitInt i  -> nextWith (return $! T.fromInt i) 
-            CmdTok t  -> nextWith (cmdFn t)
+            CmdTok t  -> nextWith (runCmd t)
             VarRef vn -> nextWith (varGetNS vn)
             Block s p e -> nextWith (return $! T.fromBlock s p e) 
             ArrRef ns n i -> do
-                 ni <- evalArgs_ [i] >>= return . T.asBStr . head
+                 ni <- evalArgs [i] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalArgs_ l >>= return . T.fromBStr . B.concat . map T.asBStr) 
+            CatLst l -> nextWith (evalArgs l >>= return . T.fromBStr . B.concat . map T.asBStr) 
             ExpTok t -> do 
-                 [rs] <- evalArgs_ [t]
+                 [rs] <- evalArgs [t]
                  l <- T.asList rs
-                 evalRTokens_ xs ((reverse l) ++ acc)
-   where nextWith f = f >>= \(!r) -> evalRTokens_ xs (r:acc)
-         evalArgs_ args = evalRTokens_ args []
+                 evalRTokens xs ((reverse l) ++ acc)
+   where nextWith f = f >>= \(!r) -> evalRTokens xs (r:acc)
 
-evalArgs args = evalRTokens runCmd args []
+evalArgs args = evalRTokens args []
 {-# INLINE evalArgs #-}
 
 runCmd :: Cmd -> TclM T.TclObj

@@ -10,7 +10,6 @@ test "for loop 2" {
   for {set x 1} {$x < 10} {incr x} {
     break
   } 
-
   checkthat $x == 1
 
   set val -1
@@ -27,7 +26,6 @@ test "foreach" {
   foreach number $numbers {
     set result [+ $number $result]
   }
-
   checkthat $result == 15
 
   set fer "old"

@@ -1,5 +1,6 @@
 module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable, Parsed, 
   tokCmdToCmd,
+  RTokCmd,
   TokResult,
   ExprResult,
   makeCExpr,
@@ -17,8 +18,9 @@ import Test.HUnit
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
 type ExprResult = Either String (CExpr [Cmd])
-data CmdName = BasicCmd (NSQual BString) | DynCmd (RToken Cmd) deriving (Eq,Show)
-data Cmd = Cmd CmdName [RToken Cmd] deriving (Eq,Show)
+data CmdName = BasicCmd (NSQual BString) | DynCmd (RTokCmd) deriving (Eq,Show)
+type RTokCmd = RToken Cmd
+data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
 data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a] 
               | CmdTok !a | ExpTok (RToken a)
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (RToken a)
@@ -38,7 +40,7 @@ litIfy s
  | otherwise       = Lit s
 
 
-compile :: BString -> RToken Cmd
+compile :: BString -> RTokCmd
 compile str = case doInterp str of
                    Left s  -> litIfy s
                    Right x -> handle x
@@ -58,7 +60,7 @@ isEmpty _          = False
 
 makeCExpr = fromExpr . parseFullExpr
 
-compToken :: TclWord -> (RToken Cmd)
+compToken :: TclWord -> RTokCmd
 compToken tw = case tw of
           Word s        -> compile s
           NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
