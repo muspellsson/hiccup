@@ -70,8 +70,8 @@ proc assertErr { code { msg "" } } {
   }
 }
 
-proc assert_err code {
-  uplevel [list assertErr $code]
+proc assert_err { code { msg "" } } {
+  uplevel [list assertErr $code $msg]
 }
 
 proc get_err code { 
