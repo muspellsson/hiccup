@@ -19,6 +19,7 @@ instance Runnable T.TclObj where
 instance Runnable Cmd where
   evalTcl = runCmd
 
+runCmds :: [Cmd] -> TclM T.TclObj
 runCmds cl = case cl of
    [x]    -> runCmd x
    (x:xs) -> runCmd x >> runCmds xs
@@ -33,7 +34,7 @@ evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
             Lit s     -> nextWith (return $! T.fromBStr s) 
             LitInt i  -> nextWith (return $! T.fromInt i) 
-            CmdTok t  -> nextWith (runCmd t)
+            CmdTok t  -> nextWith (runCmds t)
             VarRef vn -> nextWith (varGetNS vn)
             Block s p e -> nextWith (return $! T.fromBlock s p e) 
             ArrRef ns n i -> do
@@ -46,6 +47,7 @@ evalRTokens (x:xs) acc = case x of
                  evalRTokens xs ((reverse l) ++ acc)
    where nextWith f = f >>= \(!r) -> evalRTokens xs (r:acc)
 
+evalArgs :: [RTokCmd] -> TclM [T.TclObj]
 evalArgs args = evalRTokens args []
 {-# INLINE evalArgs #-}
 

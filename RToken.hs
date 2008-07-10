@@ -19,7 +19,7 @@ type Parsed = [Cmd]
 type TokResult = Either String Parsed
 type ExprResult = Either String (CExpr [Cmd])
 data CmdName = BasicCmd (NSQual BString) | DynCmd (RTokCmd) deriving (Eq,Show)
-type RTokCmd = RToken Cmd
+type RTokCmd = RToken [Cmd]
 data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
 data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a] 
               | CmdTok !a | ExpTok (RToken a)
@@ -67,10 +67,7 @@ compToken tw = case tw of
           Expand t      -> ExpTok (compToken t)
           Subcommand c  -> compCmds c
 
-compCmds c = case map compCmd c of
-               [x] -> x
-               xl   -> CatLst xl
- where compCmd c = CmdTok (toCmd c)
+compCmds c = CmdTok (map toCmd c)
 
 class Parseable a where
   asParsed :: (Monad m) => a -> m Parsed
@@ -124,7 +121,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
   lit = Lit . pack 
   ilit = LitInt 
   vlocal x = NSQual Nothing (pack x)
-  cmdTok (n,a) = CmdTok (Cmd n a)
+  cmdTok (n,a) = CmdTok [(Cmd n a)]
   varref = VarRef . parseVarName . pack 
   arrref s t = ArrRef Nothing (pack s) t
   tok_to a b = do let r = compToken a

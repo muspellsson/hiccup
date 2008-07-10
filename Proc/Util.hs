@@ -22,7 +22,7 @@ mkLambda fn = do
            return $ withProcScope (procArgs pr) nsr (procAction pr) 
          _         -> fail "invalid lambda"
 
-useCompiledProcs = False
+useCompiledProcs = True
 
 ref = io . newIORef
 readRef = io . readIORef

@@ -11,7 +11,7 @@ import VarName (arrName, NSQual(..), VarName, NSTag)
 import qualified Data.ByteString.Char8 as B
 import Core
 import qualified RToken as R
-import RToken (asParsed,Cmd(..))
+import RToken (asParsed,Cmd(..), RTokCmd)
 import Common 
 import qualified TclObj as T
 import Util
@@ -21,7 +21,7 @@ import Util
 type CmdName = NSQual BString
 type CmdTag = (Int, CmdName)
 
-data CompCmd = CompCmd (Maybe CmdTag) (Either [R.RToken Cmd] [CToken]) Cmd
+data CompCmd = CompCmd (Maybe CmdTag) (Either [R.RTokCmd] [CToken]) Cmd
 
 data CodeBlock = CodeBlock CmdCache [CompCmd]
 
@@ -73,12 +73,12 @@ compCmd c@(Cmd (R.BasicCmd cn) args) = do
 compCmd _ = fail "no compile"
 
 data CToken = Lit !T.TclObj | CatLst [CToken] 
-              | CmdTok !CompCmd | ExpTok (CToken)
+              | CmdTok [CompCmd]| ExpTok (CToken)
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (CToken)
               | Block !T.TclObj
 
 compToken tok = case tok of
-  R.CmdTok t -> compCmd t >>= return . CmdTok
+  R.CmdTok t -> mapM compCmd t >>= return . CmdTok
   R.ExpTok t -> compToken t >>= return . ExpTok
   R.ArrRef mtag n t -> compToken t >>= \nt -> return $ ArrRef mtag n nt
   R.VarRef v -> return $ VarRef v
@@ -116,11 +116,11 @@ evalCompC cc (CompCmd mct nargs c) =
         Nothing  -> evalTcl c
  where eArgs = case nargs of 
                 Left args -> evalArgs args
-                Right al  -> evalCTokens (evalCompC cc) al []
+                Right al  -> evalCompArgs (evalThem cc) al
 
-evalCTokens cmdFn = evalCTokens_ where
-  evalCTokens_ []     acc = return $! reverse acc
-  evalCTokens_ (x:xs) acc = case x of
+evalCompArgs cmdFn al = evalCTokens al [] where
+    evalCTokens []     acc = return $! reverse acc
+    evalCTokens (x:xs) acc = case x of
             Lit s     -> nextWith (return $! s) 
             CmdTok t  -> nextWith (cmdFn t)
             Block o   -> nextWith (return $! o)
@@ -132,9 +132,9 @@ evalCTokens cmdFn = evalCTokens_ where
             ExpTok t -> do 
                  [rs] <- evalArgs_ [t]
                  l <- T.asList rs
-                 evalCTokens_ xs ((reverse l) ++ acc)
-   where nextWith f = f >>= \(!r) -> evalCTokens_ xs (r:acc)
-         evalArgs_ args = evalCTokens_ args []
+                 evalCTokens xs ((reverse l) ++ acc)
+     where nextWith f = f >>= \(!r) -> evalCTokens xs (r:acc)
+           evalArgs_ args = evalCTokens args []
 
 evalThem _  []     = ret
 evalThem cc [x]    = evalCompC cc x

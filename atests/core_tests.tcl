@@ -2,6 +2,9 @@
 test "multi-statement subexpression" {
     set x "-[set y 4;incr y]-"
     checkthat $x eq {-5-}
+
+    set v "[set v 0;incr v;incr v; incr v ;incr v]"
+    checkthat $v == 4
 }
 
 test "apply" {
