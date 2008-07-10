@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -XMultiParamTypeClasses #-}
 module Expr.TExp where
 
-import TclParse (TokCmd)
+import TclParse (SubCmd)
 import VarName
 import Util
 
@@ -18,7 +18,7 @@ data Expr = Item Atom
           | BinApp !Op Expr Expr  
           | UnApp !UnOp Expr 
           | TernIf Expr Expr Expr
-          | DepItem (Dep TokCmd Expr)
+          | DepItem (Dep SubCmd Expr)
           | Paren Expr deriving (Eq,Show)
 
 data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |

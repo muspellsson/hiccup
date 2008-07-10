@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -XTypeSynonymInstances -XMultiParamTypeClasses #-}
+{-# OPTIONS_GHC -XTypeSynonymInstances -XMultiParamTypeClasses  -XFlexibleInstances #-}
 {-# LANGUAGE BangPatterns #-}
 module TclObj (
  TclObj
@@ -167,7 +167,7 @@ instance Parseable TclObj where
   asParsed (TclList _ s) = asParsed s
   {-# INLINE asParsed #-}
 
-instance Exprable TclObj Cmd where
+instance Exprable TclObj [Cmd] where
   asCExpr (TclBStr _ _ _ (Left err)) = fail err
   asCExpr (TclBStr _ _ _ (Right ex)) = return ex
   asCExpr _ =  fail "only blocks for now"

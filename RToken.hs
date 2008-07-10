@@ -6,7 +6,7 @@ module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), doInterp, runParse, TokCmd)
+import TclParse (TclWord(..), doInterp, runParse, SubCmd)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
@@ -16,7 +16,7 @@ import Test.HUnit
 
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
-type ExprResult = Either String (CExpr Cmd)
+type ExprResult = Either String (CExpr [Cmd])
 data CmdName = BasicCmd (NSQual BString) | DynCmd (RToken Cmd) deriving (Eq,Show)
 data Cmd = Cmd CmdName [RToken Cmd] deriving (Eq,Show)
 data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a] 
@@ -45,7 +45,7 @@ compile str = case doInterp str of
  where f (Left match) = case parseVarName match of 
                           NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
                           vn                               -> VarRef vn
-       f (Right x)    = compCmd x
+       f (Right x)    = compCmds x
        handle (b,m,a) = let front = [Lit b, f m]
                         in let lst = filter (not . isEmpty) (front ++ [compile a])
                            in case lst of 
@@ -63,9 +63,12 @@ compToken tw = case tw of
           Word s        -> compile s
           NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
           Expand t      -> ExpTok (compToken t)
-          Subcommand c  -> compCmd c
+          Subcommand c  -> compCmds c
 
-compCmd c = CmdTok (toCmd c)
+compCmds c = case map compCmd c of
+               [x] -> x
+               xl   -> CatLst xl
+ where compCmd c = CmdTok (toCmd c)
 
 class Parseable a where
   asParsed :: (Monad m) => a -> m Parsed
@@ -76,7 +79,7 @@ instance Parseable B.ByteString where
                   Right p -> return p
   {-# INLINE asParsed #-}
 
-tokCmdToCmd = toCmd 
+tokCmdToCmd = map toCmd 
 
 tryParsed :: BString -> TokResult
 tryParsed s = fromParsed (runParse s)
@@ -88,10 +91,11 @@ fromParsed m = case m of
 
 fromExpr m = case m of 
    Left w     -> Left $ "expr parse failed: " ++ w
-   Right (r,rs) -> if B.null rs then Right (compileExpr toCmd r) else Left ("incomplete expr parse: " ++ show rs)
+   Right (r,rs) -> if B.null rs then Right (compileExpr (map toCmd) r) else Left ("incomplete expr parse: " ++ show rs)
 
-toCmd :: TokCmd -> Cmd
-toCmd (x,xs) = Cmd (handleProc (compToken x)) (map compToken xs)
+
+toCmd (x,xs) = let (a:as) = map compToken (x:xs)
+               in Cmd (handleProc a) as
   where handleProc (Lit v) = BasicCmd (parseProc v)
         handleProc xx      = DynCmd xx
 

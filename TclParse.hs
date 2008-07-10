@@ -7,6 +7,7 @@ module TclParse ( TclWord(..)
                  ,doVarParse
                  ,parseSub
                  ,TokCmd
+                 ,SubCmd
                  ,parseSubst
                  ,Subst(..)
                  ,tclParseTests
@@ -18,12 +19,14 @@ import Util
 import qualified Data.ByteString.Char8 as B
 import Test.HUnit
 
+
 data TclWord = Word !B.ByteString 
-             | Subcommand TokCmd 
+             | Subcommand SubCmd
              | NoSub !B.ByteString (Result [TokCmd])
              | Expand TclWord deriving (Show,Eq)
 
 type TokCmd = (TclWord, [TclWord])
+type SubCmd = [TokCmd]
 
 
 runParse :: Parser [TokCmd]
@@ -66,12 +69,16 @@ parseRichStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
        inner_var = consumed (doVarParse `orElse` pchar '$')
 
-parseSub :: Parser TokCmd
-parseSub s = do 
-  (p,aft) <- brackets parseTokens $ s
-  case p of
-    [] -> fail "empty subcommand"
-    (ph:pt) -> return ((ph,pt), aft)
+(.>>=) pa f s = do
+  (v,r) <- pa s
+  v2 <- f v 
+  return (v2,r)
+
+parseSub :: Parser SubCmd
+parseSub = brackets $ (parseTokens .>>= unconsc) `sepBy1` (eatSpaces .>> pchar ';')
+ where unconsc p = case p of
+            [] -> fail "empty subcommand"
+            (ph:pt) -> return (ph,pt)
 
 handleEsc :: Parser TclWord
 handleEsc = line_continue `orElse` esc_word
@@ -104,7 +111,7 @@ listItemEnd s = inner 0 False where
 
 
 -- TODO: UGLY
-getInterp :: Parser (BString, Either BString TokCmd)
+getInterp :: Parser (BString, Either BString SubCmd)
 getInterp str = do
    loc <- case B.findIndex (\x -> x == '$' || x == '[') str of
             Just v -> return v
@@ -118,7 +125,7 @@ getInterp str = do
        eatAndContinue f = pjoin (\s (p,v) -> (B.append s p, v)) f getInterp
 
 data Subst = SStr !BString | SEsc !Char | 
-             SVar !BString | SCmd TokCmd deriving (Eq,Show)
+             SVar !BString | SCmd SubCmd deriving (Eq,Show)
 
 parseSubst :: (Bool,Bool,Bool) -> Parser [Subst]
 parseSubst (vars,esc,cmds) = inner `wrapWith` sreduce
@@ -159,7 +166,7 @@ wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
  where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
        inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
        someVar = chain_ [pchar '$', parseVarBody, tryGet parseInd]
-       someCmd = consumed (brackets parseTokens)
+       someCmd = consumed parseSub
 
 parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
  where braceIt w = B.concat ["{", w , "}"]
@@ -270,7 +277,7 @@ getInterpTests = "getInterp" ~: TestList [
     "unescaped $ after esc works" ~:
           ("a \\$", mkvar "variable", "") ?=? "a \\$$variable",
     "Escaped [] crazy" ~:
-       ("a ",Right (Word "sub",[Word "quail [puts 1]"]), " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
+       ("a ",Right [(Word "sub",[Word "quail [puts 1]"])], " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
   ]
  where noInterp str = (getInterp str) `should_fail_` ()
        (?=?) (a,b,c) str = Right ((a,b),c) ~=? getInterp str
@@ -313,7 +320,7 @@ doInterpTests = TestList [
     "brace escape"  ~: "oh [ yeah" ?!= "oh \\[ yeah",
     "tab escape"     ~: "a \t tab"  ?!= "a \\t tab",
     "slash escape"     ~: "slash \\\\ party"  ?!= "slash \\\\\\\\ party",
-    "subcom"   ~: ("some ", Right (Word "cmd", []), "") ?=? "some [cmd]",
+    "subcom"   ~: ("some ", Right [(Word "cmd", [])], "") ?=? "some [cmd]",
     "newline escape" ~: "\nline\n"  ?!= "\\nline\\n"
   ]
  where (?=?) res str = Right res ~=? doInterp str

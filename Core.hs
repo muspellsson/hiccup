@@ -82,7 +82,7 @@ evalExpr e = E.runAsExpr e exprCallback
 exprCallback !v = case v of
     E.VarRef n     -> varGetNS n
     E.FunRef (n,a) -> callProc (NSQual mathfuncTag n) a
-    E.CmdEval cmd  -> runCmd cmd
+    E.CmdEval cmdl  -> runCmds cmdl
 
 mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
 
@@ -97,7 +97,7 @@ subst slash str = do
                Right (v,_) -> return v
     f x = case x of
         SStr s -> return s
-        SCmd c -> evalTcl (tokCmdToCmd c) >>= return . T.asBStr
+        SCmd c -> runCmds (tokCmdToCmd c) >>= return . T.asBStr
         SEsc c -> return . B.singleton $ case c of
                                  'n' -> '\n'
                                  't' -> '\t'

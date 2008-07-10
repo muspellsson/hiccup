@@ -56,7 +56,7 @@ test "upvar create" {
 }
 
 test "error on bad upvar level" {
-  assertErr { upvar 1000 x x }
+  assert_err { upvar 1000 x x }
 }
 
 test "unevaluated blocks aren't parsed" {
@@ -857,15 +857,6 @@ test "global namespace" {
   uplevel { unset a_global }
 }
 
-test "namespace exists 1" { 
-  checkthat [namespace exists imaginary] == 0
-  checkthat [namespace exists ::] 
-  verify { namespace exists {} }
-  namespace eval boo {
-    checkthat [namespace exists ::]
-    checkthat [namespace exists {}] == 0 "empty doesn't exist when not in global"
-  }
-}
 
 test "ns level" {
   finalize { namespace abc } {

@@ -38,6 +38,17 @@ test "namespace children ?ns?" {
   checkthat [lsearch [namespace children foo] ::foo::boo55] == -1
 }
 
+test "namespace exists 1" { 
+  checkthat [namespace exists imaginary] == 0
+  checkthat [namespace exists ::] 
+  verify { namespace exists {} }
+  namespace eval boo {
+    checkthat [namespace exists ::]
+    checkthat [namespace exists {}] == 0 "empty doesn't exist when not in global"
+  }
+  finalize { ns boo }
+}
+
 test "namespace proc 1" {
   finalize { namespace temp } {
     namespace eval temp {

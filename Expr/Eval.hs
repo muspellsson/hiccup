@@ -11,11 +11,13 @@ import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
 
-data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval Cmd
+data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval [Cmd]
 type Callback m = (CBData -> m T.TclObj)
 
 
-runCExpr :: (Monad m) => Callback m -> CExpr Cmd -> m T.TclObj
+type CExprT = CExpr [Cmd]
+
+runCExpr :: (Monad m) => Callback m -> CExprT -> m T.TclObj
 runCExpr lu exp = run exp
  where run e = case e of
                  CItem v -> getItem v

@@ -154,7 +154,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"rand()" `should_be` (DFun "rand" [])
      ,"sin(4)" `should_be` (DFun "sin" [int 4])
      ,"pow(2,3)" `should_be` (DFun "pow" [int 2, int 3])
-     ,"[incr x]" `should_be` (DCom (Word "incr", [Word "x"])) 
+     ,"[incr x]" `should_be` (DCom [(Word "incr", [Word "x"])]) 
    
    ] where should_be = should_be_ parseDep
 
@@ -162,7 +162,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      "11" `should_be` (int 11)
      ,"!0" `should_be` (UnApp OpNot (int 0))
      ,"--4" `should_be` (UnApp OpNeg (int (-4)))
-     ,"![is_done]" `should_be` (UnApp OpNot (DepItem (DCom (Word "is_done", []))))
+     ,"![is_done]" `should_be` (UnApp OpNot (DepItem (DCom [(Word "is_done", [])])))
    ] where should_be = should_be_ parseItem
  
   ternIfTests = TestList [
