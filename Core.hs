@@ -4,7 +4,9 @@ module Core (doCond, evalExpr, evalArgs, subst, coreTests) where
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
-import TclParse (parseSubst, Subst(..))
+import TclParse (parseSubst, Subst(..), escapeChar)
+import TclErr
+import Control.Monad.Error
 import RToken
 import qualified Expr as E
 import Util
@@ -90,18 +92,26 @@ mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
 subst :: Bool -> BString -> TclM BString
 subst slash str = do 
    lst <- mlift $ parseSubst (True,slash,True) str
-   mapM f lst >>= return . B.concat
+   getSubsts lst >>= return . B.concat
  where 
+    endIfErr f ef = f `catchError` (\e -> if toEnum (errCode e) == ef then return [] else throwError e)
+    getSubsts [] = return []
+    getSubsts (x:xs) = good `endIfErr` EBreak
+      where good = do fx <- f x
+                      fxs <- getSubsts xs
+                      return (fx:fxs)
     mlift x = case x of
                Left e -> tclErr e
                Right (v,_) -> return v
+    handleCmdErrs f = f `catchError` handler
+      where handler e = case toEnum (errCode e) of
+                                EReturn -> return (errData e)
+                                EContinue -> return T.empty
+                                _         -> throwError e
     f x = case x of
         SStr s -> return s
-        SCmd c -> runCmds (tokCmdToCmd c) >>= return . T.asBStr
-        SEsc c -> return . B.singleton $ case c of
-                                 'n' -> '\n'
-                                 't' -> '\t'
-                                 _   -> c
+        SCmd c -> handleCmdErrs (runCmds (tokCmdToCmd c)) >>= return . T.asBStr
+        SEsc c -> return . B.singleton . escapeChar $ c
         SVar v -> do 
            val <- case parseVarName v of 
                     NSQual ns (VarName n (Just ind)) -> 

@@ -21,6 +21,12 @@ test "expr" {
   checkthat [expr {1 + 1 * 2}] == 3
 }
 
+test "expr strings escaping" {
+    checkthat [expr {{one\ntwo}}] eq {one\ntwo} {block}
+    set x [expr { "one\ntwo" }]
+    checkthat $x eq "one\ntwo" {string}
+}
+
 test "expr fun parse" {
   checkthat [expr { sin(0.0) + 10 }] == 10.0
 

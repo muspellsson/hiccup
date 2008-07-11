@@ -223,3 +223,15 @@ test "subst" {
     set fish WOO
     checkthat [subst -nobackslashes { \$fish }] eq { \WOO }
 }
+
+test "subst with break" {
+    checkthat [subst {On the [break] !!}] eq "On the "
+}
+
+test "subst with continue" {
+    checkthat [subst {abc,[continue;expr 1+2],def}] eq {abc,,def}
+}
+
+test "subst with return" {
+    checkthat [subst {abc,[return foo;expr 1+2],def}] eq {abc,foo,def}
+}

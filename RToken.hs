@@ -26,18 +26,16 @@ data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a]
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (RToken a)
               | Block !BString TokResult ExprResult deriving (Eq,Show)
 
+compToken :: TclWord -> RTokCmd
+compToken tw = case tw of
+          Word s        -> compile s
+          NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
+          Expand t      -> ExpTok (compToken t)
+          Subcommand c  -> compCmds c
 
--- Bit hacky, but better than no literal handling
-litIfy s 
- | B.length s == 1 = let c = B.index s 0 
-                     in case c of
-                          '0' -> LitInt 0
-                          '1' -> LitInt 1
-                          '2' -> LitInt 2
-                          '3' -> LitInt 3
-                          '4' -> LitInt 4
-                          _   -> Lit s
- | otherwise       = Lit s
+compCmds c = CmdTok (map toCmd c)
+
+makeCExpr = fromExpr . parseFullExpr
 
 
 compile :: BString -> RTokCmd
@@ -54,20 +52,25 @@ compile str = case doInterp str of
                                 [a] -> a
                                 _   -> CatLst lst
 
-isEmpty (Lit x)    = B.null x
-isEmpty (CatLst l) = null l
-isEmpty _          = False
+-- Bit hacky, but better than no literal handling
+litIfy s 
+ | B.length s == 1 = let c = B.index s 0 
+                     in case c of
+                          '0' -> LitInt 0
+                          '1' -> LitInt 1
+                          '2' -> LitInt 2
+                          '3' -> LitInt 3
+                          '4' -> LitInt 4
+                          _   -> Lit s
+ | otherwise       = Lit s
 
-makeCExpr = fromExpr . parseFullExpr
 
-compToken :: TclWord -> RTokCmd
-compToken tw = case tw of
-          Word s        -> compile s
-          NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
-          Expand t      -> ExpTok (compToken t)
-          Subcommand c  -> compCmds c
+isEmpty t = case t of
+        Lit x    -> B.null x
+        CatLst l -> null l
+        _        -> False
 
-compCmds c = CmdTok (map toCmd c)
+
 
 class Parseable a where
   asParsed :: (Monad m) => a -> m Parsed

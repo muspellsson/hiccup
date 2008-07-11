@@ -9,6 +9,7 @@ module TclParse ( TclWord(..)
                  ,TokCmd
                  ,SubCmd
                  ,parseSubst
+                 ,escapeChar
                  ,Subst(..)
                  ,tclParseTests
                 )  where
@@ -193,9 +194,13 @@ escapeStr = optim
        optim s = case B.elemIndex '\\' s of
                     Nothing -> s
                     Just i  -> let (c,r) = B.splitAt i s in B.append c (escape' True (B.drop 1 r))
-       escapeChar 'n' = '\n'
-       escapeChar 't' = '\t'
-       escapeChar  c  = c
+
+{-# INLINE escapeChar #-}
+escapeChar c = case c of
+          'n' -> '\n'
+          't' -> '\t'
+          'a' -> '\a'
+          _  -> c
 
 
 tclParseTests = TestList [ runParseTests, 
