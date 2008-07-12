@@ -11,13 +11,15 @@ import Expr.TExp
 compileExpr fwr = comp
  where comp e = case e of
                 Item v        -> CItem v
-                DepItem (DFun f ex) -> DItem (DFun f (map comp ex))
-                DepItem (DVar vn)   -> DItem (DVar vn)
-                DepItem (DCom cmd)   -> DItem (DCom (fwr cmd))
+                DepItem d     -> DItem (updep d)
+                UnApp op v    -> CApp op (comp v)
                 BinApp op a b -> CApp2 op (comp a) (comp b)
-                UnApp op v -> CApp op (comp v)
-                TernIf a b c -> CTern (comp a) (comp b) (comp c)
+                TernIf a b c  -> CTern (comp a) (comp b) (comp c)
                 Paren e       -> comp e
+       updep d = case d of
+                 DFun f ex -> DFun f (map comp ex)
+                 DCom cmd  -> DCom (fwr cmd)
+                 DVar vn   -> DVar vn
 
 getUnFun op = case op of
   OpNot -> Math.opNot

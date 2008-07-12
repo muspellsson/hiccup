@@ -91,7 +91,7 @@ mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
 
 subst :: Bool -> BString -> TclM BString
 subst slash str = do 
-   lst <- mlift $ parseSubst (True,slash,True) str
+   lst <- elift $ parseSubst (True,slash,True) str
    getSubsts lst >>= return . B.concat
  where 
     endIfErr f ef = f `catchError` (\e -> if toEnum (errCode e) == ef then return [] else throwError e)
@@ -100,7 +100,7 @@ subst slash str = do
       where good = do fx <- f x
                       fxs <- getSubsts xs
                       return (fx:fxs)
-    mlift x = case x of
+    elift x = case x of
                Left e -> tclErr e
                Right (v,_) -> return v
     handleCmdErrs f = f `catchError` handler
