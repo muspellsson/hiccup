@@ -81,7 +81,7 @@ exprToLisp s = case parseExpr (B.pack s) of
 
 parseDep = choose [var,cmd,fun]
  where dep f w = (eatSpaces .>> f) `wrapWith` w
-       var = dep doVarParse (DVar . parseVarName)
+       var = dep parseVar (DVar . parseVarName)
        cmd = dep parseSub DCom
        fun = dep (pjoin DFun fname (paren (commaSep parseExpr))) id
        fname = getPred1 wordChar "function name"

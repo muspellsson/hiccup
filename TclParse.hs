@@ -3,7 +3,7 @@
 module TclParse ( TclWord(..)
                  ,runParse 
                  ,parseList 
-                 ,doVarParse
+                 ,parseVar
                  ,parseSub
                  ,TokCmd
                  ,SubCmd
@@ -70,7 +70,7 @@ mkNoSub s = NoSub s (runParse s)
 parseRichStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
  where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
-       inner_var = consumed (doVarParse `orElse` pchar '$')
+       inner_var = consumed (parseVar `orElse` pchar '$')
 
 (.>>=) pa f s = do
   (v,r) <- pa s
@@ -128,7 +128,7 @@ parseSubst :: SubstArgs -> Parser [Subst]
 parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
  where no_special = getPred1 (`notElem` "\\[$") "non-special chars"
        inner = parseMany (choose [st no_special, 
-                                  may vars SVar doVarParse,
+                                  may vars SVar parseVar,
                                   may cmds SCmd parseSub,
                                   tryEsc,
                                   st parseAny])
@@ -147,20 +147,16 @@ parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
                (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
                (x:xs) -> x : sreduce xs
 
-doVarParse :: Parser BString
-doVarParse = pchar '$' .>> parseVarRef
+parseVar :: Parser BString
+parseVar = pchar '$' .>> parseVarBody
 
-parseVarRef :: Parser BString
-parseVarRef = chain [ initial 
+parseVarBody = chain [ initial 
                       ,tryGet getNS
                       ,tryGet parseInd ]
- where getNS = chain [sep, parseVarTerm, tryGet getNS]
-       initial = chain [tryGet sep, parseVarTerm]
+ where getNS = chain [sep, varTerm, tryGet getNS]
+       initial = chain [tryGet sep, varTerm]
        sep = parseLit "::"
-
-parseVarTerm :: Parser BString
-parseVarTerm = getVar `orElse` braceVar
- where getVar = getPred1 wordChar "word"
+       varTerm = (getPred1 wordChar "word") `orElse` braceVar
 
 parseInd :: Parser BString
 parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
@@ -168,12 +164,8 @@ parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
  where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
        inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
-       someVar = chain_ [pchar '$', parseVarBody, tryGet parseInd]
+       someVar = consumed parseVar
        someCmd = consumed parseSub
-
-parseVarBody = (braceVar `wrapWith` braceIt) `orElse` no_special
- where braceIt w = B.concat ["{", w , "}"]
-       no_special = getPred1 (`notElem` "( ${}[]\n\t;") "inner word"
 
 {-# INLINE escapeChar #-}
 escapeChar c = case c of
@@ -184,7 +176,7 @@ escapeChar c = case c of
 
 
 tclParseTests = TestList [ runParseTests, 
-                           parseVarRefTests,
+                           parseVarBodyTests,
                            parseListTests,
                            parseTokensTests,
                            wordTokenTests, 
@@ -245,7 +237,7 @@ wordTokenTests = "wordToken" ~: TestList [
        should_be str res = Right res ~=? wordToken str
        valid_word x = x `should_be` (x,"")
 
-parseVarRefTests = "parseVarRef" ~: TestList [
+parseVarBodyTests = "parseVarBody" ~: TestList [
      "empty string" ~: "" `should_fail` ()
     ,"standard" ~: "boo" ?=> ("boo", "")
     ,"global" ~: "::boo" ?=> ("::boo", "")
@@ -257,8 +249,8 @@ parseVarRefTests = "parseVarRef" ~: TestList [
     , "mid paren" ~: "::one::two(1)::three" ?=> ("::one::two(1)", "::three")
     , "\\( in index" ~: "x(\\()" ?=> ("x(\\()", "")
    ]
- where (?=>) str (p,r) = Right (p, r) ~=? parseVarRef str
-       should_fail a () = (parseVarRef a) `should_fail_` ()
+ where (?=>) str (p,r) = Right (p, r) ~=? parseVarBody str
+       should_fail a () = (parseVarBody a) `should_fail_` ()
 
 parseListTests = "parseList" ~: TestList [
      " x " `should_be` ["x"]

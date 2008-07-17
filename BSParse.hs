@@ -22,6 +22,7 @@ consumed p s = do
     (_,r) <- p s 
     let lendiff = B.length s - B.length r
     return (B.take lendiff s, r)
+{-# INLINE consumed #-}
 
 orElse :: Parser t -> Parser t -> Parser t
 orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
