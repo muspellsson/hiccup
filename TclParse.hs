@@ -8,8 +8,11 @@ module TclParse ( TclWord(..)
                  ,TokCmd
                  ,SubCmd
                  ,parseSubst
+                 ,parseSubstAll
                  ,escapeChar
                  ,Subst(..)
+                 ,SubstArgs(..)
+                 ,allSubstArgs
                  ,tclParseTests
                 )  where
  
@@ -116,8 +119,13 @@ listItemEnd s = inner 0 False where
 data Subst = SStr !BString | SEsc !Char | 
              SVar !BString | SCmd SubCmd deriving (Eq,Show)
 
-parseSubst :: (Bool,Bool,Bool) -> Parser [Subst]
-parseSubst (vars,esc,cmds) = inner `wrapWith` sconcat
+data SubstArgs = SubstArgs { s_vars :: Bool, s_esc :: Bool, s_cmds :: Bool } deriving Show
+
+allSubstArgs = SubstArgs True True True
+parseSubstAll = parseSubst allSubstArgs
+
+parseSubst :: SubstArgs -> Parser [Subst]
+parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
  where no_special = getPred1 (`notElem` "\\[$") "non-special chars"
        inner = parseMany (choose [st no_special, 
                                   may vars SVar doVarParse,
@@ -304,6 +312,7 @@ parseSubstTests = "parseSubst" ~: TestList [
     ,(no_esc, " \\$fish ") `should_be` [SStr " \\", SVar "fish", SStr " "]
   ]
  where should_be (opt, str) res = (B.unpack str) ~: Right (res,"") ~=? parseSubst opt str
-       all_on = (True,True,True)
-       no_esc = (True,False,True)
-       no_var = (False,True,True)
+       ma (v,e,c) = SubstArgs v e c
+       all_on = ma (True,True,True)
+       no_esc = ma (True,False,True)
+       no_var = ma (False,True,True)

@@ -7,6 +7,7 @@ import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import System.Posix.Process (getProcessID)
 import Core (evalExpr,subst)
+import TclParse (SubstArgs(..), allSubstArgs)
 import Common
 import Format
 import ArgParse
@@ -86,10 +87,14 @@ cmdFormat args = case args of
    (x:xs) -> formatString (T.asBStr x) xs >>= return . T.fromBStr
    _      -> argErr "format"
 
-substArgs = boolFlagSpec "nobackslashes" 1
+substArgs = mkArgSpecs 1 [
+     NoArg "nobackslashes" (\s -> s { s_esc = False }),
+     NoArg "nocommands" (\s -> s { s_cmds = False }),
+     NoArg "novariables" (\s -> s { s_vars = False })
+   ]
 
 cmdSubst args_ = do
-  (noslash,args) <- parseArgs substArgs False args_
+  (sargs,args) <- parseArgs substArgs allSubstArgs args_
   case args of
-   [x] -> subst (not noslash) (T.asBStr x) >>= return . T.fromBStr
+   [x] -> subst sargs (T.asBStr x) >>= return . T.fromBStr
    _   -> argErr "subst"

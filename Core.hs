@@ -4,7 +4,7 @@ module Core (doCond, evalExpr, evalArgs, subst, coreTests) where
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
-import TclParse (parseSubst, Subst(..), escapeChar)
+import TclParse (parseSubst, Subst(..), SubstArgs, allSubstArgs, escapeChar)
 import TclErr
 import Control.Monad.Error
 import RToken
@@ -89,9 +89,9 @@ exprCallback !v = case v of
 mathfuncTag = Just (parseNSTag "::tcl::mathfunc")
 
 
-subst :: Bool -> BString -> TclM BString
-subst slash str = do 
-   lst <- elift $ parseSubst (True,slash,True) str
+subst :: SubstArgs -> BString -> TclM BString
+subst sargs str = do 
+   lst <- elift $ parseSubst sargs str
    getSubsts lst >>= return . B.concat
  where 
     endIfErr f ef = f `catchError` (\e -> if toEnum (errCode e) == ef then return [] else throwError e)
@@ -115,7 +115,7 @@ subst slash str = do
         SVar v -> do 
            val <- case parseVarName v of 
                     NSQual ns (VarName n (Just ind)) -> 
-                         subst True ind >>= \i2 -> varGetNS (NSQual ns (arrName n i2))
+                         subst allSubstArgs ind >>= \i2 -> varGetNS (NSQual ns (arrName n i2))
                     vn                               -> varGetNS vn
            return (T.asBStr val)
 

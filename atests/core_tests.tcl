@@ -224,6 +224,16 @@ test "subst" {
     checkthat [subst -nobackslashes { \$fish }] eq { \WOO }
 }
 
+test "subst -novariables" {
+    set x OHMYGOD
+    checkthat [subst -novariables { $x $x }] eq { $x $x }
+}
+
+test "subst -nocommands" {
+    set x 4
+    checkthat [subst -nocommands { 3 [incr x] [incr x] }] eq { 3 [incr x] [incr x] }
+}
+
 test "subst with break" {
     checkthat [subst {On the [break] !!}] eq "On the "
 }

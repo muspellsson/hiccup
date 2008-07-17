@@ -7,7 +7,7 @@ module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), runParse, parseSubst, Subst(..), escapeChar)
+import TclParse (TclWord(..), runParse, parseSubstAll, Subst(..), escapeChar)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
@@ -38,7 +38,7 @@ compCmds c = CmdTok (map toCmd c)
 makeCExpr = fromExpr . parseFullExpr
 
 compile :: BString -> RTokCmd
-compile str = clean . tconcat . map f . elift . parseSubst (True,True,True) $ str
+compile str = clean . tconcat . map f . elift . parseSubstAll $ str
  where clean [r] = r 
        clean rl  = CatLst rl
        tconcat (Lit a:Lit b:xs) = tconcat (Lit (B.append a b):xs)
