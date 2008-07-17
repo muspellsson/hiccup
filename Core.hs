@@ -110,7 +110,7 @@ subst sargs str = do
                                 _         -> throwError e
     f x = case x of
         SStr s -> return s
-        SCmd c -> handleCmdErrs (runCmds (tokCmdToCmd c)) >>= return . T.asBStr
+        SCmd c -> handleCmdErrs (runCmds (subCmdToCmds c)) >>= return . T.asBStr
         SEsc c -> return . B.singleton . escapeChar $ c
         SVar v -> do 
            val <- case parseVarName v of 

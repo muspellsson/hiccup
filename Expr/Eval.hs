@@ -6,7 +6,7 @@ import Expr.Compile
 import qualified TclObj as T
 import VarName
 import Util
-import RToken (Cmd, tokCmdToCmd)
+import RToken (Cmd, subCmdToCmds)
 import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
@@ -66,7 +66,7 @@ runExpr lu exp = run exp
        getDep item = case item of
                         DVar vn   -> lu (VarRef vn)
                         DFun fn e -> mapM run e >>= callFun fn
-                        DCom cmd  -> lu (CmdEval (tokCmdToCmd cmd))
+                        DCom cmd  -> lu (CmdEval (subCmdToCmds cmd))
 
 
 exprEvalTests = TestList [evalTests, varEvalTests] where

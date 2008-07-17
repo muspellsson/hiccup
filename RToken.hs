@@ -1,5 +1,5 @@
 module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable, Parsed, 
-  tokCmdToCmd,
+  subCmdToCmds,
   RTokCmd,
   TokResult,
   ExprResult,
@@ -7,7 +7,7 @@ module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), runParse, parseSubstAll, Subst(..), escapeChar)
+import TclParse (TclWord(..), runParse, parseSubstAll, Subst(..), escapeChar, SubCmd)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
@@ -18,9 +18,9 @@ import Test.HUnit
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
 type ExprResult = Either String (CExpr [Cmd])
+data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
 data CmdName = BasicCmd (NSQual BString) | DynCmd (RTokCmd) deriving (Eq,Show)
 type RTokCmd = RToken [Cmd]
-data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
 data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a] 
               | CmdTok !a | ExpTok (RToken a)
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (RToken a)
@@ -33,18 +33,18 @@ compToken tw = case tw of
           Expand t      -> ExpTok (compToken t)
           Subcommand c  -> compCmds c
 
-compCmds c = CmdTok (map toCmd c)
+compCmds c = CmdTok (subCmdToCmds c)
 
 makeCExpr = fromExpr . parseFullExpr
 
 compile :: BString -> RTokCmd
-compile str = clean . tconcat . map f . elift . parseSubstAll $ str
+compile str = clean . tconcat . map toTok . elift . parseSubstAll $ str
  where clean [r] = r 
        clean rl  = CatLst rl
        tconcat (Lit a:Lit b:xs) = tconcat (Lit (B.append a b):xs)
        tconcat (x:xs) = x : tconcat xs
        tconcat [] = []
-       f x = case x of
+       toTok x = case x of
           SStr s -> litIfy s
           SCmd c -> compCmds c
           SEsc c -> litIfy . B.singleton . escapeChar $ c
@@ -79,7 +79,8 @@ instance Parseable B.ByteString where
                   Right p -> return p
   {-# INLINE asParsed #-}
 
-tokCmdToCmd = map toCmd 
+subCmdToCmds :: SubCmd -> [Cmd]
+subCmdToCmds = map toCmd 
 
 tryParsed :: BString -> TokResult
 tryParsed s = fromParsed (runParse s)
@@ -87,11 +88,11 @@ tryParsed s = fromParsed (runParse s)
 
 fromParsed m = case m of 
    Left w     -> Left $ "parse failed: " ++ w
-   Right (r,rs) -> if B.null rs then Right (map toCmd r) else Left ("incomplete parse: " ++ show rs)
+   Right (r,rs) -> if B.null rs then Right (subCmdToCmds r) else Left ("incomplete parse: " ++ show rs)
 
 fromExpr m = case m of 
    Left w     -> Left $ "expr parse failed: " ++ w
-   Right (r,rs) -> if B.null rs then Right (compileExpr (map toCmd) r) else Left ("incomplete expr parse: " ++ show rs)
+   Right (r,rs) -> if B.null rs then Right (compileExpr subCmdToCmds r) else Left ("incomplete expr parse: " ++ show rs)
 
 
 toCmd (x,xs) = let (a:as) = map compToken (x:xs)
@@ -117,7 +118,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"2" ~: (mknosub "puts 4") `tok_to` (block "puts 4" [Cmd (BasicCmd (vlocal "puts")) [ilit 4]])
     ]
   
-  block s v = Block (pack s) (Right v) ((fromExpr . parseFullExpr . pack) s)
+  block s v = Block (pack s) (Right v) ((makeCExpr . pack) s)
   mknosub s = NoSub (pack s) (runParse (pack s))
   mkwd = Word . pack
   lit = Lit . pack 

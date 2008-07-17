@@ -38,6 +38,9 @@ instance BStringable B.ByteString where
 instance BStringable NSTag where
   toBStr (NS g lst) = B.append (if g then nsSep else B.empty) (B.intercalate nsSep lst)
 
+instance BStringable VarName where
+  toBStr (VarName n Nothing) = n
+  toBStr (VarName n (Just ind)) = B.concat [n, B.singleton '(', ind, B.singleton ')']
 instance (BStringable a) => BStringable (NSQual a) where
   toBStr (NSQual (Just t) s) = B.append (toBStr t) (toBStr s)
   toBStr (NSQual _ s) = toBStr s

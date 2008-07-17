@@ -64,9 +64,11 @@ data OpDef = OpDef { opName :: BString, opCode :: Op, opPrec :: Int }
 
 
 showExpr exp = case exp of
-         Item (ANum i) -> show i
+         Item (ANum (TInt i)) -> show i
+         Item (ANum (TDouble d)) -> show d
          Item (AStr i) -> show i
          DepItem (DFun s e) -> "(" ++ B.unpack s ++ " " ++ concatMap showExpr e ++ ")"
+         DepItem (DVar nsqv) -> B.unpack (toBStr nsqv)
          DepItem x -> show x
          Paren e -> showExpr e
          UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
