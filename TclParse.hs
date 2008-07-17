@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 
 module TclParse ( TclWord(..)
-                 ,doInterp 
                  ,runParse 
                  ,parseList 
                  ,doVarParse
@@ -104,32 +103,21 @@ getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
  where (w,n) = B.splitAt (listItemEnd s) s
 
 listItemEnd s = inner 0 False where 
+   isTerminal = (`B.elem` "{}\" \t\n")
    inner i esc = if i == B.length s then i
                      else if esc then inner (i+1) False
                            else case B.index s i of
                                   '\\' -> inner (i+1) True
-                                  v  -> if v `B.elem` "{}\" \t\n" then i else inner (i+1) False
+                                  v  -> if isTerminal v then i else inner (i+1) False
 
 
--- TODO: UGLY
-getInterp :: Parser (BString, Either BString SubCmd)
-getInterp str = do
-   loc <- case B.findIndex (\x -> x == '$' || x == '[') str of
-            Just v -> return v
-            Nothing -> fail "no matching $ or ["
-   if escaped loc str
-     then dorestfrom loc str
-     else let res = pjoin (,) (parseLen loc) interpItem
-          in (res `orElse` dorestfrom loc) str
- where dorestfrom loc = eatAndContinue (parseLen (loc+1)) 
-       interpItem = (doVarParse `wrapWith` Left) `orElse` (parseSub `wrapWith` Right) 
-       eatAndContinue f = pjoin (\s (p,v) -> (B.append s p, v)) f getInterp
-
+-- TODO: Is SEsc really useful? Escaped chars are probably always handled
+-- the same way, and could be done here.
 data Subst = SStr !BString | SEsc !Char | 
              SVar !BString | SCmd SubCmd deriving (Eq,Show)
 
 parseSubst :: (Bool,Bool,Bool) -> Parser [Subst]
-parseSubst (vars,esc,cmds) = inner `wrapWith` sreduce
+parseSubst (vars,esc,cmds) = inner `wrapWith` sconcat
  where no_special = getPred1 (`notElem` "\\[$") "non-special chars"
        inner = parseMany (choose [st no_special, 
                                   may vars SVar doVarParse,
@@ -140,6 +128,12 @@ parseSubst (vars,esc,cmds) = inner `wrapWith` sreduce
        may b c f = if b then f `wrapWith` c else st (consumed f)
        tryEsc = if esc then (escChar `wrapWith` SEsc) else (\_ -> fail "no esc") 
        escChar = pchar '\\' .>> (parseAny `wrapWith` B.head)
+       sconcat [] = []
+       sconcat (SStr s:xs) = let (sl,r) = spanStrs xs []
+                             in SStr (B.concat (s:sl)) : sconcat r 
+       sconcat (t:xs) = t : sconcat xs
+       spanStrs (SStr x:xs) a = spanStrs xs (x:a)
+       spanStrs rst a = (reverse a,rst)
        sreduce lst = case lst of
                []                 -> []
                (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
@@ -169,31 +163,9 @@ wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
        someVar = chain_ [pchar '$', parseVarBody, tryGet parseInd]
        someCmd = consumed parseSub
 
-parseVarBody = (braceVar `wrapWith` braceIt) `orElse` pthing
+parseVarBody = (braceVar `wrapWith` braceIt) `orElse` no_special
  where braceIt w = B.concat ["{", w , "}"]
-       pthing = getPred1 (`notElem` "( ${}[]\n\t;") "inner word"
-
-escaped v s = escaped' v
- where escaped' !i
-         | i <= 0    = False 
-         | otherwise = (B.index s (i-1) == '\\') && not (escaped' (i-1))
-
-doInterp str = case getInterp str of
-                   Left _ -> Left (escapeStr str)
-                   Right ((pr,s), r) -> Right (escapeStr pr, s, r)
-
-escapeStr = optim
- where escape' !esc !lx =
-          case B.uncons lx of
-            Nothing -> lx
-            Just (x,xs) -> case (x, esc) of
-                             ('\\', False) -> escape' True xs
-                             ('\\', True)  -> B.cons x (optim xs)
-                             (_, False)    -> B.cons x (optim xs)
-                             (_, True)     -> B.cons (escapeChar x) (optim xs)
-       optim s = case B.elemIndex '\\' s of
-                    Nothing -> s
-                    Just i  -> let (c,r) = B.splitAt i s in B.append c (escape' True (B.drop 1 r))
+       no_special = getPred1 (`notElem` "( ${}[]\n\t;") "inner word"
 
 {-# INLINE escapeChar #-}
 escapeChar c = case c of
@@ -208,11 +180,8 @@ tclParseTests = TestList [ runParseTests,
                            parseListTests,
                            parseTokensTests,
                            wordTokenTests, 
-                           getInterpTests,
                            parseRichStrTests,
-                           doInterpTests,
                            commentTests,
-                           testEscaped,
                            parseSubstTests]
 
 commentTests = "parseComment" ~: TestList [
@@ -251,43 +220,6 @@ runParseTests = "runParse" ~: TestList [
        pr (x:xs) = ([(Word x, map Word xs)], "")
        pr []     = error "bad test!"
 
-getInterpTests = "getInterp" ~: TestList [
-    "Escaped $ works" ~: noInterp "a \\$variable",
-    "Bracket interp 1" ~: ("", mkvar "booga", "") ?=? "${booga}",
-    "Bracket interp 2" ~: ("", mkvar "oh yeah!", "") ?=? "${oh yeah!}",
-    "Bracket interp 3" ~: (" ", mkvar " !?! ", " ") ?=? " ${ !?! } ",
-    "global namespace" ~: ("", mkvar "::booga", "") ?=? "$::booga",
-    ":::"              ~: noInterp "$:::booga",
-    "some namespace" ~: ("", mkvar "log::booga", "") ?=? "$log::booga", -- TODO
-    "unescaped $ works" ~:
-          ("a ", mkvar "variable", "")  ?=? "a $variable",
-    "escaped $ works" ~:
-          ("a \\$ ", mkvar "variable", "")  ?=? "a \\$ $variable",
-    "escaped $ works 2" ~:
-          noInterp  "you deserve \\$44.",
-    "adjacent interp works" ~:
-          ("", mkvar "var", "$bar$car")  ?=? "$var$bar$car",
-    "interp after escaped dolla" ~:
-          ("a \\$", mkvar "name", " guy")  ?=? "a \\$$name guy",
-    "interp after dolla" ~:
-          ("you have $", mkvar "dollars", "")  ?=? "you have $$dollars",
-    "Escaped ["   ~: noInterp "a \\[sub] thing.",
-    "Trailing bang" ~: ("", mkvar "var",  "!" ) ?=? "$var!",
-    "basic arr" ~: ("", mkvar "boo(4)", " " ) ?=? "$boo(4) ",
-    "basic arr2" ~: (" ", mkvar "boo(4)", " " ) ?=? " $boo(4) ",
-    "basic arr3" ~: ("", mkvar "boo( 4,5 )", " " ) ?=? "$boo( 4,5 ) ",
-    "Escaped []"   ~: noInterp "a \\[sub\\] thing.",
-    "Lone $ works" ~: noInterp "a $ for the head of each rebel!",
-    "Escaped lone $ works" ~: noInterp "a \\$ for the head of each rebel!",
-    "unescaped $ after esc works" ~:
-          ("a \\$", mkvar "variable", "") ?=? "a \\$$variable",
-    "Escaped [] crazy" ~:
-       ("a ",Right [(Word "sub",[Word "quail [puts 1]"])], " thing.") ?=? "a [sub \"quail [puts 1]\" ] thing."
-  ]
- where noInterp str = (getInterp str) `should_fail_` ()
-       (?=?) (a,b,c) str = Right ((a,b),c) ~=? getInterp str
-       mkvar w = Left w
-
 wordTokenTests = "wordToken" ~: TestList [
      "empty" ~: "" `should_fail` ()
      ,"Simple2" ~: ("$whoa", "") ?=? "$whoa"
@@ -319,26 +251,6 @@ parseVarRefTests = "parseVarRef" ~: TestList [
    ]
  where (?=>) str (p,r) = Right (p, r) ~=? parseVarRef str
        should_fail a () = (parseVarRef a) `should_fail_` ()
-
-doInterpTests = TestList [
-    "dollar escape"  ~: "oh $ yeah" ?!= "oh \\$ yeah",
-    "brace escape"  ~: "oh [ yeah" ?!= "oh \\[ yeah",
-    "tab escape"     ~: "a \t tab"  ?!= "a \\t tab",
-    "slash escape"     ~: "slash \\\\ party"  ?!= "slash \\\\\\\\ party",
-    "subcom"   ~: ("some ", Right [(Word "cmd", [])], "") ?=? "some [cmd]",
-    "newline escape" ~: "\nline\n"  ?!= "\\nline\\n"
-  ]
- where (?=?) res str = Right res ~=? doInterp str
-       (?!=) res str = Left res ~=? doInterp str
-
-testEscaped = TestList [
-        (escaped 1 "\\\"") ~? "pre-slashed quote should be escaped",
-        checkFalse "non-slashed quote not escaped"  (escaped 1 " \""),
-        checkFalse "non-slashed quote not escaped"  (escaped 1 " \""),
-        (escaped 2 " \\\"") ~? "pre-slashed quote should be escaped",
-        checkFalse "non-slashed quote not escaped"  (escaped 2 "  \"")
-  ]
- where checkFalse str val = TestCase $ assertBool str (not val)
 
 parseListTests = "parseList" ~: TestList [
      " x " `should_be` ["x"]

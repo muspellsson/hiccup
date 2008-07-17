@@ -7,7 +7,7 @@ module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), doInterp, runParse, parseSubst,SubCmd, Subst(..), escapeChar)
+import TclParse (TclWord(..), runParse, parseSubst, Subst(..), escapeChar)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
@@ -28,7 +28,7 @@ data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a]
 
 compToken :: TclWord -> RTokCmd
 compToken tw = case tw of
-          Word s        -> compile2 s
+          Word s        -> compile s
           NoSub s res   -> Block s (fromParsed res) (makeCExpr s)
           Expand t      -> ExpTok (compToken t)
           Subcommand c  -> compCmds c
@@ -37,8 +37,8 @@ compCmds c = CmdTok (map toCmd c)
 
 makeCExpr = fromExpr . parseFullExpr
 
-compile2 :: BString -> RTokCmd
-compile2 str = clean . tconcat . map f . elift . parseSubst (True,True,True) $ str
+compile :: BString -> RTokCmd
+compile str = clean . tconcat . map f . elift . parseSubst (True,True,True) $ str
  where clean [r] = r 
        clean rl  = CatLst rl
        tconcat (Lit a:Lit b:xs) = tconcat (Lit (B.append a b):xs)
@@ -49,26 +49,13 @@ compile2 str = clean . tconcat . map f . elift . parseSubst (True,True,True) $ s
           SCmd c -> compCmds c
           SEsc c -> litIfy . B.singleton . escapeChar $ c
           SVar v -> case parseVarName v of 
-                      NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile2 ind)
+                      NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
                       vn                               -> VarRef vn
 
 elift x = case x of
             Left e -> error e
             Right (v,_) -> v
 
-compile :: BString -> RTokCmd
-compile str = case doInterp str of
-                   Left s  -> litIfy s
-                   Right x -> handle x
- where f (Left match) = case parseVarName match of 
-                          NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
-                          vn                               -> VarRef vn
-       f (Right x)    = compCmds x
-       handle (b,m,a) = let front = [Lit b, f m]
-                        in let lst = filter (not . isEmpty) (front ++ [compile a])
-                           in case lst of 
-                                [a] -> a
-                                _   -> CatLst lst
 
 -- Bit hacky, but better than no literal handling
 litIfy s 
@@ -81,13 +68,6 @@ litIfy s
                           '4' -> LitInt 4
                           _   -> Lit s
  | otherwise       = Lit s
-
-
-isEmpty t = case t of
-        Lit x    -> B.null x
-        CatLst l -> null l
-        _        -> False
-
 
 
 class Parseable a where
@@ -128,6 +108,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
       ,"x(G) -> ArrRef x G" ~: "$x(G)" `compiles_to` (arrref "x" (lit "G"))  
       ,"CatLst" ~: "$x$y" `compiles_to` (CatLst [varref "x", varref "y"])  
       ,"lit" ~: "incr x -1" `compiles_to` lit "incr x -1"
+      ,"esced" ~: "one \\n two \\n three" `compiles_to` (lit "one \n two \n three")
       ,"cmd" ~: "[double 4]" `compiles_to` cmdTok (BasicCmd (vlocal "double"), [ilit 4])
     ]
 
@@ -147,5 +128,5 @@ rtokenTests = TestList [compTests, compTokenTests] where
   arrref s t = ArrRef Nothing (pack s) t
   tok_to a b = do let r = compToken a
                   assertEqual (show a ++ " compiles to " ++ show b) b r
-  compiles_to a b = do let r = compile2 (pack a)
+  compiles_to a b = do let r = compile (pack a)
                        assertEqual (show a ++ " compiles to " ++ show b) b r
