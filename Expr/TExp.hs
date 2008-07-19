@@ -7,7 +7,7 @@ import Util
 
 data TNum = TInt !Int | TDouble !Double deriving (Show,Eq)
 
-data Atom = AStr !BString | ANum !TNum 
+data Atom = AStr !BString | ABlock !BString | ANum !TNum 
              deriving (Eq,Show)
 
 data Dep c a = DCom c

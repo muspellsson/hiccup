@@ -67,6 +67,7 @@ showExpr exp = case exp of
          Item (ANum (TInt i)) -> show i
          Item (ANum (TDouble d)) -> show d
          Item (AStr i) -> show i
+         Item (ABlock i) -> show i
          DepItem (DFun s e) -> "(" ++ B.unpack s ++ " " ++ concatMap showExpr e ++ ")"
          DepItem (DVar nsqv) -> B.unpack (toBStr nsqv)
          DepItem x -> show x
@@ -88,9 +89,10 @@ parseDep = choose [var,cmd,fun]
        fun = dep (pjoin DFun fname (paren (commaSep parseExpr))) id
        fname = getPred1 wordChar "function name"
 
-parseAtom = choose [str,num,bool]
+parseAtom = choose [str,num,block,bool]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
-        str = atom (parseStr `orElse` parseBlock) AStr
+        str = atom parseStr AStr
+        block = atom parseBlock ABlock
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)
 
@@ -140,6 +142,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
   int i = Item (ANum (TInt i))
   dub d = Item (ANum (TDouble d))
   str s = Item (AStr s)
+  blo s = Item (ABlock s)
   app2 a op b = BinApp op a b
   app1 op a = UnApp op a
   should_be_ p dat res = (B.unpack dat) ~: Right (res, "") ~=? p dat
@@ -148,7 +151,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"true" `should_be` (ANum (TInt 1))
      ,"false" `should_be` (ANum (TInt 0))
      ,"\"what\"" `should_be` (AStr "what")
-     ,"{what \" }" `should_be` (AStr "what \" ")
+     ,"{what \" }" `should_be` (ABlock "what \" ")
    ] where should_be = should_be_ parseAtom
 
   depTests = TestList [
@@ -185,9 +188,9 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      ,"2 << 1 < 5" `should_be` (app2 (app2 (int 2) OpLShift (int 1)) OpLt (int 5))
      ,"!(3 == 5)" `should_be` (app1 OpNot (Paren (app2 (int 3) OpEql (int 5))))
      ,"4 in \"1 4 8\"" `should_be` (app2 (int 4) OpIn (str "1 4 8"))
-     ,"4 in { 1 4 8 }" `should_be` (app2 (int 4) OpIn (str " 1 4 8 "))
+     ,"4 in { 1 4 8 }" `should_be` (app2 (int 4) OpIn (blo " 1 4 8 "))
      ," 1 ? 55 : 44" `should_be` (TernIf (int 1) (int 55) (int 44))
-     ," 3 > 4 ? {yes} : {no}" `should_be` (TernIf (app2 (int 3) OpGt (int 4)) (str "yes") (str "no"))
+     ," 3 > 4 ? {yes} : {no}" `should_be` (TernIf (app2 (int 3) OpGt (int 4)) (blo "yes") (blo "no"))
    ] where should_be dat res = (B.unpack dat) ~: Right (res, "") ~=? parseExpr dat
   
   numTests = TestList [
