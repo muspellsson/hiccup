@@ -38,7 +38,7 @@ evalRTokens (x:xs) acc = case x of
             LitInt i  -> nextWith (return $! T.fromInt i) 
             CmdTok t  -> nextWith (runCmds t)
             VarRef vn -> nextWith (varGetNS vn)
-            Block s p e -> nextWith (return $! T.fromBlock s p e) 
+            Block s p -> nextWith (return $! T.fromBlock s p) 
             ArrRef ns n i -> do
                  ni <- evalArgs [i] >>= return . T.asBStr . head
                  nextWith (varGetNS (NSQual ns (arrName n ni))) 

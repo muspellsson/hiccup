@@ -82,7 +82,7 @@ compToken tok = case tok of
   R.ExpTok t -> compToken t >>= return . ExpTok
   R.ArrRef mtag n t -> compToken t >>= \nt -> return $ ArrRef mtag n nt
   R.VarRef v -> return $ VarRef v
-  R.Block s t e -> return (Block (T.fromBlock s t e))
+  R.Block s p -> return (Block (T.fromBlock s p))
   R.Lit s           -> return $! Lit (T.fromBStr s)
   R.LitInt i        -> return $! Lit (T.fromInt i)
   R.CatLst lst      -> mapM compToken lst >>= return . CatLst

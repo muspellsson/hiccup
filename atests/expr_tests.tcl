@@ -27,6 +27,10 @@ test "expr strings escaping" {
     checkthat $x eq "one\ntwo" {string}
 }
 
+test "expr str with str" {
+    assert_noerr { expr { "[set x "X"]" eq "X" } }
+}
+
 test "expr fun parse" {
   checkthat [expr { sin(0.0) + 10 }] == 10.0
 

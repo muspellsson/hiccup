@@ -31,7 +31,7 @@ import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (asParsed, tryParsed, singleTok, Parseable, makeCExpr, Cmd,
-               TokResult, ExprResult)
+               ParseResult)
 import TObj
 import Expr.TExp (Exprable(..))
 import Util
@@ -45,17 +45,17 @@ import Test.HUnit
 data TclObj = TclInt !Int BString |
               TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
-              TclBStr !BString (Maybe Int) TokResult ExprResult
+              TclBStr !BString (Maybe Int) ParseResult
   deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
-mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s) (makeCExpr s)
+mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s, makeCExpr s)
 {-# INLINE mkTclBStr #-}
 
 fromList l = TclList (S.fromList l) (list2Str (map asBStr l))
 fromSeq l = TclList l (list2Str (map asBStr (F.toList l)))
 
-fromBlock s p e = TclBStr s (maybeInt s) p e
+fromBlock s p = TclBStr s (maybeInt s) p
 {-# INLINE fromBlock #-}
 
 
@@ -72,7 +72,7 @@ mkTclDouble :: Double -> TclObj
 mkTclDouble !d = TclDouble d bsval
  where bsval = pack (show d)
 
-empty = TclBStr BS.empty Nothing (Left "bad parse") (Left "emtpy expr")
+empty = TclBStr BS.empty Nothing (Left "bad parse", Left "emtpy expr")
 isEmpty v = case v of
         TclInt _ _    -> False
         TclDouble _ _ -> False
@@ -110,17 +110,21 @@ asList o = liftM F.toList (asSeq o)
 
 asStr o = unpack (asBStr o)
 
+tryEither e = case e of
+               Left err -> fail err
+               Right v  -> return v
+
 instance ITObj TclObj where
   asBool (TclList _ bs)   = bs `elem` trueValues
   asBool (TclInt i _)     = i /= 0
   asBool (TclDouble d _)  = d /= 0.0
-  asBool (TclBStr bs _ _ _) = bs `elem` trueValues
+  asBool (TclBStr bs _ _) = bs `elem` trueValues
   {-# INLINE asBool #-}
 
   asInt (TclInt i _) = return i
   asInt (TclDouble _ b) = badInt b
-  asInt (TclBStr _ (Just i) _ _) = return i
-  asInt (TclBStr v Nothing _ _) = badInt v
+  asInt (TclBStr _ (Just i) _) = return i
+  asInt (TclBStr v Nothing _) = badInt v
   asInt (TclList _ v)         = bstrAsInt v
   {-# INLINE asInt #-}
 
@@ -137,13 +141,13 @@ instance ITObj TclObj where
   {-# INLINE asDouble #-}
 
   asBStr o = case o of
-    TclBStr s _ _ _ -> s
+    TclBStr s _ _ -> s
     TclInt _ s      -> s
     TclDouble _ s   -> s
     TclList _ s     -> s
   {-# INLINE asBStr #-}
 
-  asSeq (TclBStr s _ _ _) = bstrAsSeq s >>= return . fmap mkTclBStr
+  asSeq (TclBStr s _ _) = bstrAsSeq s >>= return . fmap mkTclBStr
   asSeq (TclList l _)   = return l
   asSeq v               = return (S.singleton v)
 
@@ -160,16 +164,14 @@ instance ITObj TclObj where
   strNe o1            o2            = asBStr o1 /= asBStr o2 
 
 instance Parseable TclObj where
-  asParsed (TclBStr _ _ (Left f) _)  = fail f
-  asParsed (TclBStr _ _ (Right r) _) = return r
+  asParsed (TclBStr _ _ (p,_))  = tryEither p
   asParsed (TclInt _ b) = return (singleTok b)
   asParsed (TclDouble _ b)  = return (singleTok b)
   asParsed (TclList _ s) = asParsed s
   {-# INLINE asParsed #-}
 
 instance Exprable TclObj [Cmd] where
-  asCExpr (TclBStr _ _ _ (Left err)) = fail err
-  asCExpr (TclBStr _ _ _ (Right ex)) = return ex
+  asCExpr (TclBStr _ _ (_,p)) = tryEither p
   asCExpr _ =  fail "only blocks for now"
   {-# INLINE asCExpr #-}
 

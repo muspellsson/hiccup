@@ -67,7 +67,7 @@ parseToken str = do
 
 mkNoSub s = NoSub s (runParse s)
 
-parseRichStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
+parseRichStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
        inner_var = consumed (parseVar `orElse` pchar '$')

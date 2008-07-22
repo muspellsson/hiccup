@@ -110,6 +110,7 @@ parseItem = (parseAtom `wrapWith` Item)
 
 parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
+
 parseExpr = eatSpaces .>> expTerm
  where expTerm str = do
          (i1,r) <- parseItem str
@@ -119,7 +120,8 @@ parseExpr = eatSpaces .>> expTerm
 
 pchar_ c = eatSpaces .>> pchar c
 
-parseTernIf = pchar_ '?' .>> pjoin (,) parseExpr (pchar_ ':' .>> parseExpr)
+pair_with = pjoin (,)
+parseTernIf = pchar_ '?' .>> parseExpr `pair_with` (pchar_ ':' .>> parseExpr)
 
 fixApp a@(BinApp op2 a2 b2) op b =  
       if op `higherPrec` op2 then BinApp op2 a2 (BinApp op b2 b)
@@ -130,7 +132,7 @@ fixApp a op b@(BinApp op2 a2 b2) =
                              else BinApp op a b
 fixApp a op b = BinApp op a b
 
-paren p = (pchar '(' .>> p) `pass` (pchar_ ')')
+paren = between (pchar '(') (pchar_ ')')
 
 parseOp = eatSpaces .>> choose plist
  where sop s v = parseLit s .>> emit v
@@ -174,8 +176,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
      " 1 ? 3 : 4" `should_be` (int 1, int 3, int 4)
      ,"1?3:4" `should_be` (int 1, int 3, int 4)
      ,"true? 3 + 4 : 2 * 4" `should_be` (int 1, app2 (int 3) OpPlus (int 4), app2 (int 2) OpTimes (int 4))
-   ] where should_be dat (a,b,c) = (B.unpack dat) ~: Right ((a,(b,c)), "") ~=? (parseItem `pair` parseTernIf) dat
-           pair a b = pjoin (,) a b
+   ] where should_be dat (a,b,c) = (B.unpack dat) ~: Right ((a,(b,c)), "") ~=? (parseItem `pair_with` parseTernIf) dat
 
   exprTests = TestList [
      "11" `should_be` (int 11)

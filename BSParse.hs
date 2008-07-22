@@ -121,20 +121,24 @@ commaSep p = (p `sepBy1` (eatSpaces .>> pchar ',')) `orElse` (emit [])
 safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)
 {-# INLINE safeHead #-}
 
-brackets p = (pchar '[' .>> p) `pass` (eatSpaces .>> pchar ']')
+between l r p = (l .>> p) `pass` r
+{-# INLINE between #-}
+
+brackets = between (pchar '[') (eatSpaces .>> pchar ']')
+quotes = between (pchar '"') (pchar '"')
 
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
 braceVar = parseBlock
 
-parseStr = pchar '"' .>> (inside `wrapWith` B.concat) `pass` (pchar '"')
+parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
        inside = parseMany (noquotes `orElse` escapedChar)
 
 
 escapedChar = chain [pchar '\\', parseAny]
 
-parseBlock = pchar '{' .>> nest_filling `pass` pchar '}'
+parseBlock = between (pchar '{') (pchar '}') nest_filling
  where inner = choose [escapedChar, braces, nobraces]
        nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
        braces = chain [pchar '{', nest_filling, pchar '}']
