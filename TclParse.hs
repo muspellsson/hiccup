@@ -92,10 +92,11 @@ handleEsc = line_continue `orElse` esc_word
 -- List parsing
 parseList s = parseList_ s >>= return . fst
 parseList_ :: Parser [BString]
-parseList_ = eatWhite .>> (listElt `sepBy` whiteSep) `pass` (eatWhite .>> parseEof)
+parseList_ = between eatWhite (eatWhite .>> parseEof) listItems 
  where isWhite = (`elem` " \t\n")
        eatWhite st = return ((), B.dropWhile isWhite st)
        whiteSep = getPred1 isWhite "whitespace"
+       listItems = listElt `sepBy` whiteSep
 
 listElt :: Parser BString
 listElt = parseBlock `orElse` parseStr `orElse` getListItem
