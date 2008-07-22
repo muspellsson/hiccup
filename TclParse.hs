@@ -96,7 +96,6 @@ parseList_ = eatWhite .>> (listElt `sepBy` whiteSep) `pass` (eatWhite .>> parseE
  where isWhite = (`elem` " \t\n")
        eatWhite st = return ((), B.dropWhile isWhite st)
        whiteSep = getPred1 isWhite "whitespace"
-       plistItem = listElt `pass` eatWhite
 
 listElt :: Parser BString
 listElt = parseBlock `orElse` parseStr `orElse` getListItem
