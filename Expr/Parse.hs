@@ -75,8 +75,7 @@ showExpr exp = case exp of
          UnApp o e -> "(" ++ show o ++ " " ++ showExpr e ++ ")"
          TernIf a b c -> "(if " ++ show a ++ " " ++ show b ++ " " ++ show c ++ ")"
          BinApp op a b -> showOpExpr (getOpName op) a b
-
-showOpExpr ops a b = "(" ++ ops ++ " " ++ showExpr a ++ " " ++ showExpr b ++ ")"
+ where showOpExpr ops a b = "(" ++ ops ++ " " ++ showExpr a ++ " " ++ showExpr b ++ ")"
 
 exprToLisp s = case parseExpr (B.pack s) of
                 Left r -> r
@@ -86,12 +85,13 @@ parseDep = choose [var,cmd,fun]
  where dep f w = (eatSpaces .>> f) `wrapWith` w
        var = dep parseVar (DVar . parseVarName)
        cmd = dep parseSub DCom
-       fun = dep (pjoin DFun fname (paren (commaSep parseExpr))) id
+       fun = dep (pjoin DFun fname funArgs) id
        fname = getPred1 wordChar "function name"
+       funArgs = paren (commaSep parseExpr)
 
 parseAtom = choose [str,num,block,bool]
  where  atom f w = (eatSpaces .>> f) `wrapWith` w
-        str = atom parseStr AStr
+        str = atom parseRichStr AStr
         block = atom parseBlock ABlock
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)

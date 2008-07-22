@@ -30,7 +30,7 @@ module TclObj (
 import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
-import RToken (asParsed, tryParsed, singleTok, Parseable, makeCExpr, Cmd,
+import RToken (asParsed, singleTok, Parseable, Cmd, makeParsed,
                ParseResult)
 import TObj
 import Expr.TExp (Exprable(..))
@@ -45,11 +45,11 @@ import Test.HUnit
 data TclObj = TclInt !Int BString |
               TclDouble !Double BString |
               TclList !(S.Seq TclObj) BString |
-              TclBStr !BString (Maybe Int) ParseResult
+              TclBStr !BString (Maybe Int) !ParseResult
   deriving (Show,Eq)
 
 mkTclStr s  = mkTclBStr (pack s)
-mkTclBStr s = TclBStr s (maybeInt s) (tryParsed s, makeCExpr s)
+mkTclBStr s = TclBStr s (maybeInt s) (makeParsed s)
 {-# INLINE mkTclBStr #-}
 
 fromList l = TclList (S.fromList l) (list2Str (map asBStr l))

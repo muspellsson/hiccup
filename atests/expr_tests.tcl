@@ -28,7 +28,7 @@ test "expr strings escaping" {
 }
 
 test "expr str with str" {
-    assert_noerr { expr { "[set x "X"]" eq "X" } }
+    checkthat [expr { "[set x "X"]" }] eq "X"
 }
 
 test "expr fun parse" {

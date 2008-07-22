@@ -1,8 +1,8 @@
-module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, tryParsed, Parseable, Parsed, 
+module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, Parseable, Parsed, 
   subCmdToCmds,
   RTokCmd,
   ParseResult,
-  makeCExpr,
+  makeParsed,
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
@@ -20,21 +20,22 @@ type ExprResult = Either String (CExpr [Cmd])
 type ParseResult = (TokResult,ExprResult)
 
 data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
-data CmdName = BasicCmd (NSQual BString) | DynCmd (RTokCmd) deriving (Eq,Show)
+data CmdName = BasicCmd (NSQual BString) | DynCmd RTokCmd deriving (Eq,Show)
 type RTokCmd = RToken [Cmd]
 data RToken a = Lit !BString | LitInt !Int | CatLst [RToken a] 
               | CmdTok !a | ExpTok (RToken a)
               | VarRef !(NSQual VarName) | ArrRef !(Maybe NSTag) !BString (RToken a)
-              | Block !BString ParseResult deriving (Eq,Show)
+              | Block !BString !ParseResult deriving (Eq,Show)
 
 compToken :: TclWord -> RTokCmd
 compToken tw = case tw of
           Word s        -> compile s
-          NoSub s res   -> Block s (makeParse s res)
+          NoSub s       -> Block s (makeParsed s)
           Expand t      -> ExpTok (compToken t)
           Subcommand c  -> compCmds c
 
-makeParse s res = (fromParsed res, makeCExpr s)
+makeParsed s = (tryParsed s, makeCExpr s)
+{-# INLINE makeParsed #-}
 
 compCmds c = CmdTok (subCmdToCmds c)
 
@@ -88,10 +89,7 @@ toCmd (x,xs) = let (a:as) = map compToken (x:xs)
         handleProc xx      = DynCmd xx
 
 tryParsed :: BString -> TokResult
-tryParsed s = fromParsed (runParse s)
-{-# INLINE tryParsed #-}
-
-fromParsed m = case m of 
+tryParsed m = case runParse m of 
    Left w     -> Left $ "parse failed: " ++ w
    Right (r,rs) -> if B.null rs then Right (subCmdToCmds r) 
                                 else Left ("incomplete parse: " ++ show rs)
@@ -121,7 +119,7 @@ rtokenTests = TestList [compTests, compTokenTests] where
     ]
   
   block s v = let bs = pack s in Block (pack s) (Right v, makeCExpr bs)
-  mknosub s = NoSub (pack s) (runParse (pack s))
+  mknosub s = NoSub (pack s)
   mkwd = Word . pack
   lit = Lit . pack 
   ilit = LitInt 

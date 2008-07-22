@@ -15,10 +15,10 @@ puts [time { set x 0; while { [eval { < [+ 1 $x]  [+ [* 15 20] 5] }] } { incr x 
 
 set x 11
 puts "expr simple:"
-puts [time { expr { $x <= 45 } } 25000]
+puts [time { expr { $x + 3 <= 45 } } 25000]
 
 puts "eval simple:"
-puts [time { eval { <= $x 45 } } 25000]
+puts [time { eval { <= [+ $x 3] 45 } } 25000]
 
 exit
 

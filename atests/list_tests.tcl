@@ -20,6 +20,11 @@ test "list test" {
   checkthat [llength $boo] == 4
 }
 
+test "elts whitespace delimited" {
+    assert_err { llength { "a""b""c""d" } }
+    # " end quote for bad stuff
+}
+
 test "lindex" {
   checkthat [lindex 4] == 4
   checkthat [lindex 4 {}] == 4

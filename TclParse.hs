@@ -4,6 +4,7 @@ module TclParse ( TclWord(..)
                  ,runParse 
                  ,parseList 
                  ,parseVar
+                 ,parseRichStr
                  ,parseSub
                  ,TokCmd
                  ,SubCmd
@@ -25,7 +26,7 @@ import Test.HUnit
 
 data TclWord = Word !B.ByteString 
              | Subcommand SubCmd
-             | NoSub !B.ByteString (Result [TokCmd])
+             | NoSub !B.ByteString
              | Expand TclWord deriving (Show,Eq)
 
 type TokCmd = (TclWord, [TclWord])
@@ -65,7 +66,7 @@ parseToken str = do
  where parseNoSub = parseBlock `wrapWith` mkNoSub
        parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
 
-mkNoSub s = NoSub s (runParse s)
+mkNoSub s = NoSub s 
 
 parseRichStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
@@ -91,16 +92,14 @@ handleEsc = line_continue `orElse` esc_word
 -- List parsing
 parseList s = parseList_ s >>= return . fst
 parseList_ :: Parser [BString]
-parseList_ = eatWhite .>> (parseEof `orElse` multi1 plistItem)
+parseList_ = eatWhite .>> (listElt `sepBy` whiteSep) `pass` (eatWhite .>> parseEof)
  where isWhite = (`elem` " \t\n")
        eatWhite st = return ((), B.dropWhile isWhite st)
-       plistItem = listDisp `pass` eatWhite
+       whiteSep = getPred1 isWhite "whitespace"
+       plistItem = listElt `pass` eatWhite
 
-listDisp str = do h <- safeHead "list item" str
-                  case h of
-                   '{' -> parseBlock str
-                   '"' -> parseStr str 
-                   _   -> getListItem str
+listElt :: Parser BString
+listElt = parseBlock `orElse` parseStr `orElse` getListItem
 
 getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
  where (w,n) = B.splitAt (listItemEnd s) s
@@ -266,6 +265,7 @@ parseListTests = "parseList" ~: TestList [
      ,"x {y 0}" ~: "x {y 0}" ?=> ["x", "y 0"]
      ,"with nl" ~: "x  1 \n y 2 \n z 3" ?=> ["x", "1", "y", "2", "z", "3"]
      ,"escaped1" ~: "x \\{ z" ?=> ["x", "\\{", "z"]
+     ,"no whitespace" ~: fails "\"x\"\"y\""
    ]
  where (?=>) str res = Right res ~=? parseList str
        fails str = (parseList str) `should_fail_` ()
