@@ -1,7 +1,7 @@
 module TclLib (libCmds) where
 
 import TclLib.LibUtil
-import TclLib.IOProcs
+import TclLib.IOCmds
 import TclLib.ListProcs
 import TclLib.ArrayProcs
 import TclLib.ControlProcs

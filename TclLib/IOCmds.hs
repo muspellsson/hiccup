@@ -1,4 +1,4 @@
-module TclLib.IOProcs (ioCmds) where
+module TclLib.IOCmds (ioCmds) where
 import Common
 import Control.Monad (unless)
 import System.IO
