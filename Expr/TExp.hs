@@ -28,11 +28,12 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data UnOp = OpNot | OpNeg deriving (Eq,Show)
 
-data CExpr c = CApp2 !Op (CExpr c) (CExpr c) | CItem Atom 
-               | CApp !UnOp (CExpr c)
-               | CTern (CExpr c) (CExpr c) (CExpr c)
-               | DItem (Dep c (CExpr c)) deriving (Eq,Show)
+data CExpr c t = CApp2 !Op (CExpr c t) (CExpr c t) | CItem Atom 
+               | CApp !UnOp (CExpr c t)
+               | CStrTok t
+               | CTern (CExpr c t) (CExpr c t) (CExpr c t)
+               | DItem (Dep c (CExpr c t)) deriving (Eq,Show)
 
 
-class Exprable e c where
-  asCExpr :: (Monad m) => e -> m (CExpr c)
+class Exprable e ce where
+  asCExpr :: (Monad m) => e -> m ce

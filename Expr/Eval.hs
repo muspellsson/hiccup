@@ -6,21 +6,22 @@ import Expr.Compile
 import qualified TclObj as T
 import VarName
 import Util
-import RToken (Cmd, subCmdToCmds)
+import RToken (Cmd, subCmdToCmds, RTokCmd)
 import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
 
-data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval [Cmd]
+data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval [Cmd] | TokEval RTokCmd
 type Callback m = (CBData -> m T.TclObj)
 
 
-type CExprT = CExpr [Cmd]
+type CExprT = CExpr [Cmd] RTokCmd
 
 runCExpr :: (Monad m) => Callback m -> CExprT -> m T.TclObj
 runCExpr lu exp = run exp
  where run e = case e of
                  CItem v -> getItem v
+                 CStrTok t -> lu (TokEval t)
                  DItem v -> getDep v
                  CTern a b c -> do
                    va <- run a
@@ -101,4 +102,5 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
            lu :: (Monad m) => Callback m
            lu (VarRef (NSQual _ (VarName v _)))  = M.lookup v table
            lu (FunRef _) = return $ T.fromStr "PROC"
+           lu (TokEval _) = return $ T.fromStr "TOKSTR"
            lu (CmdEval _) = return $ T.fromStr "CMD"

@@ -30,10 +30,10 @@ module TclObj (
 import TclParse (parseList)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
-import RToken (asParsed, singleTok, Parseable, Cmd, makeParsed,
+import RToken (asParsed, singleTok, Parseable, Cmd, makeParsed, RTokCmd,
                ParseResult)
 import TObj
-import Expr.TExp (Exprable(..))
+import Expr.TExp (Exprable(..), CExpr)
 import Util
 import qualified Data.Sequence as S
 import qualified Data.Foldable as F
@@ -170,7 +170,7 @@ instance Parseable TclObj where
   asParsed (TclList _ s) = asParsed s
   {-# INLINE asParsed #-}
 
-instance Exprable TclObj [Cmd] where
+instance Exprable TclObj (CExpr [Cmd] RTokCmd) where
   asCExpr (TclBStr _ _ (_,p)) = tryEither p
   asCExpr _ =  fail "only blocks for now"
   {-# INLINE asCExpr #-}

@@ -84,6 +84,7 @@ evalExpr e = E.runAsExpr e exprCallback
 exprCallback !v = case v of
     E.VarRef n     -> varGetNS n
     E.FunRef (n,a) -> callProc (NSQual mathfuncTag n) a
+    E.TokEval t    -> evalArgs [t] >>= return . head
     E.CmdEval cmdl  -> runCmds cmdl
 
 mathfuncTag = Just (parseNSTag "::tcl::mathfunc")

@@ -16,7 +16,7 @@ import Test.HUnit
 
 type Parsed = [Cmd]
 type TokResult = Either String Parsed
-type ExprResult = Either String (CExpr [Cmd])
+type ExprResult = Either String (CExpr [Cmd] RTokCmd)
 type ParseResult = (TokResult,ExprResult)
 
 data Cmd = Cmd CmdName [RTokCmd] deriving (Eq,Show)
@@ -96,7 +96,7 @@ tryParsed m = case runParse m of
 
 makeCExpr m = case parseFullExpr m of 
    Left w     -> Left $ "expr parse failed: " ++ w
-   Right (r,rs) -> if B.null rs then Right (compileExpr subCmdToCmds r) 
+   Right (r,rs) -> if B.null rs then Right (compileExpr subCmdToCmds compile r) 
                                 else Left ("incomplete expr parse: " ++ show rs)
 
 

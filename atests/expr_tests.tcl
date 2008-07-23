@@ -31,6 +31,12 @@ test "expr str with str" {
     checkthat [expr { "[set x "X"]" }] eq "X"
 }
 
+test "expr str with variable substitution" {
+    set gxx "WOO"
+    set y 11
+    checkthat [expr { " $gxx $gxx [incr y]" }] eq " WOO WOO 12"
+}
+
 test "expr fun parse" {
   checkthat [expr { sin(0.0) + 10 }] == 10.0
 

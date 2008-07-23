@@ -8,8 +8,9 @@ import qualified MathOp as Math
 import qualified TObj as T
 import Expr.TExp
 
-compileExpr fwr = comp
+compileExpr fwr sc = comp
  where comp e = case e of
+                Item (AStr s) -> CStrTok (sc s)
                 Item v        -> CItem v
                 DepItem d     -> DItem (updep d)
                 UnApp op v    -> CApp op (comp v)
