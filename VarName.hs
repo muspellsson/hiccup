@@ -42,7 +42,10 @@ instance BStringable VarName where
   toBStr (VarName n Nothing) = n
   toBStr (VarName n (Just ind)) = B.concat [n, B.singleton '(', ind, B.singleton ')']
 instance (BStringable a) => BStringable (NSQual a) where
-  toBStr (NSQual (Just t) s) = B.append (toBStr t) (toBStr s)
+  toBStr (NSQual (Just t) s) = let pre = toBStr t 
+                               in if nsSep `B.isSuffixOf` pre 
+                                      then B.append (toBStr t) (toBStr s)
+                                      else B.concat [toBStr t, nsSep, toBStr s]
   toBStr (NSQual _ s) = toBStr s
 
 
@@ -191,9 +194,11 @@ varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS,
    ]
    where parses_to a b = b ~=? parseProc (bp a)
 
-  testInvert = TestList (map tryInvert vals)
-    where vals = map bp ["boo", "::boo", "::", "::a::b", "a::b", ""]
-          tryInvert v = v ~=? toBStr ((parseNSTag v))
+  testInvert = TestList $ doInvert (parseNSTag, tag_vals) ++ doInvert (parseProc, cmd_vals)
+    where tag_vals = ["boo", "::boo", "::", "::a::b", "a::b", "", "::tcl::mathfunc::bool"]
+          cmd_vals = ["boo", "::boo", "::tcl::mathfunc::bool"]
+          doInvert (f,l) = map (invert f) (map bp l)  
+          invert f v = v ~=? toBStr ((f v))
 
   testArr = TestList [
      "december" `should_be` Nothing

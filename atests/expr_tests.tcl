@@ -37,6 +37,10 @@ test "expr str with variable substitution" {
     checkthat [expr { " $gxx $gxx [incr y]" }] eq " WOO WOO 12"
 }
 
+test "string as bool" {
+    assert_err { while { "banana" } { } }
+}
+
 test "expr fun parse" {
   checkthat [expr { sin(0.0) + 10 }] == 10.0
 
@@ -106,6 +110,14 @@ test "bool test" {
   checkthat [! true] == 0
   checkthat [! false] == 1
   checkthat [! [! [! true]]] == 0
+}
+
+test "truth values" {
+    checkthat [expr { bool(5) }] == 1
+    checkthat [expr { bool(0.5) }] == 1
+    checkthat [expr { bool(0.0) }] == 0
+    checkthat [expr { bool("on") }] == 1
+    checkthat [expr { bool("off") }] == 0
 }
 
 test "ternary if" {

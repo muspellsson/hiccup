@@ -24,8 +24,8 @@ runCExpr lu exp = run exp
                  CStrTok t -> lu (TokEval t)
                  DItem v -> getDep v
                  CTern a b c -> do
-                   va <- run a
-                   if T.asBool va 
+                   va <- run a >>= T.asBool
+                   if va 
                        then run b
                        else run c
                  CApp2 f a b -> do
@@ -54,8 +54,8 @@ runExpr lu exp = run exp
                 Item v        -> getItem v
                 DepItem v     -> getDep v
                 TernIf a b c -> do
-                   va <- run a
-                   if T.asBool va 
+                   va <- run a >>= T.asBool
+                   if va 
                        then run b
                        else run c
                 BinApp op a b -> do 

@@ -50,6 +50,7 @@ getOpFun !op = case op of
        sup f a b = return (T.fromBool (f a b))
 
 cmdBool f a b = do 
-   let ab = T.asBool a
-   let bb = T.asBool b
+   ab <- T.asBool a
+   bb <- T.asBool b
    return $! T.fromBool (ab `f` bb)
+{-# INLINE cmdBool #-}

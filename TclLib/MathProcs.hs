@@ -23,7 +23,7 @@ mathOps = makeNsCmdList "::tcl::mathop::" $
 mathFuncs = makeNsCmdList "::tcl::mathfunc::" $
     [("rand", cmdRand), ("srand", procSrand), ("sqrt", m1 squarert), 
     ("sin", onearg sin), ("cos", onearg cos), ("abs", m1 absfun), 
-    ("double", onearg id),("int", m1 mathInt),
+    ("double", onearg id),("int", m1 mathInt), ("bool", m1 mathBool),
     ("pow", m2 pow),("max", many1 tmax), ("min", many1 tmin)]
 
 mkcmd n f = (n,inner)
@@ -43,6 +43,8 @@ mathInt v =  asI >>= return . T.fromInt
                              Just d -> return $ floor d
                              Nothing -> tclErr "non-numeric operand to \"int\""
    
+
+mathBool v = T.asBool v >>= return . T.fromBool
 
 mathSrand v = do
  i <- T.asInt v 

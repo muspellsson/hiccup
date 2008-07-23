@@ -115,10 +115,10 @@ tryEither e = case e of
                Right v  -> return v
 
 instance ITObj TclObj where
-  asBool (TclList _ bs)   = bs `elem` trueValues
-  asBool (TclInt i _)     = i /= 0
-  asBool (TclDouble d _)  = d /= 0.0
-  asBool (TclBStr bs _ _) = bs `elem` trueValues
+  asBool (TclList _ bs)   = parseBool bs
+  asBool (TclInt i _)     = return $! i /= 0
+  asBool (TclDouble d _)  = return $! d /= 0.0
+  asBool (TclBStr bs _ _) = parseBool bs
   {-# INLINE asBool #-}
 
   asInt (TclInt i _) = return i
@@ -178,7 +178,13 @@ instance Exprable TclObj (CExpr [Cmd] RTokCmd) where
 list2Str l = (map listEscape l)  `joinWith` ' '
 
 
+parseBool s 
+  | s `elem` trueValues  = return True
+  | s `elem` falseValues = return False
+  | otherwise            = fail $ "expected boolean value but got " ++ show s
+
 trueValues = map pack ["1", "true", "yes", "on"]
+falseValues = map pack ["0", "false", "no", "off"]
 
 (.==) :: TclObj -> String -> Bool
 (.==) bs str = (asBStr bs) == pack str
@@ -219,7 +225,7 @@ testAsBool = TestList [
    (fromBool False) `is` False
   ]
  where is :: TclObj -> Bool -> Test
-       is a b = asBool a ~=? b
+       is a b = asBool a ~=? (Just b)
        int i = mkTclInt i
        str s = mkTclStr s
 

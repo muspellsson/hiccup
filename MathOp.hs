@@ -91,7 +91,7 @@ opNegate v = do
    return $ T.fromInt (negate i)
 
 opNot :: (Monad m, T.ITObj t) => t -> m t
-opNot = return . T.fromBool . not . T.asBool
+opNot v = T.asBool v >>= return . T.fromBool . not
 
 rightShift, leftShift :: (Monad m, T.ITObj t) => t  -> t -> m t
 rightShift = shiftFun ">>" shiftR

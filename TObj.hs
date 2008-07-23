@@ -4,7 +4,7 @@ import Util
 import qualified Data.Sequence as S
 
 class ITObj o where
-  asBool :: o -> Bool
+  asBool :: (Monad m) => o -> m Bool
   asInt :: (Monad m) => o -> m Int 
   asDouble :: (Monad m) => o -> m Double
   asBStr :: o -> BString

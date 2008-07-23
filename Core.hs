@@ -65,7 +65,6 @@ runCmd (Cmd n args) = do
              let name = T.asBStr o
              getCmd name >>= doCall name rs 
 
-
 doCall pn args !mproc = do
    case mproc of
      Nothing   -> do ukproc <- getCmd (pack "unknown")
@@ -75,7 +74,7 @@ doCall pn args !mproc = do
      Just proc -> proc `applyTo` args 
 {-# INLINE doCall #-}
 
-doCond obj = evalExpr obj >>= return . T.asBool
+doCond obj = evalExpr obj >>= T.asBool
 {-# INLINE doCond #-}
 
 evalExpr e = E.runAsExpr e exprCallback
