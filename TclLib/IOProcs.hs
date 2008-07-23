@@ -3,6 +3,7 @@ import Common
 import Control.Monad (unless)
 import System.IO
 import System.Exit
+import System.Directory (getCurrentDirectory)
 import Core ()
 import qualified TclObj as T
 import qualified TclChan as T
@@ -15,7 +16,8 @@ import Util
 ioCmds = nsCmdList "" $ safe ++ unsafe
  where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
                         ("close", cmdClose),("flush", cmdFlush),("eof", cmdEof)]
-       unsafe = unsafeCmds [("exit", cmdExit), ("source", cmdSource),("open", cmdOpen)]
+       unsafe = unsafeCmds [("exit", cmdExit), ("source", cmdSource),
+                            ("pwd", cmdPwd), ("open", cmdOpen)]
 
 cmdEof args = case args of
   [ch] -> do h <- getReadable ch
@@ -65,6 +67,10 @@ cmdSource args = case args of
                      dat <- useFile fn (slurpFile fn)
                      evalTcl (T.fromBStr dat :: T.TclObj)
                   _   -> argErr "source"
+
+cmdPwd args = case args of
+  [] -> io getCurrentDirectory >>= return . T.fromStr
+  _  -> argErr "pwd"
 
 checkReadable c = do r <- io (hIsReadable c)
                      if r then return c else (tclErr "channel wasn't opened for reading")

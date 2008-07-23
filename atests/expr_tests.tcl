@@ -22,9 +22,9 @@ test "expr" {
 }
 
 test "expr strings escaping" {
-    checkthat [expr {{one\ntwo}}] eq {one\ntwo} {block}
-    set x [expr { "one\ntwo" }]
-    checkthat $x eq "one\ntwo" {string}
+    checkthat [expr {{one\ttwo}}] eq {one\ttwo} {block}
+    set x [expr { "one\ttwo" }]
+    checkthat $x eq "one\ttwo" {string}
 }
 
 test "expr str with str" {

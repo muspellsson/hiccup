@@ -26,7 +26,7 @@ proc ::testlib::pass {} {
 proc ::testlib::fail why {
   variable ::testlib::current_test
   incr ::testlib::assertcount
-  puts "'$current_test' failed: $why"
+  puts -nonewline "\n'$current_test' failed: $why"
 }
 
 proc verify { code { msg "" } } {
