@@ -502,8 +502,8 @@ varGet' vn !frref = do
    Just o  -> o `getInd` (vnInd vn)
  where cantReadErr why  = fail $ "can't read " ++ showVN vn ++ ": " ++ why
        getInd (ScalarVar o) Nothing = return o
-       getInd (ScalarVar _) _       = cantReadErr "variable isn't array"
        getInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
+       getInd (ScalarVar _) _       = cantReadErr "variable isn't array"
        getInd (ArrayVar _)  _       = cantReadErr "variable is array"
        getInd Undefined     _       = cantReadErr "no such variable"
 

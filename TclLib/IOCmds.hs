@@ -22,7 +22,7 @@ ioCmds = nsCmdList "" $ safe ++ unsafe
 cmdEof args = case args of
   [ch] -> do h <- getReadable ch
              io (hIsEOF h) >>= return . T.fromBool 
-  _    -> argErr "eof"
+  _    -> vArgErr "eof channelId"
 
 cmdRead args = case args of
      [ch] -> do

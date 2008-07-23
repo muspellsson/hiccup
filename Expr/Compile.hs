@@ -45,6 +45,7 @@ getOpFun !op = case op of
     OpRShift -> Math.rightShift
     OpIn     -> Math.opIn
  where up f a b = return (f a b)
+       {-# INLINE up #-}
        sup f a b = return (T.fromBool (f a b))
 
 cmdBool f a b = do 

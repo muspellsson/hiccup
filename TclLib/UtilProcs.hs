@@ -26,7 +26,7 @@ utilProcs = makeCmdList [
 cmdIncr args = case args of
          [vname]     -> incr vname 1
          [vname,val] -> T.asInt val >>= incr vname
-         _           -> argErr "incr"
+         _           -> vArgErr "incr varName ?increment?"
 
 incr :: T.TclObj -> Int -> TclM T.TclObj
 incr n !i = do

@@ -30,7 +30,7 @@ string_op name op args = case args of
 
 string_length args = case args of
     [s] -> return $ T.fromInt (B.length (T.asBStr s))
-    _   -> argErr "string length"
+    _   -> vArgErr "string length string"
 
 data CompSpec = CompSpec { csNoCase :: Bool, csLen :: Maybe T.TclObj }
 
@@ -100,7 +100,7 @@ cmdAppend args = case args of
             (v:vx) -> do val <- varGetNS (T.asVarName v) `ifFails` T.empty
                          let cated = oconcat (val:vx)
                          varSetNS (T.asVarName v) cated
-            _  -> argErr "append"
+            _  -> vArgErr "append varName ?value value ...?"
  where oconcat = T.fromBStr . B.concat . map T.asBStr
 
 cmdSplit args = case args of
@@ -110,7 +110,7 @@ cmdSplit args = case args of
                             0 -> lreturn $ map B.singleton (T.asStr str)
                             1 -> lreturn $! B.split (B.head splitChars) (T.asBStr str)
                             _ -> dosplit (T.asBStr str) splitChars
-        _           -> argErr "split"
+        _           -> vArgErr "split string ?splitChars?"
  where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
        lreturn l = return $! T.fromList . map T.fromBStr $ l
 
