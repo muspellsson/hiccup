@@ -24,11 +24,13 @@ consumed p s = do
     return (B.take lendiff s, r)
 {-# INLINE consumed #-}
 
-orElse :: Parser t -> Parser t -> Parser t
-orElse a b = \v -> v `seq` ((a v) `mplus` (b v))
+
+(<|>) :: Parser t -> Parser t -> Parser t
+a <|> b = \v -> v `seq` ((a v) `mplus` (b v))
+orElse = (<|>)
 {-# INLINE orElse #-}
 
-tryGet fn = fn `orElse` (emit "")
+tryGet fn = fn <|> (emit "")
      
 chain_ lst = consumed (foldr (.>>) (emit ()) lst)
 chain :: [Parser BString] -> Parser BString
@@ -56,7 +58,7 @@ pcons = pjoin (:)
 {-# INLINE pcons #-}
 
 parseMany :: Parser t -> Parser [t]
-parseMany p = inner `orElse` (emit [])
+parseMany p = inner <|> emit []
  where inner = parseMany1 p
    
 parseMany1 p = p `pcons` (parseMany p)
@@ -107,7 +109,7 @@ parseEof s = if B.null s
 sepBy1 :: Parser t -> Parser t2 -> Parser [t]
 sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
 
-sepBy p sep = (p `sepBy1` sep) `orElse` (emit [])
+sepBy p sep = (p `sepBy1` sep) <|> emit []
 
 commaSep :: Parser t -> Parser [t]
 commaSep = (`sepBy` (eatSpaces .>> pchar ','))
@@ -128,14 +130,14 @@ braceVar = parseBlock
 
 parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
-       inside = parseMany (noquotes `orElse` escapedChar)
+       inside = parseMany (noquotes <|> escapedChar)
 
 
 escapedChar = chain [pchar '\\', parseAny]
 
 parseBlock = between (pchar '{') (pchar '}') nest_filling
- where inner = choose [escapedChar, braces, nobraces]
-       nest_filling = tryGet ((parseMany inner) `wrapWith` B.concat)
+ where inner = choose [nobraces, escapedChar, braces]
+       nest_filling = (parseMany inner) `wrapWith` B.concat
        braces = chain [pchar '{', nest_filling, pchar '}']
        nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"
 {-# INLINE parseBlock #-}

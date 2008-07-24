@@ -45,7 +45,7 @@ parseStatement :: Parser [TclWord]
 parseStatement = choose [eatComment, parseTokens]
  where eatComment = parseComment .>> emit []
 
-parseComment = pchar '#' .>> parseMany (ignored `orElse` escapedChar) .>> eatSpaces
+parseComment = pchar '#' .>> parseMany (ignored <|> escapedChar) .>> eatSpaces
  where ignored = getPred1 (`notElem` "\n\\") "not newline or slash"
 
 parseTokens :: Parser [TclWord]
@@ -56,7 +56,7 @@ parseToken :: Parser TclWord
 parseToken str = do 
    h <- safeHead "token" str
    case h of
-     '{'  -> (parseExpand `orElse` parseNoSub) str
+     '{'  -> (parseExpand <|> parseNoSub) str
      '['  -> (parseSub `wrapWith` Subcommand) str
      '"'  -> (parseRichStr `wrapWith` Word) str
      '\\' -> handleEsc str
@@ -67,13 +67,13 @@ parseToken str = do
 parseRichStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
-       inner_var = consumed (parseVar `orElse` pchar '$')
+       inner_var = consumed (parseVar <|> pchar '$')
 
 parseSub :: Parser SubCmd
 parseSub = brackets $ parseStatements `wrapWith` asCmds
 
 handleEsc :: Parser TclWord
-handleEsc = line_continue `orElse` esc_word
+handleEsc = line_continue <|> esc_word
  where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
        esc_word = (chain [escapedChar, tryGet wordToken]) `wrapWith` Word
 
@@ -90,13 +90,12 @@ parseVarBody = chain [ initial
  where getNS = chain [sep, varTerm, tryGet getNS]
        initial = chain [tryGet sep, varTerm]
        sep = parseLit "::"
-       varTerm = (getPred1 wordChar "word") `orElse` braceVar
-       parseInd :: Parser BString
+       varTerm = (getPred1 wordChar "word") <|> braceVar
        parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 
-wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
+wordToken = consumed (parseMany1 (someVar <|> inner <|> someCmd))
  where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
-       inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
+       inner = consumed (parseMany1 (simple <|> escapedChar)) 
        someVar = consumed parseVar
        someCmd = consumed parseSub
 
@@ -108,7 +107,7 @@ parseList_ = trimmed listItems `pass` parseEof
        listItems = listElt `sepBy` whiteSep
 
 listElt :: Parser BString
-listElt = parseBlock `orElse` parseStr `orElse` getListItem
+listElt = parseBlock <|> parseStr <|> getListItem
 
 getListItem s = if B.null w then fail "can't parse list item" else return (w,n)
  where (w,n) = B.splitAt (listItemEnd s) s

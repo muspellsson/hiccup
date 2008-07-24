@@ -96,17 +96,17 @@ parseAtom = choose [str,num,block,bool]
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)
 
-parseBool = (strChoose ["true","on"] .>> emit 1) `orElse` (strChoose ["false", "off"] .>> emit 0)
+parseBool = (strChoose ["true","on"] .>> emit 1) <|> (strChoose ["false", "off"] .>> emit 0)
   where strChoose = choose . map parseLit
         
-parseUnOp = notop `orElse` negop
+parseUnOp = notop <|> negop
   where negop = pchar '-' `wrapWith` (const OpNeg)
         notop = pchar '!' `wrapWith` (const OpNot)
 
-parseItem = (parseAtom `wrapWith` Item) 
-             `orElse` (parseDep `wrapWith` DepItem)
-             `orElse` ((paren parseExpr) `wrapWith` Paren) 
-             `orElse` (pjoin UnApp parseUnOp parseItem)
+parseItem = parseAtom `wrapWith` Item
+             <|> (parseDep `wrapWith` DepItem)
+             <|> ((paren parseExpr) `wrapWith` Paren) 
+             <|> (pjoin UnApp parseUnOp parseItem)
 
 parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
@@ -114,7 +114,7 @@ parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 parseExpr = eatSpaces .>> expTerm
  where expTerm str = do
          (i1,r) <- parseItem str
-         (binop i1) `orElse` (tern i1) `orElse` (emit i1) $ r 
+         (binop i1) <|> (tern i1) <|> (emit i1) $ r 
        binop a = pjoin (\op i2 -> fixApp a op i2) parseOp parseExpr
        tern a = parseTernIf `wrapWith` (\(b,c) -> TernIf a b c)
 
