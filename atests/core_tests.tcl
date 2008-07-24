@@ -7,6 +7,20 @@ test "multi-statement subexpression" {
     checkthat $v == 4
 }
 
+test "multi-statement sub 2" {
+    set x 4
+    set y [incr x
+           incr x
+           incr x; set x]
+    checkthat $y == 7
+}
+
+test "whitespace delimiting" {
+    assert_err { list {one}{two} }
+    assert_err { list "one""two" }
+    # close quote "
+}
+
 test "apply" {
   set plus1 { x {+ $x 1}}
   checkthat [apply $plus1 3] == 4

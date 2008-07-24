@@ -62,12 +62,6 @@ parseMany p = inner `orElse` (emit [])
 parseMany1 p = p `pcons` (parseMany p)
 {-# INLINE parseMany1 #-}
 
--- TODO: Document and possibly rename 'multi1'
-multi1 :: Parser t -> Parser [t]
-multi1 p = p `pcons` (parseEof `orElse` (multi1 p))
-{-# INLINE multi1 #-}
-
- 
 parseLit :: BString -> Parser BString
 parseLit !w s = if w `B.isPrefixOf` s 
                     then return (w, B.drop (B.length w) s) 
@@ -108,7 +102,7 @@ getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") els
 
 parseEof s = if B.null s 
                then return ([], s) 
-               else fail $ "expected eof, got " ++ show (B.head s)
+               else fail $ "expected eof, got " ++ show (B.take 20 s)
 
 sepBy1 :: Parser t -> Parser t2 -> Parser [t]
 sepBy1 p sep = p `pcons` (parseMany (sep .>> p))

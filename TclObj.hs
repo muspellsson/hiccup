@@ -179,9 +179,10 @@ list2Str l = (map listEscape l)  `joinWith` ' '
 
 
 parseBool s 
-  | s `elem` trueValues  = return True
-  | s `elem` falseValues = return False
+  | lcs `elem` trueValues  = return True
+  | lcs `elem` falseValues = return False
   | otherwise            = fail $ "expected boolean value but got " ++ show s
+ where lcs = downCase s
 
 trueValues = map pack ["1", "true", "yes", "on"]
 falseValues = map pack ["0", "false", "no", "off"]

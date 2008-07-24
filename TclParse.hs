@@ -39,20 +39,20 @@ runParse = parseStatements `wrapWith` asCmds
 
 
 parseStatements :: Parser [[TclWord]]
-parseStatements = multi1 (eatSpaces .>> parseStatement) `pass` parseEof
-  
+parseStatements = trimmed (parseStatement `sepBy` (parseMany1 stmtSep)) `pass` parseEof
+ where stmtSep = eatSpaces .>> parseOneOf "\n;" .>> eatSpaces 
 
 parseStatement :: Parser [TclWord]
-parseStatement = choose [eatAndNext, parseEof, parseTokens]
- where stmtSep = parseOneOf "\n;" .>> eatSpaces 
-       eatAndNext = (stmtSep `orElse` parseComment) .>> parseStatement
+parseStatement = choose [eatComment, parseTokens]
+ where eatComment = parseComment .>> emit []
 
 parseComment = pchar '#' .>> parseMany (ignored `orElse` (eat escapedChar)) .>> eatSpaces
  where ignored = eat (getPred1 (`notElem` "\n\\") "not newline or slash")
        eat p = p .>> emit ()
 
 parseTokens :: Parser [TclWord]
-parseTokens = parseMany1 (eatSpaces .>> parseToken)
+parseTokens = eatSpaces .>> parseToken `sepBy1` spaceSep
+ where spaceSep = getPred1 (\x -> x == ' ' || x == '\t') "spaces"
 
 parseToken :: Parser TclWord
 parseToken str = do 
@@ -79,7 +79,7 @@ parseRichStr = quotes (inside `wrapWith` B.concat)
   return (v2,r)
 
 parseSub :: Parser SubCmd
-parseSub = brackets $ (parseTokens .>>= unconsc) `sepBy1` (eatSpaces .>> pchar ';')
+parseSub = brackets $ (parseTokens .>>= unconsc) `sepBy1` (eatSpaces .>> parseOneOf ";\n")
  where unconsc p = case p of
             [] -> fail "empty subcommand"
             (ph:pt) -> return (ph,pt)
@@ -89,13 +89,15 @@ handleEsc = line_continue `orElse` esc_word
  where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
        esc_word = (chain [escapedChar, tryGet wordToken]) `wrapWith` Word
 
+trimmed = between eatWhite eatWhite
+eatWhite st = return ((), B.dropWhile isWhite st)
+isWhite = (`elem` " \t\n")
+
 -- List parsing
 parseList s = parseList_ s >>= return . fst
 parseList_ :: Parser [BString]
-parseList_ = between eatWhite (eatWhite .>> parseEof) listItems 
- where isWhite = (`elem` " \t\n")
-       eatWhite st = return ((), B.dropWhile isWhite st)
-       whiteSep = getPred1 isWhite "whitespace"
+parseList_ = trimmed listItems `pass` parseEof
+ where whiteSep = getPred1 isWhite "whitespace"
        listItems = listElt `sepBy` whiteSep
 
 listElt :: Parser BString
@@ -198,6 +200,7 @@ runParseTests = "runParse" ~: TestList [
      "empty2" ~: ([],"") ?=? "",
      "unmatched" ~: "{ { }" `should_fail` (),
      "a b " ~: "a b " `should_be` ["a", "b"],
+     "\n \na b\n" `should_be` ["a", "b"],
      "two vars" ~: (pr ["puts", "$one$two"]) ?=? "puts $one$two",
      "brace inside" ~: (pr ["puts", "x{$a}x"]) ?=? "puts x{$a}x",
      "brace" ~: (pr ["puts", "${oh no}"]) ?=? "puts ${oh no}",
@@ -288,6 +291,7 @@ parseTokensTests = "parseTokens" ~: TestList [
      ,"x y" ~: "x y" ?=> ([Word "x", Word "y"], "")
      ,"x { y 0 }" ~: "x { y 0 }" ?=> ([Word "x", nosub " y 0 "], "")
      ,"x {y 0}" ~: "x {y 0}" ?=> ([Word "x", nosub "y 0"], "")
+     ,"{y}{z}" ?=> ([nosub "y"], "{z}")
    ]
  where (?=>) str (res,r) = Right (res, r) ~=? parseTokens str
        nosub = mkNoSub

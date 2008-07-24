@@ -118,6 +118,7 @@ test "truth values" {
     checkthat [expr { bool(0.0) }] == 0
     checkthat [expr { bool("on") }] == 1
     checkthat [expr { bool("off") }] == 0
+    checkthat [expr { bool("TRUE") }] == 1
 }
 
 test "ternary if" {
