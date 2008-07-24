@@ -45,9 +45,8 @@ parseStatement :: Parser [TclWord]
 parseStatement = choose [eatComment, parseTokens]
  where eatComment = parseComment .>> emit []
 
-parseComment = pchar '#' .>> parseMany (ignored `orElse` (eat escapedChar)) .>> eatSpaces
- where ignored = eat (getPred1 (`notElem` "\n\\") "not newline or slash")
-       eat p = p .>> emit ()
+parseComment = pchar '#' .>> parseMany (ignored `orElse` escapedChar) .>> eatSpaces
+ where ignored = getPred1 (`notElem` "\n\\") "not newline or slash"
 
 parseTokens :: Parser [TclWord]
 parseTokens = eatSpaces .>> parseToken `sepBy1` spaceSep
@@ -62,10 +61,8 @@ parseToken str = do
      '"'  -> (parseRichStr `wrapWith` Word) str
      '\\' -> handleEsc str
      _    -> (wordToken `wrapWith` Word) str
- where parseNoSub = parseBlock `wrapWith` mkNoSub
+ where parseNoSub = parseBlock `wrapWith` NoSub
        parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
-
-mkNoSub s = NoSub s 
 
 parseRichStr = quotes (inside `wrapWith` B.concat)
  where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
@@ -205,7 +202,7 @@ runParseTests = "runParse" ~: TestList [
      ,"command appended" ~: (pr ["set", "val", "x[nop 4]"]) ?=? "set val x[nop 4]"
      ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
      ,"expand" ~: ([(Word "incr", [Expand (Word "$boo")])], "") ?=? "incr {*}$boo"
-     ,"no expand" ~: ([(Word "incr", [mkNoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
+     ,"no expand" ~: ([(Word "incr", [NoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
   ]
  where should_fail str () = (runParse str) `should_fail_` ()
        should_be str res = Right (pr res) ~=? (runParse str)
@@ -285,7 +282,7 @@ parseTokensTests = "parseTokens" ~: TestList [
      ,"{y}{z}" ?=> ([nosub "y"], "{z}")
    ]
  where (?=>) str (res,r) = Right (res, r) ~=? parseTokens str
-       nosub = mkNoSub
+       nosub = NoSub
 
 parseSubstTests = "parseSubst" ~: TestList [
     (all_on, "A cat") `should_be` [SStr "A cat"]
