@@ -35,7 +35,7 @@ type SubCmd = [TokCmd]
 runParse :: Parser SubCmd
 runParse = (parseStatements `pass` parseEof) `wrapWith` asCmds
 
-asCmds lst = [let (c:a) = x in (c,a) | x <- lst, not (null x)]
+asCmds lst = [(c,a) | (c:a) <- lst]
 
 parseStatements :: Parser [[TclWord]]
 parseStatements = trimmed (parseStatement `sepBy` stmtSep)
@@ -83,6 +83,25 @@ handleEsc = line_continue `orElse` esc_word
 trimmed = between eatWhite eatWhite
 eatWhite st = return ((), B.dropWhile isWhite st)
 isWhite = (`elem` " \t\n")
+
+parseVar :: Parser BString
+parseVar = pchar '$' .>> parseVarBody
+
+parseVarBody = chain [ initial 
+                      ,tryGet getNS
+                      ,tryGet parseInd ]
+ where getNS = chain [sep, varTerm, tryGet getNS]
+       initial = chain [tryGet sep, varTerm]
+       sep = parseLit "::"
+       varTerm = (getPred1 wordChar "word") `orElse` braceVar
+       parseInd :: Parser BString
+       parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
+
+wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
+ where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
+       inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
+       someVar = consumed parseVar
+       someCmd = consumed parseSub
 
 -- List parsing
 parseList s = parseList_ s >>= return . fst
@@ -139,24 +158,6 @@ parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
                (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
                (x:xs) -> x : sreduce xs
 
-parseVar :: Parser BString
-parseVar = pchar '$' .>> parseVarBody
-
-parseVarBody = chain [ initial 
-                      ,tryGet getNS
-                      ,tryGet parseInd ]
- where getNS = chain [sep, varTerm, tryGet getNS]
-       initial = chain [tryGet sep, varTerm]
-       sep = parseLit "::"
-       varTerm = (getPred1 wordChar "word") `orElse` braceVar
-       parseInd :: Parser BString
-       parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
-
-wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
- where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
-       inner = consumed (parseMany1 (simple `orElse` escapedChar)) 
-       someVar = consumed parseVar
-       someCmd = consumed parseSub
 
 {-# INLINE escapeChar #-}
 escapeChar c = case c of
