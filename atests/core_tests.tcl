@@ -13,6 +13,20 @@ test "multi-statement sub 2" {
            incr x
            incr x; set x]
     checkthat $y == 7
+
+    set a 2
+    set b [incr a;;set a]
+    checkthat $b == 3
+}
+
+test "multi-statement sub 3" {
+  set x 3
+  set y [ 
+    incr x
+    # it is okay to have a comment here
+    incr x
+    set x]
+  checkthat $y == 5
 }
 
 test "whitespace delimiting" {

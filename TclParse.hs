@@ -32,15 +32,14 @@ data TclWord = Word !B.ByteString
 type TokCmd = (TclWord, [TclWord])
 type SubCmd = [TokCmd]
 
+runParse :: Parser SubCmd
+runParse = (parseStatements `pass` parseEof) `wrapWith` asCmds
 
-runParse :: Parser [TokCmd]
-runParse = parseStatements `wrapWith` asCmds
- where asCmds lst = [ let (c:a) = x in (c,a) | x <- lst, not (null x)]
-
+asCmds lst = [let (c:a) = x in (c,a) | x <- lst, not (null x)]
 
 parseStatements :: Parser [[TclWord]]
-parseStatements = trimmed (parseStatement `sepBy` (parseMany1 stmtSep)) `pass` parseEof
- where stmtSep = eatSpaces .>> parseOneOf "\n;" .>> eatSpaces 
+parseStatements = trimmed (parseStatement `sepBy` stmtSep)
+ where stmtSep = parseMany1 (eatSpaces .>> parseOneOf "\n;" .>> eatSpaces)
 
 parseStatement :: Parser [TclWord]
 parseStatement = choose [eatComment, parseTokens]
@@ -73,16 +72,8 @@ parseRichStr = quotes (inside `wrapWith` B.concat)
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
        inner_var = consumed (parseVar `orElse` pchar '$')
 
-(.>>=) pa f s = do
-  (v,r) <- pa s
-  v2 <- f v 
-  return (v2,r)
-
 parseSub :: Parser SubCmd
-parseSub = brackets $ (parseTokens .>>= unconsc) `sepBy1` (eatSpaces .>> parseOneOf ";\n")
- where unconsc p = case p of
-            [] -> fail "empty subcommand"
-            (ph:pt) -> return (ph,pt)
+parseSub = brackets $ parseStatements `wrapWith` asCmds
 
 handleEsc :: Parser TclWord
 handleEsc = line_continue `orElse` esc_word
@@ -158,9 +149,8 @@ parseVarBody = chain [ initial
        initial = chain [tryGet sep, varTerm]
        sep = parseLit "::"
        varTerm = (getPred1 wordChar "word") `orElse` braceVar
-
-parseInd :: Parser BString
-parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
+       parseInd :: Parser BString
+       parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 
 wordToken = consumed (parseMany1 (someVar `orElse` inner `orElse` someCmd))
  where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
