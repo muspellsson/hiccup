@@ -8,9 +8,9 @@ module Match (match
               ,exactMatches
               ,matchTests)  where
 
-import Test.HUnit
 import qualified Data.ByteString.Char8 as B
 import Data.Char (toLower)
+import Test.HUnit
 
 data MatchType = ExactMatch | GlobMatch deriving (Eq,Show)
 

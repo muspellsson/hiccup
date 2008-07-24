@@ -22,7 +22,7 @@ import Test.HUnit
 parseNum :: Parser TNum
 parseNum s = do
    (i,r) <- parseInt s
-   (dubpart i) `orElse` (emit (TInt i)) $ r
+   (dubpart i) <|> (emit (TInt i)) $ r
  where dubpart i = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
        dtail = (consumed (pchar '.' .>> digstring)) `wrapWith` B.unpack
        digstring = getPred1 (`elem` "0123456789")  "digit"
@@ -96,12 +96,12 @@ parseAtom = choose [str,num,block,bool]
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)
 
-parseBool = (strChoose ["true","on"] .>> emit 1) <|> (strChoose ["false", "off"] .>> emit 0)
-  where strChoose = choose . map parseLit
+parseBool = (["true","on"] `thenEmit` 1) <|> (["false", "off"] `thenEmit` 0)
+  where thenEmit slst v = choose (map parseLit slst) .>> emit v
         
 parseUnOp = notop <|> negop
-  where negop = pchar '-' `wrapWith` (const OpNeg)
-        notop = pchar '!' `wrapWith` (const OpNot)
+  where negop = pchar '-' .>> emit OpNeg
+        notop = pchar '!' .>> emit OpNot
 
 parseItem = parseAtom `wrapWith` Item
              <|> (parseDep `wrapWith` DepItem)

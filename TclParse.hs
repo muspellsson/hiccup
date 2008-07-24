@@ -33,12 +33,11 @@ type TokCmd = (TclWord, [TclWord])
 type SubCmd = [TokCmd]
 
 runParse :: Parser SubCmd
-runParse = (parseStatements `pass` parseEof) `wrapWith` asCmds
+runParse = parseStatements `pass` parseEof 
 
 asCmds lst = [(c,a) | (c:a) <- lst]
 
-parseStatements :: Parser [[TclWord]]
-parseStatements = trimmed (parseStatement `sepBy` stmtSep)
+parseStatements = trimmed $ (parseStatement `sepBy` stmtSep) `wrapWith` asCmds
  where stmtSep = parseMany1 (eatSpaces .>> parseOneOf "\n;" .>> eatSpaces)
 
 parseStatement :: Parser [TclWord]
@@ -46,7 +45,7 @@ parseStatement = choose [eatComment, parseTokens]
  where eatComment = parseComment .>> emit []
 
 parseComment = pchar '#' .>> parseMany (ignored <|> escapedChar) .>> eatSpaces
- where ignored = getPred1 (`notElem` "\n\\") "not newline or slash"
+ where ignored = parseNoneOf "\n\\" "not newline or slash"
 
 parseTokens :: Parser [TclWord]
 parseTokens = eatSpaces .>> parseToken `sepBy1` spaceSep
@@ -65,21 +64,22 @@ parseToken str = do
        parseExpand = parseLit "{*}" .>> (parseToken `wrapWith` Expand)
 
 parseRichStr = quotes (inside `wrapWith` B.concat)
- where noquotes = getPred1 (`notElem` "\"\\[$") "non-quote chars"
+ where noquotes = parseNoneOf "\"\\[$" "non-quote chars"
        inside = parseMany $ choose [noquotes, escapedChar, consumed parseSub, inner_var]
        inner_var = consumed (parseVar <|> pchar '$')
 
 parseSub :: Parser SubCmd
-parseSub = brackets $ parseStatements `wrapWith` asCmds
+parseSub = brackets parseStatements
 
 handleEsc :: Parser TclWord
 handleEsc = line_continue <|> esc_word
  where line_continue = parseLit "\\\n" .>> eatSpaces .>> parseToken
        esc_word = (chain [escapedChar, tryGet wordToken]) `wrapWith` Word
 
-trimmed = between eatWhite eatWhite
-eatWhite st = return ((), B.dropWhile isWhite st)
-isWhite = (`elem` " \t\n")
+trimmed = between tryWhite tryWhite
+ where tryWhite = tryGet whiteSpace
+
+whiteSpace = getPred1 (`elem` " \t\n") "whitespace"
 
 parseVar :: Parser BString
 parseVar = pchar '$' .>> parseVarBody
@@ -94,17 +94,17 @@ parseVarBody = chain [ initial
        parseInd = chain [pchar '(', getPred (/= ')'), pchar ')']
 
 wordToken = consumed (parseMany1 (someVar <|> inner <|> someCmd))
- where simple = getPred1 (`notElem` " $[]\n\t;\\") "inner word"
+ where simple = parseNoneOf " $[]\n\t;\\" "inner word"
        inner = consumed (parseMany1 (simple <|> escapedChar)) 
        someVar = consumed parseVar
        someCmd = consumed parseSub
 
--- List parsing
-parseList s = parseList_ s >>= return . fst
+ensureEof p s = (p `pass` parseEof) s >>= return . fst
+
+parseList = ensureEof parseList_
 parseList_ :: Parser [BString]
-parseList_ = trimmed listItems `pass` parseEof
- where whiteSep = getPred1 isWhite "whitespace"
-       listItems = listElt `sepBy` whiteSep
+parseList_ = trimmed listItems
+ where listItems = listElt `sepBy` whiteSpace
 
 listElt :: Parser BString
 listElt = parseBlock <|> parseStr <|> getListItem
@@ -133,7 +133,7 @@ parseSubstAll = parseSubst allSubstArgs
 
 parseSubst :: SubstArgs -> Parser [Subst]
 parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
- where no_special = getPred1 (`notElem` "\\[$") "non-special chars"
+ where no_special = parseNoneOf "\\[$" "non-special chars"
        inner = parseMany (choose [st no_special, 
                                   may vars SVar parseVar,
                                   may cmds SCmd parseSub,
@@ -154,14 +154,12 @@ parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
                (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
                (x:xs) -> x : sreduce xs
 
-
 {-# INLINE escapeChar #-}
 escapeChar c = case c of
           'n' -> '\n'
           't' -> '\t'
           'a' -> '\a'
           _  -> c
-
 
 tclParseTests = TestList [ runParseTests, 
                            parseVarBodyTests,

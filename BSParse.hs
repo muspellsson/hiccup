@@ -79,6 +79,8 @@ parseLen !i = \s -> if B.length s < i
          
 parseOneOf !cl = parseCharPred (`elem` cl) ("one of " ++ show cl)
 
+parseNoneOf cl desc = getPred1 (`notElem` cl) desc
+
 pchar :: Char -> Parser BString
 pchar !c = parseCharPred (== c) (show c)
 {-# INLINE pchar #-}
@@ -101,6 +103,7 @@ getPred p s = return $! (w,n)
 -- TODO: slightly inaccuate error messages
 getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
  where (w,n) = B.span p s
+{-# INLINE getPred1 #-}
 
 parseEof s = if B.null s 
                then return ([], s) 
@@ -129,7 +132,7 @@ wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange
 braceVar = parseBlock
 
 parseStr = quotes (inside `wrapWith` B.concat)
- where noquotes = getPred1 (`notElem` "\"\\") "non-quote chars"
+ where noquotes = parseNoneOf "\"\\" "non-quote chars"
        inside = parseMany (noquotes <|> escapedChar)
 
 
@@ -139,7 +142,7 @@ parseBlock = between (pchar '{') (pchar '}') nest_filling
  where inner = choose [nobraces, escapedChar, braces]
        nest_filling = (parseMany inner) `wrapWith` B.concat
        braces = chain [pchar '{', nest_filling, pchar '}']
-       nobraces = getPred1 (`notElem` "{}\\") "non-brace chars"
+       nobraces = parseNoneOf "{}\\" "non-brace chars"
 {-# INLINE parseBlock #-}
 
 
