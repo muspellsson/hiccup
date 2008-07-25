@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -XGeneralizedNewtypeDeriving #-}
-module Types where
+module Internal.Types where
 
 import Control.Monad.Error
 import Control.Monad.State.Strict

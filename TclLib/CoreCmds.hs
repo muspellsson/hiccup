@@ -1,6 +1,6 @@
 module TclLib.CoreCmds (coreCmds) where
 import Common
-import Types (CmdCore(..))
+import Internal.Types (procArgs)
 import Control.Monad.Error
 import TclLib.LibUtil
 import Control.Monad (liftM)

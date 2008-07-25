@@ -7,7 +7,7 @@ import Data.IORef
 import Control.Monad.Error
 import TclErr
 import Util
-import Types (CmdCore(..))
+import Internal.Types (CmdCore(..))
 import qualified TclObj as T
 
 import Test.HUnit

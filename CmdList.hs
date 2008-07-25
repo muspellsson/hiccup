@@ -1,5 +1,5 @@
 module CmdList where
-import Types
+import Internal.Types
 
 data CmdSpec = CmdSpec { cmdSpecName :: String, 
                          cmdSpecCmd :: TclCmd, 

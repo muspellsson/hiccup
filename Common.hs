@@ -70,7 +70,7 @@ import Data.Unique
 
 import Proc.Params
 
-import Types
+import Internal.Types
 
 import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
@@ -288,7 +288,6 @@ isJust Nothing = False
 isJust _       = True
 
 hasParent nsr = nsr `refExtract` nsParent >>= return . isJust
-   
      
 commandNames mns procsOnly = nsList >>= mapM mapElems >>= return . map cmdName . filt . concat
  where mapElems e = getNsCmdMap e >>= mapM readRef . Map.elems . unCmdMap

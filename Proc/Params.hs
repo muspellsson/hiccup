@@ -2,7 +2,7 @@
 module Proc.Params (parseParams, bindArgs, ParamList, listParams) where
 import Util
 import qualified TclObj as T
-import Types (TclM,ArgSpec, ArgList, ParamList(..))
+import Internal.Types (TclM,ArgSpec, ArgList, ParamList(..))
 import Control.Monad
 import qualified Data.ByteString.Char8 as B
 
