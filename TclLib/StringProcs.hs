@@ -6,7 +6,7 @@ import Util
 import Match (match, matchTests)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
-import Data.Char (toLower,toUpper)
+import Data.Char (toLower,toUpper,isSpace)
 import TclLib.LibUtil
 import ArgParse
 
@@ -15,7 +15,9 @@ import Test.HUnit
 stringProcs = makeCmdList [("string", cmdString), ("append", cmdAppend), ("split", cmdSplit)]
 
 cmdString = mkEnsemble "string" [
-   ("trim", string_op "trim" T.trim), 
+   ("trimleft", string_trimleft),
+   ("trimright", string_trimright),
+   ("trim", string_trim),
    ("tolower", string_op "tolower" (B.map toLower)),
    ("toupper", string_op "toupper" (B.map toUpper)),
    ("reverse", string_op "reverse" B.reverse),
@@ -23,6 +25,21 @@ cmdString = mkEnsemble "string" [
    ("match", string_match), ("compare", string_compare),
    ("equal", string_equal), ("index", string_index)
  ]
+
+
+string_trimleft = trimcmd "trimleft" trimleft
+string_trimright = trimcmd "trimright" trimright
+string_trim = trimcmd "trim" trim
+trimleft pred = B.dropWhile pred
+trimright pred s = fst (B.spanEnd pred s)
+trim pred = trimright pred . trimleft pred
+
+trimcmd name f args = case args of
+  [s] -> go isSpace s
+  [s,cs] -> go (`B.elem` (T.asBStr cs)) s
+  _  -> vArgErr . pack $ "string " ++ name ++ " ?chars?"
+ where go pred s = treturn (f pred (T.asBStr s))
+  
 
 string_op name op args = case args of
    [s] -> treturn $! op (T.asBStr s)

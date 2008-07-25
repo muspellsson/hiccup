@@ -18,6 +18,24 @@ test "string methods" {
   checkthat [string reverse "X Y"] eq "Y X"
 }
 
+test "string trim" {
+  checkthat [string trim " oh "] eq "oh"
+  checkthat [string trim "oh "] eq "oh"
+  checkthat [string trim "XYXoh Y" XY] eq "oh "
+}
+
+test "string trimleft" {
+  checkthat [string trimleft " oh "] eq "oh "
+  checkthat [string trimleft "oh "] eq "oh "
+  checkthat [string trimleft "XYXoh " XY] eq "oh "
+}
+
+test "string trimright" {
+  checkthat [string trimright "  oh  "] eq "  oh"
+  checkthat [string trimright "  oh"] eq "  oh"
+  checkthat [string trimright "XYXohXYX" XY] eq "XYXoh"
+}
+
 test "string index" {
   set fst [string index "whee" 1]
   checkthat $fst eq "h"

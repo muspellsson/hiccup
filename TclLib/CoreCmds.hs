@@ -99,7 +99,7 @@ cmdCatch args = case args of
 
 cmdRetv c args = case args of
     [] -> throwError (fromCode c)
-    _  -> argErr $ st c
+    _  -> vArgErr $ st c
  where st EContinue = "continue"
        st EBreak    = "break"
        st _         = "??"
