@@ -284,18 +284,23 @@ currentVars = do mv <- getFrame >>= getUpMap
                  vs <- localVars
                  return $ vs ++ Map.keys mv
 
-commandNames procsOnly = nsList >>= mapM mapElems >>= return . map fst . filt . concat
- where mapElems e = getNsCmdMap e >>= mapM readSnd . Map.toList . unCmdMap
-       readSnd (a,b) = readRef b >>= \bp -> return (a,bp)
+isJust Nothing = False
+isJust _       = True
+
+hasParent nsr = nsr `refExtract` nsParent >>= return . isJust
+   
+     
+commandNames mns procsOnly = nsList >>= mapM mapElems >>= return . map cmdName . filt . concat
+ where mapElems e = getNsCmdMap e >>= mapM readRef . Map.elems . unCmdMap
        nsList = do
-          c <- getCurrNS
-          ns_par <- c `refExtract` nsParent
-          case ns_par of
-             Nothing -> return [c]
-             Just _  -> do
+          c <- getNamespace mns
+          has_par <- hasParent c
+          case (has_par,isJust mns) of
+             (True,False)  -> do
                  gns <- getGlobalNS 
                  return [gns, c]
-       filt = if procsOnly then filter (cmdIsProc . snd) else id
+             _ -> return [c]
+       filt = if procsOnly then filter cmdIsProc else id
 
 cmdMapElems :: CmdMap -> [CmdRef]
 cmdMapElems = Map.elems . unCmdMap

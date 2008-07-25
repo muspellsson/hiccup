@@ -6,6 +6,7 @@ import TclLib.LibUtil
 import Control.Monad (liftM)
 import Data.Char (isDigit)
 import TclErr 
+import VarName (parseProc, NSQual(..), toBStr)
 import System (getProgName)
 import Match (globMatches)
 import Proc.Util (mkProc, mkLambda)
@@ -139,8 +140,8 @@ cmdInfo = mkEnsemble "info" [
   matchp "locals" localVars,
   matchp "globals" globalVars,
   matchp "vars" currentVars,
-  matchp "commands" (commandNames False),
-  matchp "procs" (commandNames True),
+  ("commands", info_commands),
+  matchp "procs" (commandNames Nothing True),
   noarg "level"    (liftM T.fromInt stackLevel),
   noarg "cmdcount" (liftM T.fromInt getCmdCount),
   noarg "nameofexecutable" (liftM T.fromStr (io getProgName)),
@@ -160,6 +161,13 @@ matchList name f args = case args of
      [pat] -> getMatches pat
      _     -> argErr name
  where getMatches pat = f >>= asTclList . globMatches (T.asBStr pat)
+
+info_commands args = case args of
+  [] -> commandNames Nothing False >>= asTclList
+  [pat] -> let (NSQual nst p) = parseProc (T.asBStr pat)
+               prefixify n = toBStr (NSQual nst n)
+           in commandNames nst False >>= asTclList . map prefixify . globMatches p
+  _ -> vArgErr "info commands ?pattern?"
 
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool

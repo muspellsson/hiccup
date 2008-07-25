@@ -486,3 +486,15 @@ test "ns qualifications" {
     checkthat [gax::fishy] == ONE
     finalize { ns gax proc setitup }
 }
+
+test "info commands qualified" {
+    namespace eval bunny {
+        proc do_stuff {} {
+        }
+    }
+
+    set cmds [info commands ::bunny::*]
+
+    checkthat $cmds eq {::bunny::do_stuff}
+    finalize { ns bunny }
+}
