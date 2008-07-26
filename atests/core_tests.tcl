@@ -201,6 +201,15 @@ test "absolute uplevel" {
   finalize { proc 33xy proc nop }
 }
 
+
+test "absolute upvar" {
+    global ohboyohboy
+    set ohboyohboy 44
+    upvar #0 ohboyohboy cat
+    checkthat $cat == 44
+    unset ohboyohboy
+}
+
 test "info commands vs info procs" {
   proc this_is_a_proc {} {}
   checkthat [lsearch [info commands] this_is_a_proc] >= 0

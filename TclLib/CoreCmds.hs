@@ -73,7 +73,8 @@ cmdUplevel args = case args of
                                    in when (isDigit d || d == '#') (fail $ "expected integer but got " ++ show str)
                   defaulted `orElse` (checkfirst >> uplevel 1 (cmdEval (si:p)))
               _      -> argErr "uplevel"
- where getLevel l = do
+
+getLevel l = do
          let badlevel = tclErr $ "bad level " ++ show (T.asBStr l)
          case T.asInt l of
             Just i  -> return i
@@ -126,7 +127,7 @@ cmdReturn args = case args of
 
 cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s
-     [si,d,s] -> T.asInt si >>= \i -> doUp i d s
+     [si,d,s] -> getLevel si >>= \i -> doUp i d s
      _        -> argErr "upvar"
  where doUp i d s = upvar i (T.asBStr d) (T.asBStr s) >> ret
 
