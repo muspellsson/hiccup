@@ -1,5 +1,14 @@
-module CmdList where
-import Internal.Types
+module CmdList ( CmdSpec(..) 
+                ,CmdList(..)
+                ,mergeCmdLists
+                ,makeCmdList
+                ,safeCmds
+                ,unsafeCmds
+                ,nsCmdList
+                ,makeNsCmdList
+                ,onlySafe
+                ) where
+import Internal.Types (TclCmd)
 
 data CmdSpec = CmdSpec { cmdSpecName :: String, 
                          cmdSpecCmd :: TclCmd, 

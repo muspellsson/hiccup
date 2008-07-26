@@ -36,17 +36,18 @@ trim pred = trimright pred . trimleft pred
 
 trimcmd name f args = case args of
   [s] -> go isSpace s
-  [s,cs] -> go (`B.elem` (T.asBStr cs)) s
+  [s,cs] -> go (elemOf cs) s
   _  -> vArgErr . pack $ "string " ++ name ++ " ?chars?"
- where go pred s = treturn (f pred (T.asBStr s))
+ where go pred = treturn . f pred . T.asBStr
+       elemOf s = let bstr = T.asBStr s in (`B.elem` bstr)
   
 
 string_op name op args = case args of
-   [s] -> treturn $! op (T.asBStr s)
+   [s] -> treturn . op . T.asBStr $ s
    _   -> argErr $ "string " ++ name
 
 string_length args = case args of
-    [s] -> return $ T.fromInt (B.length (T.asBStr s))
+    [s] -> return . T.fromInt . B.length . T.asBStr $ s
     _   -> vArgErr "string length string"
 
 data CompSpec = CompSpec { csNoCase :: Bool, csLen :: Maybe T.TclObj }
@@ -107,7 +108,7 @@ string_index args = case args of
 string_range args = case args of
    [s,i1,i2] -> do 
        let str = T.asBStr s
-       let slen = B.length (T.asBStr s)
+       let slen = B.length str
        ind1 <- toIndex slen i1
        ind2 <- toIndex slen i2
        treturn $ B.drop ind1 (B.take (ind2+1) str)
@@ -123,10 +124,11 @@ cmdAppend args = case args of
 cmdSplit args = case args of
         [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
         [str,chars] -> let splitChars = T.asBStr chars 
+                           bstr = T.asBStr str
                        in case B.length splitChars of
-                            0 -> lreturn $ map B.singleton (T.asStr str)
-                            1 -> lreturn $! B.split (B.head splitChars) (T.asBStr str)
-                            _ -> dosplit (T.asBStr str) splitChars
+                            0 -> lreturn $ map B.singleton (B.unpack bstr)
+                            1 -> lreturn $! B.split (B.head splitChars) bstr
+                            _ -> dosplit bstr splitChars
         _           -> vArgErr "split string ?splitChars?"
  where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
        lreturn l = return $! T.fromList . map T.fromBStr $ l

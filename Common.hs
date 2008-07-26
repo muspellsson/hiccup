@@ -62,7 +62,7 @@ module Common (TclM
 
 
 import qualified Data.ByteString.Char8 as B
-import Control.Monad.Error
+import Control.Monad.Error (throwError)
 import Control.Monad.State.Strict
 import qualified Data.Map as Map
 import Data.IORef
@@ -71,6 +71,7 @@ import Data.Unique
 import Proc.Params
 
 import Internal.Types
+import Internal.Util
 
 import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
@@ -247,8 +248,6 @@ makeState' chans safe vlist cmdlst = do
                          nsExport = [],
                          nsParent = Nothing, nsChildren = Map.empty }
 
-getStack = gets tclStack
-{-# INLINE getStack  #-}
 
 getNsCmdMap :: NSRef -> TclM CmdMap
 getNsCmdMap !nsr = liftIO (readIORef nsr >>= \v -> return $! (nsCmds v))
@@ -265,17 +264,20 @@ registerWatcher cb = modify (\t -> t { tclCmdWatchers = cb:(tclCmdWatchers t) })
 notifyWatchers = do
   gets tclCmdWatchers >>= io . sequence_
 
+getStack = gets tclStack
+{-# INLINE getStack  #-}
 getFrame = do st <- gets tclStack
               case st of
                  (fr:_) -> return $! fr
                  _      -> fail "stack badness"
 
+getCmdCount :: TclM Int
+getCmdCount = gets tclCmdCount
+
 io :: IO a -> TclM a
 io = liftIO
 {-# INLINE io #-}
 
-getCmdCount :: TclM Int
-getCmdCount = gets tclCmdCount
 
 stackLevel = getStack >>= return . pred . length
 globalVars = getGlobalNS >>= getNSFrame >>= getFrameVars >>= return . Map.keys 
@@ -284,10 +286,6 @@ currentVars = do mv <- getFrame >>= getUpMap
                  vs <- localVars
                  return $ vs ++ Map.keys mv
 
-isJust Nothing = False
-isJust _       = True
-
-hasParent nsr = nsr `refExtract` nsParent >>= return . isJust
      
 commandNames mns procsOnly = nsList >>= mapM mapElems >>= return . map cmdName . filt . concat
  where mapElems e = getNsCmdMap e >>= mapM readRef . Map.elems . unCmdMap
@@ -305,7 +303,6 @@ cmdMapElems :: CmdMap -> [CmdRef]
 cmdMapElems = Map.elems . unCmdMap
 
 argErr s = tclErr ("wrong # args: " ++ s)
-
 
 modChan f = modify (\s -> s { tclChans = f (tclChans s) })
 getChan n = gets tclChans >>= \m -> return (lookupChan n m)
@@ -599,11 +596,6 @@ exportNS clear name = do
 getExportsNS = 
   getCurrNS >>= (`refExtract` (reverse . nsExport))
 
-whenJust x f = case x of
-      Nothing -> return ()
-      Just v  -> f $! v
-{-# INLINE whenJust #-}
-
 importNS :: Bool -> BString -> TclM T.TclObj
 importNS force name = do
     let (NSQual nst n) = parseProc name
@@ -621,10 +613,10 @@ importNS force name = do
 
 getExports nsr pat = do 
    ns <- readRef nsr
-   let exlist = nsExport ns
+   let expats = nsExport ns
    let pnames = Map.keys (unCmdMap (nsCmds ns))
-   let filt = filter (\v -> or (map (`globMatch` v) exlist)) pnames
-   return (globMatches pat filt)
+   let exported = filter (\v -> or (map (`globMatch` v) expats)) pnames
+   return (globMatches pat exported)
 
 forgetNS name = do
    let qns@(NSQual nst n) = parseProc name
@@ -693,12 +685,6 @@ getCurrNS = getFrame >>= \fr -> liftIO (readIORef fr >>= \f -> return $! (frNS f
 getGlobalNS = gets tclGlobalNS
 {-# INLINE getGlobalNS #-}
 
-readRef :: IORef a -> TclM a
-readRef !r = (liftIO . readIORef) r
-{-# INLINE readRef #-}
-
-refExtract !ref !f = liftIO (readIORef ref >>= \x -> (return $! f x)) 
-{-# INLINE refExtract #-}
 
 currentNS = getCurrNS >>= (`refExtract` nsName)
 
@@ -713,15 +699,6 @@ childrenNS nst = do
   let prename = if nsSep `B.isSuffixOf` (nsName ns) then nsName ns else B.append (nsName ns) nsSep
   (return . map (B.append prename) . Map.keys . nsChildren) ns
 
-ensure action p = do
-   r <- action `catchError` (\e -> p >> throwError e)
-   p
-   return $! r
-{-# INLINE ensure #-}
-
-ret :: TclM T.TclObj
-ret = return T.empty
-{-# INLINE ret #-}
 
 createFrame !vref = createFrameWithNS undefined vref
 createFrameWithNS nsref !vref = do
