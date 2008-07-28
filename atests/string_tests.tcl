@@ -108,3 +108,9 @@ test "string equal" {
     checkthat [string equal -nocase "boo" "BOO"]
     checkthat [string equal -length 2 XXa XXb]
 }
+
+test "regexp simple match" {
+  checkthat [regexp {[A-Za-z]} cat] == 1
+  checkthat [regexp {[A-Za-z]} 554] == 0
+  checkthat [regexp {[A-Za-z]} {}] == 0
+}

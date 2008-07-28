@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.StringProcs (stringProcs, stringTests) where
+module TclLib.StringProcs (stringCmds, stringTests) where
 
 import Common
 import Util
@@ -8,11 +8,16 @@ import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper,isSpace)
 import TclLib.LibUtil
+import Text.Regex.Posix
 import ArgParse
 
 import Test.HUnit
 
-stringProcs = makeCmdList [("string", cmdString), ("append", cmdAppend), ("split", cmdSplit)]
+stringCmds = makeCmdList [
+    ("string", cmdString), 
+    ("regexp", cmdRegexp),
+    ("append", cmdAppend), ("split", cmdSplit)
+  ]
 
 cmdString = mkEnsemble "string" [
    ("trimleft", string_trimleft),
@@ -133,7 +138,13 @@ cmdSplit args = case args of
  where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
        lreturn l = return $! T.fromList . map T.fromBStr $ l
 
+cmdRegexp :: [T.TclObj] -> TclM T.TclObj
+cmdRegexp args = case args of
+  [pat,str] -> return . T.fromBool $ (T.asBStr str) =~ (T.asBStr pat) 
+  _         -> vArgErr "regexp exp string"
+
 stringTests = TestList [ matchTests, toIndTests ]
+
 
 toIndTests = TestList [
      (someLen, "10") `should_be` 10
