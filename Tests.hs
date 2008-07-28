@@ -3,7 +3,7 @@ import BSParse (bsParseTests)
 import TclParse (tclParseTests)
 import TclObj (tclObjTests)
 import Common (commonTests)
-import TclLib.StringProcs (stringTests)
+import TclLib.StringCmds (stringTests)
 import TclLib.MathProcs (mathTests)
 import TclLib
 import Core (coreTests)

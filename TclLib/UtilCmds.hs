@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module TclLib.UtilProcs ( utilProcs ) where
+module TclLib.UtilCmds ( utilCmds ) where
 
 import Util
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
@@ -14,7 +14,7 @@ import ArgParse
 import qualified TclObj as T
 import TclLib.LibUtil
 
-utilProcs = makeCmdList [
+utilCmds = makeCmdList [
    ("time", cmdTime),
    ("incr", cmdIncr), 
    ("expr", cmdExpr),

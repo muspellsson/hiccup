@@ -502,3 +502,15 @@ test "info commands/procs qualified" {
     finalize { ns bunny }
 }
 
+test "ns unknown" {
+    proc dance_party {n args} {
+        return DANCE_PARTY
+    }
+
+    namespace eval augh {
+        namespace unknown ::dance_party
+        checkthat [piggle] eq DANCE_PARTY
+    }
+
+    finalize { ns augh proc dance_party }
+}

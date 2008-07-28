@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.StringProcs (stringCmds, stringTests) where
+module TclLib.StringCmds (stringCmds, stringTests) where
 
 import Common
 import Util

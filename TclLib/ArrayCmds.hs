@@ -1,4 +1,4 @@
-module TclLib.ArrayProcs (arrayProcs) where
+module TclLib.ArrayCmds (arrayCmds) where
 import Common
 
 import Util
@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 import VarName 
 import Text.Printf
 
-arrayProcs = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
+arrayCmds = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
 
 cmdParray args = case args of
      [name] -> do let n = T.asBStr name 

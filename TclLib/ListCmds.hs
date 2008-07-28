@@ -1,4 +1,4 @@
-module TclLib.ListProcs (listCmds) where
+module TclLib.ListCmds (listCmds) where
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Control.Monad
