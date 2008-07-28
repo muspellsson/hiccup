@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.NSProcs (nsCmds) where
+module TclLib.NSCmds (nsCmds) where
 
 import Common
 import Core ()
@@ -19,6 +19,7 @@ cmdNamespace = mkEnsemble "namespace" [
      ("path", ns_path),
      ("export", ns_export),
      ("import", ns_import),
+     ("unknown", ns_unknown),
      ("forget", ns_forget),
      ("origin", ns_origin),
      ("qualifiers", ns_qualifiers),
@@ -87,3 +88,6 @@ ns_path args = case args of
 ns_qualifiers args = case args of
    [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
    _   -> argErr "namespace qualifiers"
+
+ns_unknown args = fail "not implemented"
+   
