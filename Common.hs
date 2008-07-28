@@ -53,10 +53,13 @@ module Common (TclM
        ,deleteNS
        ,childrenNS
        ,variableNS
+       ,getUnknownNS
        ,exportNS
        ,getExportsNS
        ,importNS
        ,forgetNS
+       ,addToPathNS
+       ,getPathNS
        ,commonTests
     ) where
 
@@ -127,12 +130,6 @@ mkCmdAlias nsr pn = do
           ProcCore n b c -> ProcCore n b c
   
 
-emptyCmd = TclCmdObj { 
-       cmdName = pack "",
-       cmdCore = CmdCore (\_ -> fail "empty command"),
-       cmdOrigNS = Nothing,
-       cmdParent = Nothing,
-       cmdKids = [] }
 
 toCmdObjs = mapM toTclCmdObj . unCmdList
 
@@ -243,10 +240,7 @@ makeState' chans safe vlist cmdlst = do
            exportAll "::tcl::mathop"
            exportAll "::tcl::mathfunc"
            toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
-       globalNS fr = newIORef $ TclNS { nsName = nsSep, 
-                         nsCmds = emptyCmdMap, nsFrame = fr, 
-                         nsExport = [],
-                         nsParent = Nothing, nsChildren = Map.empty }
+       globalNS fr = newIORef $ emptyNS nsSep fr
 
 
 getNsCmdMap :: NSRef -> TclM CmdMap
@@ -290,7 +284,7 @@ currentVars = do mv <- getFrame >>= getUpMap
 commandNames mns procsOnly = nsList >>= mapM mapElems >>= return . map cmdName . filt . concat
  where mapElems e = getNsCmdMap e >>= mapM readRef . Map.elems . unCmdMap
        nsList = do
-          c <- getNamespace mns
+          c <- getNamespaceHere mns
           has_par <- hasParent c
           case (has_par,isJust mns) of
              (True,False)  -> do
@@ -335,17 +329,26 @@ getProcInfo !pname = do
                   pi        -> return pi
  where err = tclErr $ show pname ++ " isn't a procedure"
 
-{-# TODO: Should the tryHere stuff be rendered redundant by
-    global fallback elsewhere? #-}
-getCmdNS (NSQual nst n) = do
-  res <- tryHere `ifFails` Nothing
-  case res of
-    Nothing -> tryGlobal
-    _       -> return $! res
+getCmdNS (NSQual nst n) =
+  tryHere `ifNoResult` tryPaths `ifNoResult` tryGlobal
  where
-  tryHere = getNamespace nst >>= getCmdNorm n
-  tryGlobal = if not (isGlobalQual nst)
-               then do ns2 <- if noNsQual nst then getGlobalNS else getNamespace (asGlobal nst)
+  tryHere = getNamespaceHere nst >>= getCmdNorm n
+  ifNoResult f v = (f `ifFails` Nothing) >>= 
+                            \r -> case r of
+                                   Nothing -> v
+                                   _       -> return $! r
+  tryPaths 
+   | globalQual = return Nothing
+   | otherwise = do
+       nsr <- getCurrNS
+       path <- nsr `refExtract` nsPath
+       let getInNS nsr = getNamespace (return nsr) nst >>= getCmdNorm n
+       case path of
+         [] -> return Nothing
+         lst -> foldr1 ifNoResult (map getInNS lst)
+  globalQual = isGlobalQual nst 
+  tryGlobal = if not globalQual
+               then do ns2 <- if noNsQual nst then getGlobalNS else getNamespaceHere (asGlobal nst)
                        getCmdNorm n ns2
                else return Nothing
 {-# INLINE getCmdNS #-}
@@ -366,13 +369,11 @@ getCmdNorm !i !nsr = do
      Just v  -> liftIO (readIORef v >>= return . Just)
 {-# INLINE getCmdNorm #-}
 
-
-rmProcNS (NSQual nst n) = getNamespace nst >>= deleteCmd n
-
 deleteCmd name = (`changeCmds` (Map.delete name))
 
-removeCmd cmd = 
- whenJust (cmdOrigNS cmd) $ deleteCmd (cmdName cmd)
+removeCmd cmd = case cmdOrigNS cmd of
+    Nothing -> io (putStrLn $ "NO ORIGIN FOR " ++ show (cmdName cmd)) >> return ()
+    Just nsr -> deleteCmd (cmdName cmd) nsr
 
 registerCmd name pr = 
     let pn@(NSQual _ n) = parseProc name
@@ -383,10 +384,10 @@ registerProc name pr =
     in registerCmdObj pn (emptyCmd { cmdName = n,
                                      cmdCore = pr })
 
-registerCmdObj (NSQual nst k) newCmd = getNamespace nst >>= regInNS
+registerCmdObj (NSQual nst k) newCmd = getNamespaceHere nst >>= regInNS
  where 
   regInNS nsr = do 
-           newc <- io . newIORef $ newCmd { cmdOrigNS = Just nsr }
+           newc <- io . newIORef $ newCmd { cmdOrigNS = Just nsr, cmdName = k }
            changeCmds nsr (Map.insert k newc)
            return newc
 
@@ -424,7 +425,7 @@ renameCmd old new = do
   mpr <- getCmdNS pold
   case mpr of
    Nothing -> tclErr $ "can't rename, bad command " ++ show old
-   Just pr -> do rmProcNS pold
+   Just pr -> do removeCmd pr
                  unless (bsNull new) (registerCmdObj (parseProc new) pr >> return ())
 
 varUnsetNS :: NSQual VarName -> TclM RetVal
@@ -457,8 +458,8 @@ varUnset vn frref = do
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
 usingNsFrame (NSQual !ns !vn) f = (lookupNsFrame ns) >>= f vn
  where lookupNsFrame Nothing = getFrame 
-       lookupNsFrame (Just n) = (getNamespace' n `orElse` tryGlobal n) >>= getNSFrame
-       tryGlobal (NS _ t) = getNamespace' (NS True t)
+       lookupNsFrame (Just n) = (getNamespaceHere' n `orElse` tryGlobal n) >>= getNSFrame
+       tryGlobal (NS _ t) = getNamespaceHere' (NS True t)
 {-# INLINE usingNsFrame #-}
 
 {- This specialization is ugly, but GHC hasn't been doing it for me and it
@@ -466,8 +467,8 @@ usingNsFrame (NSQual !ns !vn) f = (lookupNsFrame ns) >>= f vn
 usingNsFrame2 :: NSQual BString -> (BString -> FrameRef -> TclM b) -> TclM b
 usingNsFrame2 (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  where lookupNsFrame Nothing  = getFrame 
-       lookupNsFrame (Just n) = (getNamespace' n `orElse` tryGlobal n) >>= getNSFrame
-       tryGlobal (NS _ t) = getNamespace' (NS True t)
+       lookupNsFrame (Just n) = (getNamespaceHere' n `orElse` tryGlobal n) >>= getNSFrame
+       tryGlobal (NS _ t) = getNamespaceHere' (NS True t)
 {-# INLINE usingNsFrame2 #-}
 
 
@@ -534,7 +535,7 @@ upvar n d s = do
 
 deleteNS name = do 
  let nst = parseNSTag name 
- ns <- getNamespace' nst >>= readRef
+ ns <- getNamespaceHere' nst >>= readRef
  kids <- mapM (`refExtract` cmdKids) (cmdMapElems (nsCmds ns))
  mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
  whenJust (nsParent ns) $ \p -> p .= removeChild (nsTail nst)
@@ -542,14 +543,16 @@ deleteNS name = do
 removeChild child = (\v -> v { nsChildren = Map.delete child (nsChildren v) })
 addChildNS name child = (\v -> v { nsChildren = Map.insert name child (nsChildren v) } )
 
-getNamespace nst = case nst of 
-        Nothing  -> getCurrNS
-        Just nst -> getNamespace' nst
+getNamespaceHere = getNamespace getCurrNS
+getNamespace getcurr nst = case nst of 
+        Nothing  -> getcurr
+        Just nst -> getNamespace' getcurr nst
 {-# INLINE getNamespace #-}
 
 -- TODO: Unify namespace getters
-getNamespace' (NS gq nsl) = do
-    base <- if gq then getGlobalNS else getCurrNS 
+getNamespaceHere' = getNamespace' getCurrNS
+getNamespace' getcurr (NS gq nsl) = do
+    base <- if gq then getGlobalNS else getcurr
     case nsl of
       [] -> return $! base
       _  -> foldM getKid base nsl
@@ -569,12 +572,16 @@ getOrCreateNamespace (NS gq nsl) = do
              Nothing -> io (mkEmptyNS k nsref)
              Just v  -> return $! v
 
-existsNS ns = (getNamespace' (parseNSTag ns) >> return True) `ifFails` False
+existsNS ns = (getNamespaceHere' (parseNSTag ns) >> return True) `ifFails` False
+
+
+getUnknownNS :: TclM BString
+getUnknownNS = return (pack "::unknown")
 
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
   ensureNotArr ind
-  nsfr <- getNamespace ns >>= getNSFrame
+  nsfr <- getNamespaceHere ns >>= getNSFrame
   fr <- getFrame
   same <- sameTags fr nsfr
   if same then insertVar fr name varVal
@@ -599,7 +606,7 @@ getExportsNS =
 importNS :: Bool -> BString -> TclM T.TclObj
 importNS force name = do
     let (NSQual nst n) = parseProc name
-    nsr <- getNamespace nst
+    nsr <- getNamespaceHere nst
     exported <- getExports nsr n
     mapM (importCmd nsr) exported
     return . T.fromList . map T.fromBStr $ exported
@@ -622,7 +629,7 @@ forgetNS name = do
    let qns@(NSQual nst n) = parseProc name
    case nst of 
      Just _ -> do
-        nsr <- getNamespace nst
+        nsr <- getNamespaceHere nst
         exported <- getExports nsr n
         cns <- getCurrNS
         mapM_ (\x -> deleteCmd x cns) exported
@@ -651,10 +658,7 @@ withScope !frref fun = do
 mkEmptyNS name parent = do
     pname <- liftM nsName (readIORef parent)
     emptyFr <- createFrame emptyVarMap
-    new <- newIORef $ TclNS { nsName = fixNSName pname name, 
-                              nsCmds = emptyCmdMap, nsFrame = emptyFr, 
-                              nsExport = [],
-                              nsParent = Just parent, nsChildren = Map.empty }
+    new <- newIORef $ (emptyNS (fixNSName pname name) emptyFr) { nsParent = Just parent }
     parent `modifyIORef` (addChildNS name new)
     setFrNS emptyFr new
     return $! new
@@ -685,17 +689,26 @@ getCurrNS = getFrame >>= \fr -> liftIO (readIORef fr >>= \f -> return $! (frNS f
 getGlobalNS = gets tclGlobalNS
 {-# INLINE getGlobalNS #-}
 
+addToPathNS nst = do
+  pns <- getNamespaceHere' nst
+  cnsr <- getCurrNS
+  cnsr .= (\n -> n { nsPath = (pns:(nsPath n)) })
+
+getPathNS = do
+  cnsr <- getCurrNS
+  pathr <- cnsr `refExtract` nsPath
+  mapM (`refExtract` nsName) pathr
 
 currentNS = getCurrNS >>= (`refExtract` nsName)
 
 parentNS nst = do
- par <- getNamespace nst >>= (`refExtract` nsParent)
+ par <- getNamespaceHere nst >>= (`refExtract` nsParent)
  case par of
    Nothing -> return (pack "")
    Just v  -> readRef v >>= return . nsName
 
 childrenNS nst = do
-  ns <- getNamespace nst >>= readRef
+  ns <- getNamespaceHere nst >>= readRef
   let prename = if nsSep `B.isSuffixOf` (nsName ns) then nsName ns else B.append (nsName ns) nsSep
   (return . map (B.append prename) . Map.keys . nsChildren) ns
 
@@ -726,6 +739,19 @@ changeCmds nsr fun = nsr .= updateNS >> notifyWatchers
 emptyCmdMap = CmdMap 0 Map.empty
 emptyCmdList = CmdList []
 emptyVarMap = Map.empty
+
+emptyCmd = TclCmdObj { 
+       cmdName = pack "",
+       cmdCore = CmdCore (\_ -> fail "empty command"),
+       cmdOrigNS = Nothing,
+       cmdParent = Nothing,
+       cmdKids = [] }
+
+emptyNS name frame  = TclNS { nsName = name, 
+                  nsCmds = emptyCmdMap, nsFrame = frame, 
+                  nsExport = [],
+                  nsParent = Nothing, nsChildren = Map.empty,
+                  nsPath = [] }
 
 -- # TESTS # --
 

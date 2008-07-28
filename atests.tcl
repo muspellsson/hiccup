@@ -522,14 +522,14 @@ test "proc must be complete" {
 
 
 test "rename" {
-  assertErr { rename one one_ }
+  assert_err { rename one one_ }
   proc one {} { return 1 }
   checkthat [one] == 1
   rename one one_
-  assertErr { one }
+  assert_err { one }
   checkthat [one_] == 1
   rename one_ ""
-  assertErr { one_ }
+  assert_err { one_ }
 }
 
 test "global ns proc" {
@@ -716,11 +716,11 @@ test "rename with ns qualifiers" {
 
   rename ::foo::bar ::foo::baz
 
-  assertErr { ::foo::bar }
+  assert_err { ::foo::bar }
   checkthat [::foo::baz] eq "omg!"
 
   rename ::foo::baz whatnot
-  assertErr { ::foo::baz }
+  assert_err { ::foo::baz }
 
   checkthat [whatnot] eq "omg!"
 

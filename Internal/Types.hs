@@ -25,7 +25,9 @@ data Namespace = TclNS {
          nsFrame :: !FrameRef,
          nsExport :: [BString],
          nsParent :: Maybe NSRef,
-         nsChildren :: Map.Map BString NSRef } 
+         nsChildren :: Map.Map BString NSRef,
+         nsPath :: [NSRef]
+         } 
 
 
 type FrameRef = IORef TclFrame

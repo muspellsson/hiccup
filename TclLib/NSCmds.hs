@@ -82,12 +82,12 @@ ns_tail args = case args of
    _   -> argErr "namespace tail"
 
 ns_path args = case args of
-   [] -> return T.empty
-   _  -> argErr "namespace path"
+   [] -> getPathNS >>= return . T.fromList . map T.fromBStr
+   lst -> mapM_ (\n -> addToPathNS (parseNSTag (T.asBStr n))) lst >> ret
 
 ns_qualifiers args = case args of
    [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
    _   -> argErr "namespace qualifiers"
 
-ns_unknown args = fail "not implemented"
+ns_unknown _ = ret
    

@@ -403,6 +403,49 @@ test "default ns path" {
   finalize { ns foo }
 }
 
+test "namespace path" {
+    namespace eval ::foo {
+        proc boo {} { namespace current }
+    }
+
+    namespace eval bar { namespace path ::foo  }
+
+    checkthat [namespace eval bar { namespace path }] eq {::foo}
+
+    set res [namespace eval bar { boo }]
+
+    checkthat $res eq {::foo}
+
+    finalize {ns foo ns bar}
+}
+
+test "namespace path relative" {
+    namespace eval ::foo {
+        namespace eval inner {
+            proc boo {} { namespace current }
+        }
+    }
+    namespace eval bar {
+        namespace path ::foo
+    }
+
+    checkthat [namespace eval bar { inner::boo }] eq {::foo::inner}
+    finalize { ns foo ns bar }
+}
+
+test "namespace path deleted" {
+    namespace eval ::foo {
+        proc boo {} { return OK }
+    }
+    namespace eval bar { namespace path ::foo  }
+
+    checkthat [namespace eval bar { boo }] eq OK
+    namespace delete ::foo
+    assert_err { namespace eval bar { boo } }
+
+    finalize { ns bar }
+}
+
 test "simple forget unqualified" {
    namespace eval baz {
       namespace export blah
@@ -500,6 +543,14 @@ test "info commands/procs qualified" {
     checkthat $procs eq {::bunny::do_stuff}
 
     finalize { ns bunny }
+}
+
+test "ns scope unset" {
+    proc fiend {} {}
+    assert_noerr { fiend }
+    namespace eval foo { rename fiend {} }
+    assert_err { fiend }
+    finalize { ns foo }
 }
 
 test "ns unknown" {
