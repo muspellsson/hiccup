@@ -172,7 +172,7 @@ instance Parseable TclObj where
 
 instance Exprable TclObj (CExpr [Cmd] RTokCmd) where
   asCExpr (TclBStr _ _ (_,p)) = tryEither p
-  asCExpr _ =  fail "only blocks for now"
+  asCExpr v = asCExpr . mkTclBStr . asBStr $ v
   {-# INLINE asCExpr #-}
 
 list2Str l = (map listEscape l)  `joinWith` ' '
