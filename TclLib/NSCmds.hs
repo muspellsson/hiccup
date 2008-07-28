@@ -83,7 +83,8 @@ ns_tail args = case args of
 
 ns_path args = case args of
    [] -> getPathNS >>= return . T.fromList . map T.fromBStr
-   lst -> mapM_ (\n -> addToPathNS (parseNSTag (T.asBStr n))) lst >> ret
+   [lst] -> T.asList lst >>= mapM_ (\n -> addToPathNS (parseNSTag (T.asBStr n))) >> ret
+   _ -> vArgErr "namespace path ?pathList?"
 
 ns_qualifiers args = case args of
    [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
