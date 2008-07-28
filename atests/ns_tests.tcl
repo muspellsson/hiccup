@@ -487,14 +487,18 @@ test "ns qualifications" {
     finalize { ns gax proc setitup }
 }
 
-test "info commands qualified" {
+test "info commands/procs qualified" {
     namespace eval bunny {
         proc do_stuff {} {
         }
     }
 
     set cmds [info commands ::bunny::*]
-
     checkthat $cmds eq {::bunny::do_stuff}
+
+    set procs [info procs ::bunny::*]
+    checkthat $procs eq {::bunny::do_stuff}
+
     finalize { ns bunny }
 }
+

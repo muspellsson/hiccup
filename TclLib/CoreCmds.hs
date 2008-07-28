@@ -142,7 +142,7 @@ cmdInfo = mkEnsemble "info" [
   matchp "globals" globalVars,
   matchp "vars" currentVars,
   ("commands", info_commands),
-  matchp "procs" (commandNames Nothing True),
+  ("procs", info_procs),
   noarg "level"    (liftM T.fromInt stackLevel),
   noarg "cmdcount" (liftM T.fromInt getCmdCount),
   noarg "nameofexecutable" (liftM T.fromStr (io getProgName)),
@@ -163,12 +163,24 @@ matchList name f args = case args of
      _     -> argErr name
  where getMatches pat = f >>= asTclList . globMatches (T.asBStr pat)
 
+-- TODO: Get rid of duplication here
+info_procs args = case args of
+  []    -> getCmds Nothing True
+  [pat] -> getCmds (Just pat) True
+  _ -> vArgErr "info procs ?pattern?"
+
 info_commands args = case args of
-  [] -> commandNames Nothing False >>= asTclList
-  [pat] -> let (NSQual nst p) = parseProc (T.asBStr pat)
-               prefixify n = toBStr (NSQual nst n)
-           in commandNames nst False >>= asTclList . map prefixify . globMatches p
+  []    -> getCmds Nothing False
+  [pat] -> getCmds (Just pat) False
   _ -> vArgErr "info commands ?pattern?"
+
+getCmds :: (Maybe T.TclObj) -> Bool -> TclM T.TclObj
+getCmds mpat procsOnly = case mpat of
+  Nothing  -> commandNames Nothing procsOnly >>= asTclList
+  Just pat -> let (NSQual nst p) = parseProc (T.asBStr pat)
+                  prefixify n = toBStr (NSQual nst n)
+              in commandNames nst procsOnly >>= asTclList . map prefixify . globMatches p
+
 
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
@@ -181,9 +193,8 @@ info_args args = case args of
    _   -> vArgErr "info args procname"
 
 info_body args = case args of
-       [n] -> do p <- getProcInfo (T.asBStr n)
-                 treturn (procBody p)
-       _   -> argErr "info body"
+    [n] -> getProcInfo (T.asBStr n) >>= treturn . procBody
+    _   -> vArgErr "info body procname"
 
 asTclList = return . T.fromList . map T.fromBStr
 

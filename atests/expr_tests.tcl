@@ -130,3 +130,7 @@ test "ternary if" {
     checkthat [expr { "bird" in $things ? "there" : "not there"}] eq "there"
     checkthat [expr { "fish" in $things ? "there" : "not there"}] eq "not there"
 }
+
+test "list expr" {
+    checkthat [expr [list 1 + 1]] == 2
+}
