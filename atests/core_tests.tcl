@@ -282,3 +282,13 @@ test "subst with continue" {
 test "subst with return" {
     checkthat [subst {abc,[return foo;expr 1+2],def}] eq {abc,foo,def}
 }
+
+test "unset -nocomplain" {
+    assert_err { unset bonk }
+    assert_noerr { unset -nocomplain }
+    assert_noerr { unset -nocomplain bonk }
+    set -nocomplain 5
+    checkthat ${-nocomplain} == 5
+    assert_noerr { unset -- -nocomplain }
+    assert_err { set -nocomplain }
+}

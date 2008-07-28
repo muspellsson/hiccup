@@ -11,6 +11,7 @@ import System (getProgName)
 import Match (globMatches)
 import Proc.Util (mkProc, mkLambda)
 import Proc.Params
+import ArgParse
 import Core ()
 
 import qualified Data.ByteString.Char8 as B
@@ -47,9 +48,13 @@ cmdSet args = case args of
      [s1]    -> varGetNS (T.asVarName s1)
      _       -> vArgErr "set varName ?newValue?"
 
-cmdUnset args = case args of
-     []       -> argErr "unset"
-     vl       -> mapM_ (varUnsetNS . T.asVarName) vl >> ret
+unsetArgs = boolFlagSpec "nocomplain" 0
+cmdUnset args_ = do
+  let (fl,args) = flagSpan args_
+  (nocomp,_) <- parseArgs unsetArgs False fl
+  let unsetter = if nocomp then \r -> ((varUnsetNS r) `orElse` ret)
+                           else varUnsetNS
+  mapM_ (unsetter . T.asVarName) args >> ret
 
 cmdRename args = case args of
     [old,new] -> renameCmd (T.asBStr old) (T.asBStr new) >> ret

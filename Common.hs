@@ -339,15 +339,16 @@ getCmdNS (NSQual nst n) =
                             \r -> case r of
                                    Nothing -> v
                                    _       -> return $! r
+  {-# INLINE ifNoResult #-}
   tryPaths 
    | globalQual = return Nothing
    | otherwise = do
        nsr <- getCurrNS
        path <- nsr `refExtract` nsPath
-       let getInNS nsr = getNamespace (return nsr) nst >>= getCmdNorm n
        case path of
          [] -> return Nothing
-         lst -> foldr1 ifNoResult (map getInNS lst)
+         lst -> let getInNS nsr = getNamespace (return nsr) nst >>= getCmdNorm n
+                in foldr1 ifNoResult (map getInNS lst)
   globalQual = isGlobalQual nst 
   tryGlobal = if not globalQual
                then do ns2 <- if noNsQual nst then getGlobalNS else getNamespaceHere (asGlobal nst)
