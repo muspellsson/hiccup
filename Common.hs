@@ -54,6 +54,7 @@ module Common (TclM
        ,childrenNS
        ,variableNS
        ,getUnknownNS
+       ,setUnknownNS
        ,exportNS
        ,getExportsNS
        ,importNS
@@ -239,6 +240,7 @@ makeState' chans safe vlist cmdlst = do
        runRegister = do
            exportAll "::tcl::mathop"
            exportAll "::tcl::mathfunc"
+           setUnknownNS $ pack "::unknown"
            toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
        globalNS fr = newIORef $ emptyNS nsSep fr
 
@@ -575,8 +577,10 @@ getOrCreateNamespace (NS gq nsl) = do
 existsNS ns = (getNamespaceHere' (parseNSTag ns) >> return True) `ifFails` False
 
 
-getUnknownNS :: TclM BString
-getUnknownNS = return (pack "::unknown")
+getUnknownNS :: TclM (Maybe BString)
+getUnknownNS = getCurrNS >>= (`refExtract` nsUnknown)
+
+setUnknownNS n = getCurrNS >>= \nsr -> nsr .= (\ns -> ns { nsUnknown = (Just n) })
 
 variableNS name val = do
   let (NSQual ns (VarName n ind)) = parseVarName name
@@ -751,7 +755,8 @@ emptyNS name frame  = TclNS { nsName = name,
                   nsCmds = emptyCmdMap, nsFrame = frame, 
                   nsExport = [],
                   nsParent = Nothing, nsChildren = Map.empty,
-                  nsPath = [] }
+                  nsPath = [],
+                  nsUnknown = Nothing }
 
 -- # TESTS # --
 

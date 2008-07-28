@@ -26,7 +26,8 @@ data Namespace = TclNS {
          nsExport :: [BString],
          nsParent :: Maybe NSRef,
          nsChildren :: Map.Map BString NSRef,
-         nsPath :: [NSRef]
+         nsPath :: [NSRef],
+         nsUnknown :: Maybe BString
          } 
 
 

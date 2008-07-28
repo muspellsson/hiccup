@@ -67,7 +67,7 @@ runCmd (Cmd n args) = do
 
 doCall pn args !mproc = do
    case mproc of
-     Nothing   -> do ukproc <- getUnknownNS >>= getCmd
+     Nothing   -> do ukproc <- getUnknownNS >>= maybe (return Nothing) getCmd
                      case ukproc of
                        Nothing -> tclErr $ "invalid command name " ++ show pn
                        Just uk -> uk `applyTo` ((T.fromBStr pn):args)

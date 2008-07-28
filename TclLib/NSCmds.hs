@@ -89,5 +89,8 @@ ns_qualifiers args = case args of
    [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
    _   -> argErr "namespace qualifiers"
 
-ns_unknown _ = ret
+ns_unknown args = case args of
+   [] -> getUnknownNS >>= maybe ret treturn
+   [n] -> setUnknownNS (T.asBStr n) >> ret
+   _   -> vArgErr "namespace unknown ?script?"
    
