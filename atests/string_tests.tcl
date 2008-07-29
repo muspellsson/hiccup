@@ -114,3 +114,11 @@ test "regexp simple match" {
   checkthat [regexp {[A-Za-z]} 554] == 0
   checkthat [regexp {[A-Za-z]} {}] == 0
 }
+
+test "regexp match result" {
+  checkthat [regexp {[xyz]+} "oh 444 bother" res] == 0
+  assert_err { puts $res }
+  set v [regexp {[0-9]+} "oh 444 bother" res]
+  checkthat $v == 1
+  checkthat $res eq 444
+}

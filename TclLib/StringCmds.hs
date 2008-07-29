@@ -140,8 +140,14 @@ cmdSplit args = case args of
 
 cmdRegexp :: [T.TclObj] -> TclM T.TclObj
 cmdRegexp args = case args of
-  [pat,str] -> return . T.fromBool $ (T.asBStr str) =~ (T.asBStr pat) 
-  _         -> vArgErr "regexp exp string"
+  [pat,str] -> return . T.fromBool $ (T.asBStr str) =~ (T.asBStr pat)
+  [pat,str,matchVar] -> do let m = (T.asBStr str) =~~ (T.asBStr pat)
+                           case m of
+                              Nothing -> return (T.fromBool False)
+                              Just mv -> do
+                               varSetNS (T.asVarName matchVar) (T.fromBStr mv)
+                               return (T.fromBool True)
+  _         -> vArgErr "regexp exp string ?matchVar?"
 
 stringTests = TestList [ matchTests, toIndTests ]
 
