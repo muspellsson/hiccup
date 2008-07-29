@@ -24,6 +24,7 @@ cmdString = mkEnsemble "string" [
    ("trimleft", string_trimleft),
    ("trimright", string_trimright),
    ("trim", string_trim),
+   ("first", string_first),
    ("tolower", string_op "tolower" (B.map toLower)),
    ("toupper", string_op "toupper" (B.map toUpper)),
    ("reverse", string_op "reverse" B.reverse),
@@ -110,6 +111,19 @@ string_index args = case args of
                                   else treturn $ B.take 1 (B.drop ind str)
                      _   -> argErr "string index"
 
+
+string_first args = case args of
+  [s1,s2] -> let (bs1,bs2) = (T.asBStr s1, T.asBStr s2)
+             in go bs1 bs2 0
+  [s1,s2,ind] -> do 
+     let (bs1,bs2) = (T.asBStr s1, T.asBStr s2)
+     index <- toIndex (B.length bs2) ind
+     go bs1 bs2 index
+  _  -> vArgErr "string first needleString haystackString ?startIndex?"
+ where go s1 s2 off = return . T.fromInt $ 
+              case B.findSubstring s1 (B.drop off s2) of
+                      Nothing -> -1
+                      Just i  -> off + i
 
 string_range args = case args of
    [s,i1,i2] -> do 

@@ -127,3 +127,12 @@ test "bad regexp" {
     assert_err { regexp {[A-} "misc" }
     assert_err { regexp {[A-} "misc" res }
 }
+
+test "string first" {
+    checkthat [string first a 0abcdef] == 1
+    checkthat [string first de 0abecdef] == 5
+    checkthat [string first m 0abecdef] == -1
+
+    checkthat [string first a 0a23456789abcdef 5] == 10
+    checkthat [string first a 0a23456789abcdef 11] == -1
+}
