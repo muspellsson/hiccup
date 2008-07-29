@@ -12,7 +12,7 @@ module Common (TclM
        ,runInterp
        ,registerInterp
        ,getInterp
-       ,getInterps
+       ,getInterpNames
        ,deleteInterp
        ,runCheckResult
        ,withProcScope
@@ -165,25 +165,26 @@ inInterp c i = io (runInterp c i) >>= fixres
  where fixres (Right x) = return x
        fixres (Left e) = throwError e
 
+modInterps f s = s { tclInterps = f (tclInterps s) }
+getInterps = gets tclInterps
+
 registerInterp path interp cmd = inner path
  where regInterp n = do 
              modify (modInterps (Map.insert n interp))
              registerCmd n cmd
-       modInterps f s = s { tclInterps = f (tclInterps s) }
        inner path = case path of
           [n] -> regInterp n >> ret
-          (x:xs) -> do
-              st <- get
-              let cir = Map.lookup x (tclInterps st)
-              case cir of
+          (x:xs) -> lookupInterp x >>= \v -> (inner xs) `inInterp` v
+          {-
+              cir <- getInterps
+              case Map.lookup x cir of
                 Nothing -> tclErr $ "could not find interpreter " ++ show x
-                Just v  -> (inner xs) `inInterp` v
+                Just v  -> (inner xs) `inInterp` v -}
           [] -> fail "invalid interpreter path"
   
 lookupInterp n = do
-   st <- get
-   let cir = Map.lookup n (tclInterps st)
-   case cir of
+   its <- getInterps
+   case Map.lookup n its of
      Nothing -> tclErr $ "could not find interpreter " ++ show n
      Just v  -> return v
 
@@ -192,23 +193,21 @@ getInterp nl = do
   inner ir nl
  where inner ir []     = return ir
        inner (Interp ir) (x:xs) = do
-         cir <- ir `refExtract` tclInterps >>= return . Map.lookup x
-         case cir of
+         cir <- ir `refExtract` tclInterps
+         case Map.lookup x cir of
             Nothing -> tclErr $ "could not find interpreter " ++ show x
             Just v  -> inner v xs
 
-getInterps :: TclM [BString]
-getInterps = do
- get >>= return . Map.keys . tclInterps
+getInterpNames :: TclM [BString]
+getInterpNames = getInterps >>= return . Map.keys
 
 deleteInterp path = case path of
  [n] -> do
-   st <- get
-   let im = tclInterps st
+   im <- getInterps
    case Map.lookup n im of
      Nothing -> tclErr $ "could not find interpreter " ++ show n
      Just _  -> do 
-       put (st { tclInterps = Map.delete n im }) 
+       modify (modInterps (Map.delete n))
        renameCmd n (pack "")
        ret
  (n:nx) -> do 
@@ -248,31 +247,6 @@ makeState' chans safe vlist cmdlst = do
 getNsCmdMap :: NSRef -> TclM CmdMap
 getNsCmdMap !nsr = liftIO (readIORef nsr >>= \v -> return $! (nsCmds v))
 {-# INLINE getNsCmdMap #-}
-
-putStack s = modify (\v -> v { tclStack = s })
-{-# INLINE putStack  #-}
-modStack :: (TclStack -> TclStack) -> TclM ()
-modStack f = get >>= put . (\v -> let !v2 = v { tclStack = f (tclStack v) } in v2)
-{-# INLINE modStack #-}
-
-registerWatcher cb = modify (\t -> t { tclCmdWatchers = cb:(tclCmdWatchers t) })
-
-notifyWatchers = do
-  gets tclCmdWatchers >>= io . sequence_
-
-getStack = gets tclStack
-{-# INLINE getStack  #-}
-getFrame = do st <- gets tclStack
-              case st of
-                 (fr:_) -> return $! fr
-                 _      -> fail "stack badness"
-
-getCmdCount :: TclM Int
-getCmdCount = gets tclCmdCount
-
-io :: IO a -> TclM a
-io = liftIO
-{-# INLINE io #-}
 
 
 stackLevel = getStack >>= return . pred . length
@@ -677,22 +651,6 @@ withExistingNS f !nsref = do
   fr <- getNSFrame nsref
   withScope fr f
 
-getFrameVars :: FrameRef -> TclM VarMap
-getFrameVars !frref = frref `refExtract` frVars
-{-# INLINE getFrameVars #-}
-
-getUpMap !frref = frref `refExtract` upMap 
-{-# INLINE getUpMap #-}
-
-getNSFrame :: NSRef -> TclM FrameRef
-getNSFrame !nsref = nsref `refExtract` nsFrame 
-
-
-getCurrNS = getFrame >>= \fr -> liftIO (readIORef fr >>= \f -> return $! (frNS f))
-{-# INLINE getCurrNS #-}
-
-getGlobalNS = gets tclGlobalNS
-{-# INLINE getGlobalNS #-}
 
 addToPathNS nst = do
   pns <- getNamespaceHere' nst

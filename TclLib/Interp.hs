@@ -39,7 +39,7 @@ interp_exists args = case args of
     _   -> argErr "interp exists"
 
 interp_slaves args = case args of
-   [] -> getInterps >>= return . T.fromList . map T.fromBStr
+   [] -> getInterpNames >>= return . T.fromList . map T.fromBStr
    _  -> vArgErr "interp slaves ?path?"
 
 -- delete ?path ?...

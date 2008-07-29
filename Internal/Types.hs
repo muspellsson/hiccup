@@ -33,6 +33,7 @@ data Namespace = TclNS {
 
 type FrameRef = IORef TclFrame
 type NSRef = IORef Namespace
+type UpMap = Map.Map BString (FrameRef,BString)
 
 data TclFrame = TclFrame { 
       frVars :: !VarMap, 
