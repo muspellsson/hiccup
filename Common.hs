@@ -175,11 +175,6 @@ registerInterp path interp cmd = inner path
        inner path = case path of
           [n] -> regInterp n >> ret
           (x:xs) -> lookupInterp x >>= \v -> (inner xs) `inInterp` v
-          {-
-              cir <- getInterps
-              case Map.lookup x cir of
-                Nothing -> tclErr $ "could not find interpreter " ++ show x
-                Just v  -> (inner xs) `inInterp` v -}
           [] -> fail "invalid interpreter path"
   
 lookupInterp n = do

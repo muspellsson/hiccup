@@ -122,3 +122,8 @@ test "regexp match result" {
   checkthat $v == 1
   checkthat $res eq 444
 }
+
+test "bad regexp" {
+    assert_err { regexp {[A-} "misc" }
+    assert_err { regexp {[A-} "misc" res }
+}
