@@ -7,6 +7,7 @@ import Match (MatchType(..), matchFun)
 import Control.Monad.Error
 import qualified TclObj as T
 import TclErr
+import Proc.CodeBlock
 import TclObj ((.==))
 import TclLib.LibUtil
 import Util
@@ -28,7 +29,7 @@ cmdIf _ = argErr "if"
 
 
 cmdWhile args = case args of
-  [cond,body] -> whileLoop cond body
+  [cond,body] -> toCodeBlock body >>= whileLoop cond
   _           -> argErr "while"
 
 whileLoop cond body = loop `catchError` herr
@@ -44,9 +45,12 @@ eatErr f v = (f >> ret) `catchError` \e -> if v == (toEnum (errCode e)) then ret
 {-# INLINE eatErr #-}
 
 cmdFor args = case args of
-   [start,test,next,body] -> do evalTcl start
-                                loop test next body `eatErr` EBreak
-                                ret
+   [start,test,next,body] -> do 
+      evalTcl start
+      cnext <- toCodeBlock next
+      cbody <- toCodeBlock body
+      loop test cnext cbody `eatErr` EBreak
+      ret
    _                      -> argErr "for"
  where loop test next body = do
          c <- doCond test
@@ -55,9 +59,10 @@ cmdFor args = case args of
 
 cmdForEach args =
    case args of
-    [vl_,l_,block] -> do
+    [vl_,l_,block_] -> do
                vl <- T.asList vl_
                l <- T.asList l_
+               block <- toCodeBlock block_
                let vllen = length vl
                if vllen == 1
                    then allowBreak (mapM_ (doSingl (head vl) block) l)
@@ -107,7 +112,3 @@ doSwitch matchP lst = do
              then if v .== "-" then switcher xs True else evalTcl v
              else switcher xs False
        switcher []      _       = tclErr "impossible condition in \"switch\""
-
-toPairs [a,b]   = return [(a,b)]
-toPairs (a:b:r) = liftM ((a,b):) (toPairs r)
-toPairs _       = tclErr "list must have even number of elements"

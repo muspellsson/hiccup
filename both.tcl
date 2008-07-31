@@ -4,9 +4,8 @@ namespace import ::tcl::mathop::*
 proc fib x { 
   if {$x <= 1} { 
     return 1
-  } else { 
-    return [+ [fib [- $x 1 ]] [fib [- $x 2 ]]]
-  }
+  } 
+  return [+ [fib [- $x 1 ]] [fib [- $x 2 ]]]
 }
 
 proc fact {x} {

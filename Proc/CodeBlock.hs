@@ -17,9 +17,8 @@ import qualified TclObj as T
 import Util
 
 
-
 type CmdName = NSQual BString
-type CmdTag = (Int, CmdName)
+data CmdTag = CmdTag !Int !CmdName
 
 data CompCmd = CompCmd (Maybe CmdTag) (Either [R.RTokCmd] [CToken]) Cmd
 
@@ -27,7 +26,7 @@ data CodeBlock = CodeBlock CmdCache [CompCmd]
 
 type TclCmd = [T.TclObj] -> TclM T.TclObj
 type CacheEntry = (Maybe TclCmd, CmdName)
-data CmdCache = CmdCache (IOArray Int CacheEntry)
+data CmdCache = CmdCache !(IOArray Int CacheEntry)
 
 
 type CmdIds = M.Map CmdName Int
@@ -59,10 +58,10 @@ getTag :: CmdName -> CompM CmdTag
 getTag cn = do
   (CState i mi) <- get
   case M.lookup cn mi of
-    Just ct -> return (ct,cn)
+    Just ct -> return (CmdTag ct cn)
     Nothing -> do 
         put (CState (succ i) (M.insert cn i mi))
-        return (i,cn)
+        return (CmdTag i cn)
 
 
 compCmd :: Cmd -> CompM CompCmd
@@ -93,18 +92,19 @@ invalidateCache (CmdCache carr) = do
  where modInd i f = readArray carr i >>= writeArray carr i . f
 
 
-getCacheCmd (CmdCache carr) (cind,cn) = do
-  (mcmd,_) <- liftIO $ readArray carr cind
+getCacheCmd (CmdCache carr) (CmdTag cind cn) = do
+  (mcmd,_) <- liftIO $! readArray carr cind
   case mcmd of
-    Just cmd -> return (Just cmd)
+    Just _ -> return mcmd
     Nothing -> do
        mcmd2 <- getCmdNS cn
        case mcmd2 of
          Nothing -> return Nothing
          Just cmd -> do
            let act al = cmd `applyTo` al
-           liftIO $ writeArray carr cind (Just act,cn)
-           return (Just act)
+           let jact = Just act
+           liftIO $ writeArray carr cind (jact,cn)
+           return jact
 
 evalCompC cc (CompCmd mct nargs c) = 
   case mct of
@@ -134,11 +134,14 @@ evalCompArgs cmdFn al = evalCTokens al [] where
                  l <- T.asList rs
                  evalCTokens xs ((reverse l) ++ acc)
      where nextWith f = f >>= \(!r) -> evalCTokens xs (r:acc)
-           evalArgs_ args = evalCTokens args []
+           {-# INLINE nextWith #-}
+           evalArgs_ args = {-# SCC "evalArgs_" #-} evalCTokens args []
 
-evalThem _  []     = ret
-evalThem cc [x]    = evalCompC cc x
-evalThem cc (x:xs) = evalCompC cc x >> evalThem cc xs
+evalThem cc lst = go lst
+ where run_eval = evalCompC cc 
+       go []     = ret
+       go [x]    = run_eval x
+       go (x:xs) = run_eval x >> go xs
 
 instance Runnable CodeBlock where
   evalTcl = runCodeBlock

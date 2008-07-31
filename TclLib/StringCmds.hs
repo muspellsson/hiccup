@@ -8,6 +8,7 @@ import Control.Exception (try)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper,isSpace)
+import Data.Maybe (listToMaybe)
 import TclLib.LibUtil
 import Text.Regex.Posix
 import ArgParse
@@ -25,6 +26,7 @@ cmdString = mkEnsemble "string" [
    ("trimright", string_trimright),
    ("trim", string_trim),
    ("first", string_first),
+   ("map", string_map),
    ("tolower", string_op "tolower" (B.map toLower)),
    ("toupper", string_op "toupper" (B.map toUpper)),
    ("reverse", string_op "reverse" B.reverse),
@@ -112,6 +114,22 @@ string_index args = case args of
                      _   -> argErr "string index"
 
 
+string_map args = case args of
+   [tcm,s] -> do
+    cm <- T.asList tcm >>= toPairs . map T.asBStr
+    return . T.fromBStr . mapReplace cm . T.asBStr $ s
+   _     -> vArgErr "string map charmap str"
+ 
+-- TODO: This is inefficiently implemented, but can be easily improved.
+mapReplace ml = go
+  where firstMatch ml str = listToMaybe [(k,v) | (k,v) <- ml, k `B.isPrefixOf` str]
+        go s = case firstMatch ml s of
+                    Nothing -> case B.uncons s of
+                                 Nothing -> s
+                                 Just (c,r) -> B.cons c (go r)
+                    Just (k,v) -> let rest = B.drop (B.length k) s
+                                  in B.append v (go rest)
+
 string_first args = case args of
   [s1,s2] -> let (bs1,bs2) = (T.asBStr s1, T.asBStr s2)
              in go bs1 bs2 0
@@ -168,8 +186,12 @@ cmdRegexp args = case args of
                            Left _ -> fail "invalid regex"
                            Right v -> return $! v
 
-stringTests = TestList [ matchTests, toIndTests ]
+stringTests = TestList [ matchTests, toIndTests, mapReplaceTests ]
 
+mapReplaceTests = TestList [
+   ([("a","1"),("b","2")], "aabbca") `should_be` "1122c1"
+   ,([("a","1"),("b","2")], "bca") `should_be` "2c1"
+  ] where should_be (ml,s) b = b ~=?  mapReplace ml s
 
 toIndTests = TestList [
      (someLen, "10") `should_be` 10

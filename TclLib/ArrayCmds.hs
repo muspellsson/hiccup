@@ -31,9 +31,6 @@ cmdArray = mkEnsemble "array" [
 
 arrSet n i v = varSetNS (arrNameNS n i) v
 
-toPairs (a:b:xs) = (a,b) : toPairs xs
-toPairs _ = [] 
-
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
 
 array_get args = case args of
@@ -64,7 +61,9 @@ array_names args = case args of
 array_set args = case args of
           [a2,a3] -> do l <- T.asList a3
                         if even (length l)
-                           then mapM_ (\(a,b) -> arrSet (T.asBStr a2) (T.asBStr a) b) (toPairs l) >> ret
+                           then do let aname = T.asBStr a2
+                                   toPairs l >>= mapM_ (\(a,b) -> arrSet aname (T.asBStr a) b)
+                                   ret
                            else tclErr "list must have even number of elements"
           _       -> argErr "array set"
 

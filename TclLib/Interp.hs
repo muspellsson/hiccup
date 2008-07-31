@@ -10,6 +10,7 @@ import TclLib.LibUtil
 import TclLib (libCmds)
 import Core ()
 import ArgParse
+import Proc.CodeBlock
 import Internal.Types (Interp(..),interpSafe)
 import CmdList 
 
@@ -106,7 +107,7 @@ mkInterp = mkInterpWithVars []
 mkInterpWithVars = createInterp False
 
 interpEvalStr :: BString -> Interp -> IO (Either BString BString)
-interpEvalStr s i = runInterpStr (evalTcl ((T.fromBStr s) :: T.TclObj)) i
+interpEvalStr s i = runInterpStr (toCodeBlock (T.fromBStr s) >>= evalTcl) i
 
 runInterpStr t i = runInterp t i >>= return . fixErr
   where fixErr (Left x)  = Left (T.asBStr (errData x))

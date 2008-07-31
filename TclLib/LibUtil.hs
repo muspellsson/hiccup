@@ -2,6 +2,7 @@
 module TclLib.LibUtil (
     treturn
     ,vArgErr
+    ,toPairs
     ,toIndex
     ,mkEnsemble
     ,makeCmdList
@@ -25,6 +26,10 @@ vArgErr s = argErr ("should be " ++ show s)
 treturn :: BString -> TclM T.TclObj
 treturn = return . T.fromBStr
 {-# INLINE treturn #-}
+
+toPairs [a,b]   = return [(a,b)]
+toPairs (a:b:r) = toPairs r >>= return . ((a,b):)
+toPairs _       = tclErr "list must have even number of elements"
 
 toIndex :: (Monad m) => Int -> T.TclObj -> m Int
 toIndex len i = case T.asInt i of
