@@ -292,3 +292,14 @@ test "unset -nocomplain" {
     assert_noerr { unset -- -nocomplain }
     assert_err { set -nocomplain }
 }
+
+test "weird trailing parse" {
+    set x 0
+    assert_noerr {
+        if {1} {
+            set x 10;
+
+            ;
+        }
+    }
+}

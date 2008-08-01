@@ -1,27 +1,44 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Format (formatString) where
 
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (chr)
+import BSParse (pchar,(.>>),choose,emit,wrapWith,parseMany,parseLit
+                ,getPred1
+                ,(<|>)
+                ,pass
+                ,parseInt)
+
+data Format = FInt | FStr | FChar deriving Show
+
+getFormat f v = case f of
+    FInt -> T.asInt v >>= return . B.pack . show
+    FStr -> return . T.asBStr $ v
+    FChar -> T.asInt v >>= return . B.singleton . chr
 
 
-formatString str xl = 
-   case B.elemIndex '%' str of
-     Nothing -> return str
-     Just i -> let (pre,post) = B.splitAt i str
-               in case B.uncons (B.drop 1 post) of
-                    Nothing -> fail "bare %"
-                    Just (c,r) -> handle pre c r
- where handle pre c r = 
-         let withRest v l = formatString r l >>= \x -> return (B.concat [pre, v, x])
-             argMod f = case xl of
-                  (x:xs) -> f x >>= \v -> v `withRest` xs
-                  []     -> fail "not enough args"
-         in case c of
-           '%' -> (B.singleton '%') `withRest` xl
-           's' -> argMod (return . T.asBStr)
-           'c' -> argMod (\v -> T.asInt v >>= return . B.singleton . chr)
-           'd' -> argMod (\v -> T.asInt v >>= return . B.pack . show)
-           _   -> fail $ "unknown format pattern: " ++ show c
+formatString str xl = case parseFormatStr str of
+                   Right (fl,r) -> if B.null r then construct fl xl [] >>= return . B.concat
+                                               else fail "invalid format string"
+                   Left e       -> fail e
 
-                      
+construct [] [] acc = return $ reverse acc
+construct [] _ _ = fail "extra arguments to format"
+construct ((Left s):xs) a acc = construct xs a (s:acc)
+construct _  [] _ = fail "not enough arguments to format"
+construct ((Right (p,f)):xs) (a:ax) acc = do
+   s <- getFormat f a >>= return . B.append (B.replicate p ' ')
+   construct xs ax (s:acc)
+
+parseFormatStr = parseMany $ choose [normal `wrapWith` Left, 
+                                     parseFormat `wrapWith` Right, 
+                                     (parseLit "%%" .>> emit "%") `wrapWith` Left]
+  where normal = getPred1 (/= '%') "non-format"
+
+parseFormat = pchar '%' .>> choose [fstr,fchar,fint]
+ where mk (c,v) = (padding `pass` pchar c) `wrapWith` (\p -> (p,v))
+       fchar = mk ('c',FChar)
+       fstr = mk ('s', FStr)
+       fint = mk ('d',FInt)
+       padding = (parseInt <|> emit 0)

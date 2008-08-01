@@ -37,8 +37,9 @@ runParse = parseStatements `pass` parseEof
 
 asCmds lst = [(c,a) | (c:a) <- lst]
 
-parseStatements = trimmed $ (parseStatement `sepBy` stmtSep) `wrapWith` asCmds
+parseStatements = trimmed $ ((parseStatement `sepBy` stmtSep) `pass` trailing) `wrapWith` asCmds
  where stmtSep = parseMany1 (eatSpaces .>> parseOneOf "\n;" .>> eatSpaces)
+       trailing = parseMany stmtSep
 
 parseStatement :: Parser [TclWord]
 parseStatement = choose [eatComment, parseTokens]
@@ -200,6 +201,7 @@ runParseTests = "runParse" ~: TestList [
      ,"unquoted ws arr" ~: (pr ["puts","$arr(1 2)"]) ?=? "puts $arr(1 2)"
      ,"expand" ~: ([(Word "incr", [Expand (Word "$boo")])], "") ?=? "incr {*}$boo"
      ,"no expand" ~: ([(Word "incr", [NoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
+     ,"with newline" ~: "puts HI;; \n ;" `should_be` ["puts", "HI"]
   ]
  where should_fail str () = (runParse str) `should_fail_` ()
        should_be str res = Right (pr res) ~=? (runParse str)

@@ -27,8 +27,7 @@ consumed p s = do
 
 (<|>) :: Parser t -> Parser t -> Parser t
 a <|> b = \v -> v `seq` ((a v) `mplus` (b v))
-orElse = (<|>)
-{-# INLINE orElse #-}
+{-# INLINE (<|>) #-}
 
 tryGet fn = fn <|> (emit "")
      
@@ -37,7 +36,7 @@ chain :: [Parser BString] -> Parser BString
 chain lst = (foldr pcons (emit []) lst) `wrapWith` B.concat
 {-# INLINE chain #-}
 
-choose = foldr1 orElse
+choose = foldr1 (<|>)
 {-# INLINE choose #-}
 
 pjoin :: (t1 -> t2 -> t3) -> Parser t1 -> Parser t2 -> Parser t3
@@ -135,6 +134,11 @@ parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = parseNoneOf "\"\\" "non-quote chars"
        inside = parseMany (noquotes <|> escapedChar)
 
+parseInt :: Parser Int 
+parseInt s = case B.readInt s of
+                Just x -> return x
+                Nothing -> fail "expected int"
+{-# INLINE parseInt #-}
 
 escapedChar = chain [pchar '\\', parseAny]
 

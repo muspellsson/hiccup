@@ -27,10 +27,6 @@ parseNum s = do
        dtail = (consumed (pchar '.' .>> digstring)) `wrapWith` B.unpack
        digstring = getPred1 (`elem` "0123456789")  "digit"
 
-parseInt :: Parser Int 
-parseInt s = case B.readInt s of
-                Just x -> return x
-                Nothing -> fail "expected int"
 
 
 operators = mkops [ 
