@@ -512,8 +512,10 @@ deleteNS name = do
  mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
  whenJust (nsParent ns) $ \p -> p .= removeChild (nsTail nst)
 
-removeChild child = (\v -> v { nsChildren = Map.delete child (nsChildren v) })
-addChildNS name child = (\v -> v { nsChildren = Map.insert name child (nsChildren v) } )
+onNsChildren f = \v -> v { nsChildren = f (nsChildren v) }
+{-# INLINE onNsChildren #-}
+removeChild child = onNsChildren (Map.delete child)
+addChildNS name child = onNsChildren (Map.insert name child)
 
 getNamespaceHere = getNamespace getCurrNS
 getNamespace getcurr nst = case nst of 
@@ -679,16 +681,13 @@ createFrameWithNS nsref !vref = do
 
 changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
 
-modFrVars fr fun = let !r = fun (frVars fr) in fr { frVars = r }
-{-# INLINE modFrVars #-}
+onFrVars fr fun = let !r = fun (frVars fr) in fr { frVars = r }
+{-# INLINE onFrVars #-}
 
-(.=) r f = liftIO (modifyIORef r f)
-{-# INLINE (.=) #-}
-
-insertVar !fr !k !v = fr .= (`modFrVars` (Map.insert k v))
+insertVar !fr !k !v = fr .= (`onFrVars` (Map.insert k v))
 {-# INLINE insertVar #-}
 
-deleteVar fr !k = fr .= (`modFrVars` (Map.delete k))
+deleteVar fr !k = fr .= (`onFrVars` (Map.delete k))
 
 changeCmds nsr fun = nsr .= updateNS >> notifyWatchers
  where update (CmdMap e m) = CmdMap (e+1) (fun m)

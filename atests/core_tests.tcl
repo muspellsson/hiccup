@@ -246,6 +246,10 @@ test "format" {
     assert_err { format "%d" pants }
 }
 
+test "format w/ padding" {
+    checkthat [format "x%4s" "oh"] eq "x  oh"
+}
+
 test "subst" {
     checkthat [subst {A cat}] eq "A cat"
     set cat 44

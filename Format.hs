@@ -28,8 +28,12 @@ construct [] _ _ = fail "extra arguments to format"
 construct ((Left s):xs) a acc = construct xs a (s:acc)
 construct _  [] _ = fail "not enough arguments to format"
 construct ((Right (p,f)):xs) (a:ax) acc = do
-   s <- getFormat f a >>= return . B.append (B.replicate p ' ')
+   s <- getFormat f a >>= return . pad p
    construct xs ax (s:acc)
+
+pad n s = if plen > 0 then B.append (B.replicate plen ' ') s
+                      else s
+ where plen = n - B.length s
 
 parseFormatStr = parseMany $ choose [normal `wrapWith` Left, 
                                      parseFormat `wrapWith` Right, 

@@ -11,6 +11,10 @@ readRef :: IORef a -> TclM a
 readRef !r = (liftIO . readIORef) r
 {-# INLINE readRef #-}
 
+(.=) :: IORef a -> (a -> a) -> TclM ()
+(.=) r f = liftIO (modifyIORef r f)
+{-# INLINE (.=) #-}
+
 refExtract !ref !f = liftIO (readIORef ref >>= \x -> (return $! f x)) 
 {-# INLINE refExtract #-}
 
