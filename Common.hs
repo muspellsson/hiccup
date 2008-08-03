@@ -456,6 +456,7 @@ getArray' name frref = do
       Just _            -> fail $ "can't read " ++ show name ++ ": variable isn't array"
       Nothing           -> fail $ "can't read " ++ show name ++ ": no such variable"
 
+varLookup :: BString -> FrameRef -> TclM (Maybe TclVar)
 varLookup !name !frref = do
    isUpped <- upped name frref
    case isUpped of
@@ -475,11 +476,12 @@ varGet' vn !frref = do
    Nothing -> cantReadErr "no such variable"
    Just o  -> o `getInd` (vnInd vn)
  where cantReadErr why  = fail $ "can't read " ++ showVN vn ++ ": " ++ why
-       getInd (ScalarVar o) Nothing = return o
+       getInd (ScalarVar o) Nothing = return $! o
        getInd (ArrayVar o) (Just i) = maybe (cantReadErr "no such element in array") return (Map.lookup i o)
        getInd (ScalarVar _) _       = cantReadErr "variable isn't array"
        getInd (ArrayVar _)  _       = cantReadErr "variable is array"
        getInd Undefined     _       = cantReadErr "no such variable"
+       {-# INLINE getInd #-}
 
 
 uplevel :: Int -> TclM a -> TclM a

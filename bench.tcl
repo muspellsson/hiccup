@@ -1,4 +1,4 @@
-namespace import ::tcl::mathop::*
+namespace import -force ::tcl::mathop::*
 proc decr v {
   upvar $v loc
   incr loc -1
