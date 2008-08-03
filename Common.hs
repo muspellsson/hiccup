@@ -506,11 +506,14 @@ upvar n d s = do
 {-# INLINE upvar #-}
 
 deleteNS name = do 
- let nst = parseNSTag name 
- ns <- getNamespaceHere' nst >>= readRef
- kids <- mapM (`refExtract` cmdKids) (cmdMapElems (nsCmds ns))
- mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
- whenJust (nsParent ns) $ \p -> p .= removeChild (nsTail nst)
+    let nst = parseNSTag name 
+    nsr <- getNamespaceHere' nst
+    ns <- readRef nsr
+    mapM_ (rmPathRef nsr) (nsPathLinks ns)
+    kids <- mapM (`refExtract` cmdKids) (cmdMapElems (nsCmds ns))
+    mapM_ (\k -> readRef k >>= removeCmd) (concat kids)
+    whenJust (nsParent ns) $ \p -> p .= removeChild (nsTail nst)
+ where rmPathRef dest src = src .= (modNsPath (filter (/= dest)))
 
 onNsChildren f = \v -> v { nsChildren = f (nsChildren v) }
 {-# INLINE onNsChildren #-}
@@ -652,7 +655,10 @@ withExistingNS f !nsref = do
 addToPathNS nst = do
   pns <- getNamespaceHere' nst
   cnsr <- getCurrNS
-  cnsr .= (\n -> n { nsPath = (pns:(nsPath n)) })
+  cnsr .= modNsPath ((pns:))
+  pns .= (\n -> n { nsPathLinks = (cnsr:(nsPathLinks n)) })
+
+modNsPath f = \ns -> ns { nsPath = f (nsPath ns) }
 
 getPathNS = do
   cnsr <- getCurrNS
@@ -709,6 +715,7 @@ emptyNS name frame  = TclNS { nsName = name,
                   nsExport = [],
                   nsParent = Nothing, nsChildren = Map.empty,
                   nsPath = [],
+                  nsPathLinks = [],
                   nsUnknown = Nothing }
 
 -- # TESTS # --
