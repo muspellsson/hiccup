@@ -10,7 +10,6 @@ import TclLib.LibUtil
 import TclLib (libCmds)
 import Core ()
 import ArgParse
-import Proc.CodeBlock
 import Internal.Types (Interp(..),interpSafe)
 import CmdList 
 

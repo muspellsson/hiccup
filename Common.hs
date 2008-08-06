@@ -228,7 +228,7 @@ makeState' chans safe vlist cmdlst = do
            nsr <- globalNS fr
            setFrNS fr nsr
            return (fr, nsr)
-       exportAll ns = withNS (pack ns) (exportNS False (pack "*"))
+       exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
        runRegister = do
            exportAll "::tcl::mathop"
            exportAll "::tcl::mathfunc"
@@ -628,7 +628,7 @@ withProcScope pl !nsr f args = do
     withScope fr f
 {-# INLINE withProcScope #-}
 
-withScope :: FrameRef -> TclM a -> TclM a
+withScope :: FrameRef -> TclM T.TclObj -> TclM T.TclObj
 withScope !frref fun = do
   stack <- getStack
   -- when (length stack > 10000) (tclErr $ "Stack too deep: " ++ show 10000)
@@ -643,7 +643,6 @@ mkEmptyNS name parent = do
     setFrNS emptyFr new
     return $! new
 
-withNS :: BString -> TclM a -> TclM a
 withNS name f = do
      newCurr <- getOrCreateNamespace (parseNSTag name)
      withExistingNS f newCurr
