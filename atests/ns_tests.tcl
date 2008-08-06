@@ -381,6 +381,20 @@ test "ns import overwrite fails" {
   finalize { namespace boo proc baz }
 }
 
+test "ns import force" {
+  namespace eval boo {
+    namespace export b*
+    proc baz {} { return OK }
+  }
+
+  proc baz {} { whatever }
+
+  assert_noerr { namespace import -force boo::baz }
+  assert_noerr { namespace import -force boo::baz }
+
+  finalize { namespace boo }
+}
+
 test "default to global" {
   namespace eval foo {
     proc ret5 {} { return OK }

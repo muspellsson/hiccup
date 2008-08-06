@@ -25,18 +25,18 @@ consumed p s = do
 {-# INLINE consumed #-}
 
 
-(<|>) :: Parser t -> Parser t -> Parser t
-a <|> b = \v -> v `seq` ((a v) `mplus` (b v))
-{-# INLINE (<|>) #-}
+(</>) :: Parser t -> Parser t -> Parser t
+a </> b = \v -> v `seq` ((a v) `mplus` (b v))
+{-# INLINE (</>) #-}
 
-tryGet fn = fn <|> (emit "")
+tryGet fn = fn </> (emit "")
      
 chain_ lst = consumed (foldr (.>>) (emit ()) lst)
 chain :: [Parser BString] -> Parser BString
 chain lst = (foldr pcons (emit []) lst) `wrapWith` B.concat
 {-# INLINE chain #-}
 
-choose = foldr1 (<|>)
+choose = foldr1 (</>)
 {-# INLINE choose #-}
 
 pjoin :: (t1 -> t2 -> t3) -> Parser t1 -> Parser t2 -> Parser t3
@@ -57,7 +57,7 @@ pcons = pjoin (:)
 {-# INLINE pcons #-}
 
 parseMany :: Parser t -> Parser [t]
-parseMany p = inner <|> emit []
+parseMany p = inner </> emit []
  where inner = parseMany1 p
    
 parseMany1 p = p `pcons` (parseMany p)
@@ -111,7 +111,7 @@ parseEof s = if B.null s
 sepBy1 :: Parser t -> Parser t2 -> Parser [t]
 sepBy1 p sep = p `pcons` (parseMany (sep .>> p))
 
-sepBy p sep = (p `sepBy1` sep) <|> emit []
+sepBy p sep = (p `sepBy1` sep) </> emit []
 
 commaSep :: Parser t -> Parser [t]
 commaSep = (`sepBy` (eatSpaces .>> pchar ','))
@@ -132,7 +132,7 @@ braceVar = parseBlock
 
 parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = parseNoneOf "\"\\" "non-quote chars"
-       inside = parseMany (noquotes <|> escapedChar)
+       inside = parseMany (noquotes </> escapedChar)
 
 parseInt :: Parser Int 
 parseInt s = case B.readInt s of

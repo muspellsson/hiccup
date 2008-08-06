@@ -1,5 +1,5 @@
 
-namespace import ::tcl::mathop::*
+namespace import -force ::tcl::mathop::*
 
 proc fib x { 
   if {$x <= 1} { 

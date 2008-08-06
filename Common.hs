@@ -89,8 +89,6 @@ import CmdList
 
 import Test.HUnit
 
-
-
 getOrigin :: TclCmdObj -> TclM NSRef
 getOrigin p = case cmdParent p of
                 Nothing  -> case cmdOrigNS p of
@@ -428,7 +426,7 @@ varUnset vn frref = do
                         _             -> noExist
 
 usingNsFrame :: NSQual VarName -> (VarName -> FrameRef -> TclM RetVal) -> TclM RetVal 
-usingNsFrame (NSQual !ns !vn) f = (lookupNsFrame ns) >>= f vn
+usingNsFrame (NSQual !ns !vn) f = lookupNsFrame ns >>= f vn
  where lookupNsFrame Nothing = getFrame 
        lookupNsFrame (Just n) = (getNamespaceHere' n `orElse` tryGlobal n) >>= getNSFrame
        tryGlobal (NS _ t) = getNamespaceHere' (NS True t)
@@ -623,7 +621,8 @@ forgetNS name = do
 
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
-withProcScope pl nsr f args = do
+withProcScope :: ParamList -> NSRef -> TclM T.TclObj -> [T.TclObj] -> TclM T.TclObj
+withProcScope pl !nsr f args = do
     vl <- bindArgs pl args
     fr <- io $! createFrameWithNS nsr $! makeVarMap vl
     withScope fr f
@@ -633,7 +632,7 @@ withScope :: FrameRef -> TclM a -> TclM a
 withScope !frref fun = do
   stack <- getStack
   -- when (length stack > 10000) (tclErr $ "Stack too deep: " ++ show 10000)
-  putStack $ frref : stack
+  putStack $! frref : stack
   fun `ensure` (modStack (drop 1))
 
 mkEmptyNS name parent = do
@@ -712,7 +711,7 @@ emptyCmd = TclCmdObj {
        cmdParent = Nothing,
        cmdKids = [] }
 
-emptyNS name frame  = TclNS { nsName = name, 
+emptyNS name frame = TclNS { nsName = name, 
                   nsCmds = emptyCmdMap, nsFrame = frame, 
                   nsExport = [],
                   nsParent = Nothing, nsChildren = Map.empty,

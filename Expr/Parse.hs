@@ -22,7 +22,7 @@ import Test.HUnit
 parseNum :: Parser TNum
 parseNum s = do
    (i,r) <- parseInt s
-   (dubpart i) <|> (emit (TInt i)) $ r
+   (dubpart i) </> (emit (TInt i)) $ r
  where dubpart i = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
        dtail = (consumed (pchar '.' .>> digstring)) `wrapWith` B.unpack
        digstring = getPred1 (`elem` "0123456789")  "digit"
@@ -92,17 +92,17 @@ parseAtom = choose [str,num,block,bool]
         num = atom parseNum ANum
         bool = atom parseBool (ANum . TInt)
 
-parseBool = (["true","on"] `thenEmit` 1) <|> (["false", "off"] `thenEmit` 0)
+parseBool = (["true","on"] `thenEmit` 1) </> (["false", "off"] `thenEmit` 0)
   where thenEmit slst v = choose (map parseLit slst) .>> emit v
         
-parseUnOp = notop <|> negop
+parseUnOp = notop </> negop
   where negop = pchar '-' .>> emit OpNeg
         notop = pchar '!' .>> emit OpNot
 
 parseItem = parseAtom `wrapWith` Item
-             <|> (parseDep `wrapWith` DepItem)
-             <|> ((paren parseExpr) `wrapWith` Paren) 
-             <|> (pjoin UnApp parseUnOp parseItem)
+             </> (parseDep `wrapWith` DepItem)
+             </> ((paren parseExpr) `wrapWith` Paren) 
+             </> (pjoin UnApp parseUnOp parseItem)
 
 parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 
@@ -110,7 +110,7 @@ parseFullExpr = parseExpr `pass` (eatSpaces .>> parseEof)
 parseExpr = eatSpaces .>> expTerm
  where expTerm str = do
          (i1,r) <- parseItem str
-         (binop i1) <|> (tern i1) <|> (emit i1) $ r 
+         binop i1 </> tern i1 </> emit i1 $ r 
        binop a = pjoin (\op i2 -> fixApp a op i2) parseOp parseExpr
        tern a = parseTernIf `wrapWith` (\(b,c) -> TernIf a b c)
 

@@ -6,7 +6,7 @@ import qualified TclObj as T
 import Data.Char (chr)
 import BSParse (pchar,(.>>),choose,emit,wrapWith,parseMany,parseLit
                 ,getPred1
-                ,(<|>)
+                ,(</>)
                 ,pass
                 ,parseInt)
 
@@ -45,4 +45,4 @@ parseFormat = pchar '%' .>> choose [fstr,fchar,fint]
        fchar = mk ('c',FChar)
        fstr = mk ('s', FStr)
        fint = mk ('d',FInt)
-       padding = (parseInt <|> emit 0)
+       padding = parseInt </> emit 0

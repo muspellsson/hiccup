@@ -48,6 +48,7 @@ getOpFun !op = case op of
  where up f a b = return (f a b)
        {-# INLINE up #-}
        sup f a b = return (T.fromBool (f a b))
+{-# INLINE getOpFun #-}
 
 cmdBool f a b = do 
    ab <- T.asBool a
