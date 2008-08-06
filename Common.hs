@@ -417,7 +417,9 @@ varUnset vn frref = do
          let str = vnName vn
          val <- maybe noExist return (Map.lookup str vm)
          case vnInd vn of
-           Nothing -> deleteVar frref str
+           Nothing -> case val of
+                       Undefined -> noExist
+                       _         -> deleteVar frref str
            Just i  -> case val of
                         ArrayVar prev -> case Map.lookup i prev of 
                                            Nothing -> cantUnset "no such element in array"

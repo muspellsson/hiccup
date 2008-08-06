@@ -579,3 +579,12 @@ test "ns unknown" {
 
     finalize { ns augh proc dance_party }
 }
+
+test "ns unset variable" {
+    namespace eval fax {
+        variable z
+        assert_err { unset z }
+    }
+
+    finalize { ns fax }
+}
