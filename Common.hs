@@ -35,6 +35,7 @@ module Common (TclM
        ,getChan
        ,evtAdd
        ,evtGetDue
+       ,evtInfo
        ,uplevel
        ,upvar
        ,io
@@ -148,7 +149,7 @@ setErrorInfo s = do
   varSet (VarName (pack "errorInfo") Nothing) (T.fromStr s) glFr
 
 
-makeVarMap = Map.fromList . mapSnd ScalarVar
+makeVarMap = Map.fromList . mapSnd (\c -> (Nothing, ScalarVar c))
 
 makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState = makeState' baseChans
@@ -278,6 +279,11 @@ evtAdd e t = do
   modify (\s -> s { tclEvents = m })
   return (T.fromBStr tag)
 
+evtInfo :: TclM [BString]
+evtInfo = do
+ em <- gets tclEvents
+ return $ Evt.eventNames em
+
 evtGetDue = do
   em <- gets tclEvents
   (d,em') <- io $ Evt.getDue em
@@ -378,10 +384,10 @@ varSet vn v frref = do
        modVar str = do
          vm <- getFrameVars frref
          newVal <- case vnInd vn of
-             Nothing -> case Map.lookup str vm of
+             Nothing -> case fmap snd (Map.lookup str vm) of
                           Just (ArrayVar _) -> cantSetErr "variable is array"
                           _                 -> return (ScalarVar v)
-             Just i  -> case Map.findWithDefault Undefined str vm of
+             Just i  -> case snd (Map.findWithDefault (Nothing,Undefined) str vm) of
                           ArrayVar prev -> return (ArrayVar (Map.insert i v prev))
                           Undefined     -> return (ArrayVar (Map.singleton i v))
                           _     -> cantSetErr "variable isn't array"
@@ -415,7 +421,7 @@ varUnset vn frref = do
        modVar = do
          vm <- getFrameVars frref
          let str = vnName vn
-         val <- maybe noExist return (Map.lookup str vm)
+         val <- maybe noExist (return . snd) (Map.lookup str vm)
          case vnInd vn of
            Nothing -> case val of
                        Undefined -> noExist
@@ -460,7 +466,7 @@ varLookup :: BString -> FrameRef -> TclM (Maybe TclVar)
 varLookup !name !frref = do
    isUpped <- upped name frref
    case isUpped of
-      Nothing    -> getFrameVars frref >>= \m -> return $! (Map.lookup name m)
+      Nothing    -> getFrameVars frref >>= \m -> return $! fmap snd (Map.lookup name m)
       Just (f,n) -> varLookup n f
 
 varGetRaw :: BString -> TclM RetVal
@@ -692,10 +698,26 @@ changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
 onFrVars fr fun = let !r = fun (frVars fr) in fr { frVars = r }
 {-# INLINE onFrVars #-}
 
-insertVar !fr !k !v = fr .= (`onFrVars` (Map.insert k v))
+lookupInsert k v m = Map.insertLookupWithKey (\_ n _ -> n) k v m
+traceInsert !fref !k !v = do
+  fr <- readIORef fref
+  let vars = frVars fr
+  let (mold,nvars) = lookupInsert k v vars
+  whenJust mold (\(tr,_) -> whenJust tr (\op -> op))
+  writeIORef fref (fr { frVars = nvars })
+
+traceDelete !frref !k = do
+  fr <- readIORef frref
+  let vars = frVars fr
+  let val = Map.lookup k vars 
+  whenJust val (\(tr,_) -> whenJust tr (\op -> op))
+  writeIORef frref (fr { frVars = Map.delete k vars })
+  
+insertTraceVar tr fr k v = io $ traceInsert fr k (Just tr,v)
+insertVar fr k v = io $ traceInsert fr k (Nothing,v)
 {-# INLINE insertVar #-}
 
-deleteVar fr !k = fr .= (`onFrVars` (Map.delete k))
+deleteVar fr k = io $ traceDelete fr k
 
 changeCmds nsr fun = nsr .= updateNS >> notifyWatchers
  where update (CmdMap e m) = CmdMap (e+1) (fun m)
@@ -757,7 +779,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
 
   vEq vn frref val = do
      vm <- readVars frref
-     assert ((Map.lookup (b vn) vm) == (Just (ScalarVar val)))
+     assert (fmap snd (Map.lookup (b vn) vm) == (Just (ScalarVar val)))
 
   value = int 666
   name = b "varname"

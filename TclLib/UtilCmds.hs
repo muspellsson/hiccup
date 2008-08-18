@@ -58,17 +58,28 @@ cmdTime args =
 
 cmdAfter args = 
     case args of 
-      [mss]    -> do
+      (mss:acts) ->
+         case T.asStr mss of 
+             "info" -> evtInfo >>= return . T.fromList . map T.fromBStr 
+             _ -> if null acts 
+                      then doDelay mss
+                      else do dline <- getDeadline mss 
+                              addEvent dline acts
+      _     -> argErr "after"
+ where addEvent dl acts = evtAdd (T.objconcat acts) dl 
+       doDelay mss = do
             ms <- T.asInt mss
             io $ threadDelay (1000 * ms)
             ret
-      (mss:acts) -> do
-            ms <- T.asInt mss 
-            let secs = (fromIntegral ms) / 1000.0
-            currT <- io getCurrentTime
-            let dline = addUTCTime secs currT
-            evtAdd (T.objconcat acts) dline
-      _     -> argErr "after"
+       getDeadline mss = do
+            case T.asInt mss of
+              Just ms -> do
+                 let secs = (fromIntegral ms) / 1000.0
+                 currT <- io getCurrentTime
+                 return . Just $ addUTCTime secs currT
+              Nothing -> if T.asStr mss == "idle"
+                           then return Nothing
+                                else fail $ "Bad event deadline: " ++ show (T.asStr mss)
 
 cmdUpdate args = case args of
      [] -> do evts <- evtGetDue

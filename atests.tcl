@@ -10,6 +10,7 @@ source atests/array_tests.tcl
 source atests/expr_tests.tcl
 source atests/ns_tests.tcl
 source atests/interp_tests.tcl
+source atests/event_tests.tcl
 
 test "upvar" {
   proc uptest {var v} {

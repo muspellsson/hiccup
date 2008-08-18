@@ -38,7 +38,7 @@ type UpMap = Map.Map BString (FrameRef,BString)
 
 data TclFrame = TclFrame { 
       frVars :: !VarMap, 
-      upMap :: !(Map.Map BString (FrameRef,BString)), 
+      upMap :: !UpMap,
       frNS :: NSRef,
       frTag :: !Int  }
 
@@ -89,7 +89,8 @@ data CmdMap = CmdMap {
 
 type TclArray = Map.Map BString T.TclObj
 data TclVar = ScalarVar !T.TclObj | ArrayVar TclArray | Undefined deriving (Eq,Show)
-type VarMap = Map.Map BString TclVar
+type TraceCB = Maybe (IO ())
+type VarMap = Map.Map BString (TraceCB,TclVar)
 
 runTclM :: TclM a -> TclState -> IO (Either Err a, TclState)
 runTclM code env = runStateT (runErrorT (unTclM code)) env
