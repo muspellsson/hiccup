@@ -17,6 +17,7 @@ import TclLib.LibUtil
 utilCmds = makeCmdList [
    ("time", cmdTime),
    ("incr", cmdIncr), 
+   ("tracevar", cmdTraceVar),
    ("expr", cmdExpr),
    ("pid", cmdPid),
    ("subst", cmdSubst),
@@ -38,6 +39,11 @@ incr n !i = do
 cmdPid args = case args of
      [] -> io getProcessID >>= return . T.fromStr . show
      _  -> argErr "pid"
+
+
+cmdTraceVar args = case args of
+  [vn] -> varTrace (T.asBStr vn) >> ret
+  _    -> argErr "tracevar"
 
 cmdTime args =
    case args of

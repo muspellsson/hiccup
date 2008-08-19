@@ -28,6 +28,7 @@ module Common (TclM
        ,varSetHere
        ,varExists
        ,varUnsetNS
+       ,varTrace
        ,renameCmd
        ,getArray
        ,addChan
@@ -469,6 +470,9 @@ varLookup !name !frref = do
       Nothing    -> getFrameVars frref >>= \m -> return $! fmap snd (Map.lookup name m)
       Just (f,n) -> varLookup n f
 
+varTrace n = getFrame >>= \frref -> traceVar frref n (putStrLn "BINGO!")
+
+
 varGetRaw :: BString -> TclM RetVal
 varGetRaw !n = varGetNS (parseVarName n)
 
@@ -695,16 +699,20 @@ createFrameWithNS nsref !vref = do
 
 changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
 
-onFrVars fr fun = let !r = fun (frVars fr) in fr { frVars = r }
-{-# INLINE onFrVars #-}
+lookupInsert !k !v !m = Map.insertLookupWithKey (\_ (ntr,nv) (otr,_) -> (ntr `mplus` otr, nv)) k v m
 
-lookupInsert k v m = Map.insertLookupWithKey (\_ n _ -> n) k v m
 traceInsert !fref !k !v = do
   fr <- readIORef fref
   let vars = frVars fr
   let (mold,nvars) = lookupInsert k v vars
   whenJust mold (\(tr,_) -> whenJust tr (\op -> op))
   writeIORef fref (fr { frVars = nvars })
+
+traceVar !fref !k tr = do
+  fr <- readRef fref
+  let vars = frVars fr
+  let mval = fmap snd (Map.lookup k vars)
+  insertTraceVar tr fref k (maybe Undefined id mval)
 
 traceDelete !frref !k = do
   fr <- readIORef frref
