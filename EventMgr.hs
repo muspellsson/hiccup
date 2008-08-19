@@ -1,4 +1,6 @@
-module EventMgr (EventMgr,addEvent,getDue,eventNames,emptyMgr) where
+module EventMgr (EventMgr,addEvent,getDue,
+                 cancelEvent,
+                 eventNames,emptyMgr) where
 import Data.Time.Clock
 import Util
 import Data.List (sortBy,partition)
@@ -30,6 +32,8 @@ getNextID = do
   return $! pack ("after#" ++ show num)
 
 eventNames (EventMgr evts) = map evtID evts 
+
+cancelEvent eid (EventMgr evts) = EventMgr (filter (\x -> evtID x /= eid) evts)
   
 addEvent act deadline el = do
   id <- getNextID

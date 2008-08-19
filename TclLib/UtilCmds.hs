@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module TclLib.UtilCmds ( utilCmds ) where
 
 import Util
@@ -65,8 +65,11 @@ cmdTime args =
 cmdAfter args = 
     case args of 
       (mss:acts) ->
-         case T.asStr mss of 
+         case T.asBStr mss of 
              "info" -> evtInfo >>= return . T.fromList . map T.fromBStr 
+             "cancel" -> case acts of
+                          [eid] -> evtCancel (T.asBStr eid) >> ret
+                          _     -> argErr "after cancel"
              _ -> if null acts 
                       then doDelay mss
                       else do dline <- getDeadline mss 
@@ -83,9 +86,9 @@ cmdAfter args =
                  let secs = (fromIntegral ms) / 1000.0
                  currT <- io getCurrentTime
                  return . Just $ addUTCTime secs currT
-              Nothing -> if T.asStr mss == "idle"
+              Nothing -> if T.asBStr mss == "idle"
                            then return Nothing
-                                else fail $ "Bad event deadline: " ++ show (T.asStr mss)
+                                else fail $ "Bad event deadline: " ++ show (T.asBStr mss)
 
 cmdUpdate args = case args of
      [] -> do evts <- evtGetDue

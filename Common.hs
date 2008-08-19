@@ -37,6 +37,7 @@ module Common (TclM
        ,evtAdd
        ,evtGetDue
        ,evtInfo
+       ,evtCancel
        ,uplevel
        ,upvar
        ,io
@@ -284,6 +285,9 @@ evtInfo :: TclM [BString]
 evtInfo = do
  em <- gets tclEvents
  return $ Evt.eventNames em
+
+evtCancel eid = do
+  modify (\s -> s { tclEvents = Evt.cancelEvent eid (tclEvents s) })
 
 evtGetDue = do
   em <- gets tclEvents
@@ -699,7 +703,8 @@ createFrameWithNS nsref !vref = do
 
 changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
 
-lookupInsert !k !v !m = Map.insertLookupWithKey (\_ (ntr,nv) (otr,_) -> (ntr `mplus` otr, nv)) k v m
+lookupInsert !k !v !m = Map.insertLookupWithKey inserter k v m
+ where inserter _ (ntr,nv) (otr,_) = (ntr `mplus` otr, nv)
 
 traceInsert !fref !k !v = do
   fr <- readIORef fref
