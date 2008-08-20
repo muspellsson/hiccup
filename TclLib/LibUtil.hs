@@ -41,7 +41,7 @@ toIndex len i = case T.asInt i of
                 Just iv -> return iv
  where ibs = T.asBStr i 
        lastInd = len - 1
-       badIndex = fail "bad index"
+       badIndex = fail $ "bad index: " ++ show (T.asBStr i)
        tryEnd = if ibs `B.isPrefixOf` "end" && not (B.null ibs)
                   then return lastInd
                   else do let (ip,is) = B.splitAt (B.length "end-") ibs

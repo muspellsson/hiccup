@@ -23,14 +23,17 @@ listCmds = makeCmdList $
 cmdList = return . T.fromList
 
 cmdLindex args = case args of
-          [l]   -> return l
-          [l,i] -> if T.isEmpty i then return l
-                      else do
-                        items <- T.asSeq l
-                        let ilen = S.length items                            
-                        ind <- toIndex ilen i
-                        if ind >= ilen || ind < 0 then ret else return (S.index items ind)
-          _     -> argErr "lindex"
+          [l,i] -> T.asList i >>= worker l 
+          (l:inds) -> worker l inds
+          _     -> vArgErr "lindex list ?index...?"
+    where worker lst inds = case inds of
+             [] -> return lst
+             (i:ix) -> do
+                 items <- T.asSeq lst
+                 let ilen = S.length items                            
+                 ind <- toIndex ilen i
+                 if ind >= ilen || ind < 0 then ret 
+                                           else worker (S.index items ind) ix
 
 cmdLlength args = case args of
         [lst] -> T.asSeq lst >>= return . T.fromInt . S.length

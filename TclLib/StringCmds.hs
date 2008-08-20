@@ -201,7 +201,7 @@ toIndTests = TestList [
      ,(someLen, "e-4") `should_fail` ()
      ,(someLen, "") `should_fail` ()
   ] where should_be p b = show p ~: go p  ~=? (Right b)
-          should_fail p _ =  show p ~: go p  ~=? (Left "bad index")
+          should_fail p@(_,s) _ =  show p ~: (Left ("bad index: " ++ show s)) ~=? go p
           go (l,i) = (toIndex l (T.fromStr i)) :: Either String Int
           someLen = 5
           lastInd = someLen - 1

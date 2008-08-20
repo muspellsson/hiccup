@@ -42,6 +42,10 @@ test "lindex" {
   assert_err { lindex {1 2 3 4} cat }
 }
 
+test "lindex multi" {
+    checkthat [lindex {{a b} {c d}} 1 1] eq "d"
+}
+
 test "lappend" {
   set x {}
   lappend x 1
