@@ -3,7 +3,12 @@ import Common
 import Control.Monad (unless)
 import System.IO
 import System.Exit
-import System.Directory (getCurrentDirectory)
+import System.Directory (getCurrentDirectory,
+                         doesFileExist, 
+                         doesDirectoryExist,
+                         getPermissions,
+                         Permissions(..))
+import Control.Exception (handle)
 import Core ()
 import qualified TclObj as T
 import qualified TclChan as T
@@ -31,11 +36,34 @@ cmdRead args = case args of
         return $ c `seq` T.fromBStr c
      _ -> argErr "read"
 
-cmdFile = mkEnsemble "file" [("channels", file_channels)]
+cmdFile = mkEnsemble "file" [
+    ("channels", file_channels),
+    ("isfile", file_isfile),
+    ("isdirectory", file_isdirectory),
+    perm_check "readable" readable,
+    perm_check "executable" executable,
+    perm_check "writable" writable]
+ where perm_check n a = 
+        let cmd args = case args of
+             [n] -> do
+               v <- io (handle (\_ -> return False) $ 
+                        getPermissions (T.asStr n) >>= return . a)
+               return (T.fromBool v)
+             _   -> vArgErr $ "file " ++ n ++ " name"
+        in (n,cmd)
  
 file_channels args = case args of
    [] -> namesChan >>= return . T.fromBList
    _  -> vArgErr "file channels"
+
+file_isfile args = case args of
+   [fn] -> io (doesFileExist (T.asStr fn)) >>= return . T.fromBool
+   _    -> vArgErr "file isfile name"
+
+file_isdirectory args = case args of
+   [fn] -> io (doesDirectoryExist (T.asStr fn)) >>= return . T.fromBool
+   _    -> vArgErr "file isdirectory name"
+
 
 cmdPuts args = case args of
                  [s] -> tPutLn stdout s
