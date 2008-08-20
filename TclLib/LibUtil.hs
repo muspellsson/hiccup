@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module TclLib.LibUtil (
     treturn
+    ,lreturn
     ,vArgErr
     ,toPairs
     ,toIndex
@@ -26,6 +27,9 @@ vArgErr s = argErr ("should be " ++ show s)
 treturn :: BString -> TclM T.TclObj
 treturn = return . T.fromBStr
 {-# INLINE treturn #-}
+
+lreturn :: [BString] -> TclM T.TclObj
+lreturn = return . T.fromBList
 
 toPairs [a,b]   = return [(a,b)]
 toPairs (a:b:r) = toPairs r >>= return . ((a,b):)
@@ -67,5 +71,5 @@ mkEnsemble name subs = top
         plookup s = Map.lookup s subMap
         cmdMapNames = Map.keys
         completes s lst = case filter (s `B.isPrefixOf`) lst of 
-                            [] -> lst
+                            [] -> []
                             x  -> x

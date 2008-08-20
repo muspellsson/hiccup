@@ -169,7 +169,6 @@ cmdSplit args = case args of
                             _ -> dosplit bstr splitChars
         _           -> vArgErr "split string ?splitChars?"
  where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
-       lreturn l = return $! T.fromList . map T.fromBStr $ l
 
 cmdRegexp :: [T.TclObj] -> TclM T.TclObj
 cmdRegexp args = case args of

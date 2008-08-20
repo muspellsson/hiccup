@@ -34,6 +34,7 @@ module Common (TclM
        ,addChan
        ,removeChan
        ,getChan
+       ,namesChan
        ,evtAdd
        ,evtGetDue
        ,evtInfo
@@ -85,7 +86,7 @@ import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
 
 import qualified TclObj as T
-import TclChan
+import qualified TclChan as C
 import VarName
 import TclErr
 import Util
@@ -155,7 +156,7 @@ setErrorInfo s = do
 makeVarMap = Map.fromList . mapSnd (\c -> (Nothing, ScalarVar c))
 
 makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
-makeState = makeState' baseChans
+makeState = makeState' C.baseChans
 
 runInterp t (Interp i) = do
   bEnv <- readIORef i
@@ -213,7 +214,7 @@ deleteInterp path = case path of
  _ -> fail "invalid interp path"
 
 
-makeState' :: ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
+makeState' :: C.ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
 makeState' chans safe vlist cmdlst = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
@@ -271,10 +272,12 @@ cmdMapElems = Map.elems . unCmdMap
 
 argErr s = tclErr ("wrong # args: " ++ s)
 
+getChan n = gets tclChans >>= \m -> return (C.lookupChan n m)
 modChan f = modify (\s -> s { tclChans = f (tclChans s) })
-getChan n = gets tclChans >>= \m -> return (lookupChan n m)
-addChan c    = modChan (insertChan c)
-removeChan c = modChan (deleteChan c)
+addChan c    = modChan (C.insertChan c)
+removeChan c = modChan (C.deleteChan c)
+namesChan :: TclM [BString]
+namesChan = gets tclChans >>= return . C.namesChan
 
 evtAdd e t = do 
   em <- gets tclEvents
@@ -609,7 +612,7 @@ importNS force name = do
     nsr <- getNamespaceHere nst
     exported <- getExports nsr n
     mapM (importCmd nsr) exported
-    return . T.fromList . map T.fromBStr $ exported
+    return . T.fromBList $ exported
  where importCmd nsr n = do
             (np,add) <- mkCmdAlias nsr n 
             when (not force) $ do

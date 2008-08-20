@@ -4,7 +4,7 @@ import TclLib.LibUtil
 import TclLib.IOCmds
 import TclLib.ListCmds
 import TclLib.ArrayCmds
-import TclLib.ControlProcs
+import TclLib.ControlCmds
 import TclLib.StringCmds
 import TclLib.NSCmds
 import TclLib.MathProcs (mathCmds)

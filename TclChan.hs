@@ -1,4 +1,6 @@
-module TclChan ( TclChan(..), emptyChanMap, mkChan, ChanMap, insertChan, lookupChan, deleteChan, baseChans ) where
+module TclChan ( TclChan(..), emptyChanMap, mkChan, ChanMap, insertChan, lookupChan, deleteChan, 
+                 namesChan,
+                 baseChans ) where
 
 import Data.Unique
 import Util

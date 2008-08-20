@@ -7,6 +7,7 @@ module TclObj (
  ,fromBStr
  ,fromDouble
  ,fromList
+ ,fromBList
  ,fromSeq
  ,fromBlock
  ,fromBool
@@ -54,6 +55,7 @@ mkTclBStr s = TclBStr s (maybeInt s) (makeParsed s)
 
 fromList l = TclList (S.fromList l) (list2Str (map asBStr l))
 fromSeq l = TclList l (list2Str (map asBStr (F.toList l)))
+fromBList l = TclList (S.fromList (map fromBStr l)) (list2Str l)
 
 fromBlock s p = TclBStr s (maybeInt s) p
 {-# INLINE fromBlock #-}
@@ -107,6 +109,7 @@ instance ITObj BS.ByteString where
 
 asList :: (Monad m, ITObj o) => o -> m [o]
 asList o = liftM F.toList (asSeq o)
+
 
 asStr o = unpack (asBStr o)
 

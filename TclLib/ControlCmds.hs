@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
-module TclLib.ControlProcs (controlCmds) where
+module TclLib.ControlCmds (controlCmds) where
 
 import Common
 import Core

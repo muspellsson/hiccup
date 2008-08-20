@@ -18,7 +18,7 @@ processArgs al = [("argc" * T.fromInt (length al)), ("argv" * toTclList al)]
 interpVars al = [("tcl_version" * (show hiccupVersion))] ++ processArgs al
   where (*) name val = (pack name, T.fromStr val)
 
-hiccupVersion = 0.48
+hiccupVersion = 0.49
 
 mkMainInterp = mkInterpWithVars (interpVars []) baseCmds
 

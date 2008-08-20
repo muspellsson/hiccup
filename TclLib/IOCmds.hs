@@ -17,7 +17,7 @@ ioCmds = nsCmdList "" $ safe ++ unsafe
  where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
                         ("close", cmdClose),("flush", cmdFlush),("eof", cmdEof)]
        unsafe = unsafeCmds [("exit", cmdExit), ("source", cmdSource),
-                            ("pwd", cmdPwd), ("open", cmdOpen)]
+                            ("pwd", cmdPwd), ("open", cmdOpen),("file", cmdFile)]
 
 cmdEof args = case args of
   [ch] -> do h <- getReadable ch
@@ -30,6 +30,12 @@ cmdRead args = case args of
         c <- io $ B.hGetContents h
         return $ c `seq` T.fromBStr c
      _ -> argErr "read"
+
+cmdFile = mkEnsemble "file" [("channels", file_channels)]
+ 
+file_channels args = case args of
+   [] -> namesChan >>= return . T.fromBList
+   _  -> vArgErr "file channels"
 
 cmdPuts args = case args of
                  [s] -> tPutLn stdout s
@@ -57,7 +63,7 @@ cmdGets args = case args of
                              else do s <- io (B.hGetLine h)
                                      varSetNS (T.asVarName vname) (T.fromBStr s)
                                      return $ T.fromInt (B.length s)
-          _  -> argErr "gets"
+          _  -> vArgErr "gets channelId ?varName?"
 
 getReadable c = lookupChan (T.asBStr c) >>= checkReadable . T.chanHandle
 

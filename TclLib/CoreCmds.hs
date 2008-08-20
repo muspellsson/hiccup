@@ -40,7 +40,7 @@ cmdProc args = case args of
     proc <- mkProc pname alst body
     registerProc pname proc
     ret
-  _               -> argErr "proc"
+  _  -> vArgErr "proc name args body"
 
 
 cmdSet args = case args of
@@ -148,7 +148,7 @@ cmdInfo = mkEnsemble "info" [
   matchp "vars" currentVars,
   ("commands", info_commands),
   ("procs", info_procs),
-  noarg "level"    (liftM T.fromInt stackLevel),
+  ("level", info_level),
   noarg "cmdcount" (liftM T.fromInt getCmdCount),
   noarg "nameofexecutable" (liftM T.fromStr (io getProgName)),
   ("exists", info_exists),
@@ -163,10 +163,10 @@ cmdInfo = mkEnsemble "info" [
                            _  -> argErr $ "info " ++ n
 
 matchList name f args = case args of
-     []    -> f >>= asTclList
+     []    -> f >>= lreturn
      [pat] -> getMatches pat
      _     -> argErr name
- where getMatches pat = f >>= asTclList . globMatches (T.asBStr pat)
+ where getMatches pat = f >>= lreturn . globMatches (T.asBStr pat)
 
 -- TODO: Get rid of duplication here
 info_procs args = case args of
@@ -181,11 +181,17 @@ info_commands args = case args of
 
 getCmds :: (Maybe T.TclObj) -> Bool -> TclM T.TclObj
 getCmds mpat procsOnly = case mpat of
-  Nothing  -> commandNames Nothing procsOnly >>= asTclList
+  Nothing  -> commandNames Nothing procsOnly >>= lreturn
   Just pat -> let (NSQual nst p) = parseProc (T.asBStr pat)
                   prefixify n = toBStr (NSQual nst n)
-              in commandNames nst procsOnly >>= asTclList . map prefixify . globMatches p
+              in commandNames nst procsOnly >>= lreturn . map prefixify . globMatches p
 
+info_level args = case args of
+  [] -> liftM T.fromInt stackLevel
+  [lev] -> do
+       levn <- T.asInt lev
+       tclErr "\"info level number\" not supported yet"
+  _   -> vArgErr "info level ?number?"
 
 info_exists args = case args of
         [n] -> varExists (T.asBStr n) >>= return . T.fromBool
@@ -194,14 +200,13 @@ info_exists args = case args of
 info_args args = case args of
    [n] -> do
      pr <- getProcInfo (T.asBStr n)
-     return $ T.fromList . map T.fromBStr $ listParams (procArgs pr)
+     return $ T.fromBList $ listParams (procArgs pr)
    _   -> vArgErr "info args procname"
 
 info_body args = case args of
     [n] -> getProcInfo (T.asBStr n) >>= treturn . procBody
     _   -> vArgErr "info body procname"
 
-asTclList = return . T.fromList . map T.fromBStr
 
 cmdApply args = case args of
    (fn:alst) -> mkLambda fn >>= \f -> f alst
