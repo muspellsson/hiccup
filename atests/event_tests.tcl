@@ -26,3 +26,9 @@ test "after cancel" {
     after cancel $eid
     checkthat [llength [after info]] == 0
 }
+
+test "vwait idle" {
+    after idle { set x 4 }
+    vwait ::x
+    checkthat $::x == 4
+}

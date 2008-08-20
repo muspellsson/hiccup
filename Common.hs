@@ -28,7 +28,7 @@ module Common (TclM
        ,varSetHere
        ,varExists
        ,varUnsetNS
-       ,varTrace
+       ,varTraceNS
        ,renameCmd
        ,getArray
        ,addChan
@@ -38,6 +38,7 @@ module Common (TclM
        ,evtGetDue
        ,evtInfo
        ,evtCancel
+       ,evtNextDeadline
        ,uplevel
        ,upvar
        ,io
@@ -289,6 +290,9 @@ evtInfo = do
 evtCancel eid = do
   modify (\s -> s { tclEvents = Evt.cancelEvent eid (tclEvents s) })
 
+evtNextDeadline :: TclM (Maybe Evt.EvtTime)
+evtNextDeadline = gets tclEvents >>= return . Evt.nextDeadline
+
 evtGetDue = do
   em <- gets tclEvents
   (d,em') <- io $ Evt.getDue em
@@ -474,7 +478,8 @@ varLookup !name !frref = do
       Nothing    -> getFrameVars frref >>= \m -> return $! fmap snd (Map.lookup name m)
       Just (f,n) -> varLookup n f
 
-varTrace n = getFrame >>= \frref -> traceVar frref n (putStrLn "BINGO!")
+varTraceNS fn qns = usingNsFrame qns (varTrace' fn)
+varTrace' fn vn frref = traceVar frref (vnName vn) fn >> ret
 
 
 varGetRaw :: BString -> TclM RetVal

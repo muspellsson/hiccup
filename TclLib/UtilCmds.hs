@@ -2,12 +2,14 @@
 module TclLib.UtilCmds ( utilCmds ) where
 
 import Util
+import Control.Concurrent.MVar
 import Data.Time.Clock (diffUTCTime,getCurrentTime,addUTCTime)
 import Control.Monad (unless)
 import Control.Concurrent (threadDelay)
 import System.Posix.Process (getProcessID)
 import Core (evalExpr,subst)
 import TclParse (SubstArgs(..), allSubstArgs)
+import qualified EventMgr as E
 import Common
 import Format
 import ArgParse
@@ -17,12 +19,12 @@ import TclLib.LibUtil
 utilCmds = makeCmdList [
    ("time", cmdTime),
    ("incr", cmdIncr), 
-   ("tracevar", cmdTraceVar),
    ("expr", cmdExpr),
    ("pid", cmdPid),
    ("subst", cmdSubst),
    ("format", cmdFormat),
-   ("after", cmdAfter), ("update", cmdUpdate)]
+   ("after", cmdAfter), ("update", cmdUpdate),
+   ("vwait", cmdVwait)]
 
 cmdIncr args = case args of
          [vname]     -> incr vname 1
@@ -40,10 +42,6 @@ cmdPid args = case args of
      [] -> io getProcessID >>= return . T.fromStr . show
      _  -> argErr "pid"
 
-
-cmdTraceVar args = case args of
-  [vn] -> varTrace (T.asBStr vn) >> ret
-  _    -> argErr "tracevar"
 
 cmdTime args =
    case args of
@@ -91,12 +89,37 @@ cmdAfter args =
                                 else fail $ "Bad event deadline: " ++ show (T.asBStr mss)
 
 cmdUpdate args = case args of
-     [] -> do evts <- evtGetDue
-              upglobal (mapM_ evalTcl evts)
+     [] -> do runEvents
               ret
      _  -> argErr "update"
+
+runEvents = do evts <- evtGetDue
+               upglobal (mapM_ evalTcl evts)
  where upglobal f = do sl <- stackLevel
                        uplevel sl f
+when cond code = if cond then code else return ()
+
+cmdVwait args = case args of
+   [vn] -> do wvar <- io $ newEmptyMVar
+              varTraceNS (mark_true wvar) (T.asVarName vn)
+              waitloop wvar
+              ret
+   _    -> vArgErr "vwait varName"
+ where mark_true mv = putMVar mv True
+       waitloop mv = do
+        runEvents
+        not_done <- io $ isEmptyMVar mv
+        when not_done $ do
+            nextd <- evtNextDeadline
+            case nextd of
+              Just (E.ETime ut) -> do
+                 currT <- io getCurrentTime
+                 let tdiff = abs . round $ diffUTCTime ut currT
+                 io $ threadDelay (1000 * tdiff)
+                 waitloop mv
+              _ -> do io $ putStrLn "UNBOUNDED WAIT AVERTED!"
+                      return ()
+
 
 cmdExpr args = case args of
   [s] -> evalExpr s 

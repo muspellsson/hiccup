@@ -1,5 +1,7 @@
 module EventMgr (EventMgr,addEvent,getDue,
                  cancelEvent,
+                 EvtTime(..),
+                 nextDeadline,
                  eventNames,emptyMgr) where
 import Data.Time.Clock
 import Util
@@ -43,6 +45,11 @@ addEvent act deadline el = do
 
 notAfter now e = evtTime e <= (ETime now)
 isIdle e = evtTime e == EIdle
+
+nextDeadline (EventMgr evts) = 
+   case evts of
+           [] -> Nothing
+           (x:_) -> Just $ evtTime x
 
 getDue (EventMgr evts) = do
   currTime <- getCurrentTime
