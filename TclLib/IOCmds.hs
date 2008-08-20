@@ -1,6 +1,6 @@
 module TclLib.IOCmds (ioCmds) where
 import Common
-import Control.Monad (unless)
+import Control.Monad (unless, liftM2)
 import System.IO
 import System.Exit
 import System.Directory (getCurrentDirectory,
@@ -38,31 +38,24 @@ cmdRead args = case args of
 
 cmdFile = mkEnsemble "file" [
     ("channels", file_channels),
-    ("isfile", file_isfile),
-    ("isdirectory", file_isdirectory),
-    perm_check "readable" readable,
-    perm_check "executable" executable,
-    perm_check "writable" writable]
- where perm_check n a = 
+    pred_check "exists" (\fn -> liftM2 (||) (doesFileExist fn)
+                                            (doesDirectoryExist fn)),
+    pred_check "isfile" doesFileExist,
+    pred_check "isdirectory" doesDirectoryExist,
+    permtest "readable" readable,
+    permtest "executable" executable,
+    permtest "writable" writable]
+ where permtest n a = pred_check n (get_perm a)
+       get_perm a fn = handle (\_ -> return False) (getPermissions fn >>= return . a)
+       pred_check n p = 
         let cmd args = case args of
-             [n] -> do
-               v <- io (handle (\_ -> return False) $ 
-                        getPermissions (T.asStr n) >>= return . a)
-               return (T.fromBool v)
+             [name] -> (io $ p (T.asStr name)) >>= return . T.fromBool
              _   -> vArgErr $ "file " ++ n ++ " name"
         in (n,cmd)
  
 file_channels args = case args of
    [] -> namesChan >>= return . T.fromBList
    _  -> vArgErr "file channels"
-
-file_isfile args = case args of
-   [fn] -> io (doesFileExist (T.asStr fn)) >>= return . T.fromBool
-   _    -> vArgErr "file isfile name"
-
-file_isdirectory args = case args of
-   [fn] -> io (doesDirectoryExist (T.asStr fn)) >>= return . T.fromBool
-   _    -> vArgErr "file isdirectory name"
 
 
 cmdPuts args = case args of

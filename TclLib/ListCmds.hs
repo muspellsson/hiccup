@@ -17,7 +17,7 @@ listCmds = makeCmdList $
   [("list", cmdList),("lindex",cmdLindex),
    ("llength",cmdLlength), ("lappend", cmdLappend), ("lsearch", cmdLsearch),
    ("lset", cmdLset), ("lassign", cmdLassign), ("lsort", cmdLsort),
-   ("lrange", cmdLrange), ("lmap", cmdLmap),
+   ("lrange", cmdLrange), ("lmap", cmdLmap), ("lreverse", cmdLreverse),
    ("join", cmdJoin), ("concat", cmdConcat), ("lrepeat", cmdLrepeat)]
 
 cmdList = return . T.fromList
@@ -74,6 +74,10 @@ cmdJoin args = case args of
          return $ T.fromBStr (joinWithBS (map T.asBStr lst) sep)
 
 cmdConcat = return . T.objconcat
+
+cmdLreverse args = case args of
+   [lst] -> T.asSeq lst >>= return . T.fromSeq . S.reverse  
+   _     -> vArgErr "lreverse list"
 
 cmdLappend args = case args of
         (n:news) -> do 

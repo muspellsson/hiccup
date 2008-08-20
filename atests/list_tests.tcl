@@ -54,6 +54,10 @@ test "lappend" {
   checkthat $x eq "1 2 3 {entropy kills}"
 }
 
+test "lreverse" {
+    checkthat [lreverse [list 1 2 3]] eq [list 3 2 1]
+}
+
 test "lset no index" {
   checkthat [not [info exists boo]]
   assertErr  { lset boo 5 }
