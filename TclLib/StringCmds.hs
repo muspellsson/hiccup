@@ -51,10 +51,23 @@ trimcmd name f args = case args of
        elemOf s = let bstr = T.asBStr s in (`B.elem` bstr)
   
 
+string_op :: String -> (BString -> BString) -> [T.TclObj] -> TclM T.TclObj
 string_op name op args = case args of
    [s] -> treturn . op . T.asBStr $ s
+   [s,i1] -> do
+      let bs = T.asBStr s
+      ind1 <- toIndex (B.length bs) i1
+      do_op bs ind1 1
+   [s,i1,i2] -> do
+      let bs = T.asBStr s
+      [ind1,ind2] <- mapM (toIndex (B.length bs)) [i1,i2]
+      let oplen = 1 + ind2 - ind1
+      do_op bs ind1 oplen
    _   -> vArgErr . pack $ "string " ++ name ++ " string ?first? ?last?"
--- TODO: Implement the 'first' 'last' parts.
+ where do_op str ind oplen = do
+          let (pre,rest) = B.splitAt ind str
+          let (mid,end) = B.splitAt oplen rest
+          treturn . B.concat $ [pre, op mid, end]
 
 string_length args = case args of
     [s] -> return . T.fromInt . B.length . T.asBStr $ s

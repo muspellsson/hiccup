@@ -18,6 +18,16 @@ test "string methods" {
   checkthat [string reverse "X Y"] eq "Y X"
 }
 
+test "string toupper" {
+    checkthat [string toupper "cat_party"] eq "CAT_PARTY"
+    checkthat [string toupper "cat_party" 0] eq "Cat_party"
+    checkthat [string toupper "cat_party" 1] eq "cAt_party"
+    checkthat [string toupper "cat_party" 2] eq "caT_party"
+    checkthat [string toupper "cat_party" 2 5] eq "caT_PArty"
+
+    checkthat [string toupper "eep" 0 0] eq "Eep"
+}
+
 test "string trim" {
   checkthat [string trim " oh "] eq "oh"
   checkthat [string trim "oh "] eq "oh"
