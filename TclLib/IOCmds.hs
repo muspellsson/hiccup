@@ -8,7 +8,7 @@ import System.Directory (getCurrentDirectory,
                          doesDirectoryExist,
                          getPermissions,
                          Permissions(..))
-import Control.Exception (handle)
+import Control.Exception (handle,try)
 import Core ()
 import qualified TclObj as T
 import qualified TclChan as T
@@ -20,7 +20,8 @@ import Util
 
 ioCmds = nsCmdList "" $ safe ++ unsafe
  where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
-                        ("close", cmdClose),("flush", cmdFlush),("eof", cmdEof)]
+                        ("close", cmdClose),("flush", cmdFlush),("eof", cmdEof),
+                        ("tell", cmdTell)]
        unsafe = unsafeCmds [("exit", cmdExit), ("source", cmdSource),
                             ("pwd", cmdPwd), ("open", cmdOpen),("file", cmdFile)]
 
@@ -28,6 +29,11 @@ cmdEof args = case args of
   [ch] -> do h <- getReadable ch
              io (hIsEOF h) >>= return . T.fromBool 
   _    -> vArgErr "eof channelId"
+
+cmdTell args = case args of
+  [ch] -> do h <- lookupChan (T.asBStr ch) >>= return . T.chanHandle
+             io (hTell h) >>= return . T.fromInt . fromIntegral
+  _    -> vArgErr "tell channelId"
 
 cmdRead args = case args of
      [ch] -> do
@@ -38,6 +44,7 @@ cmdRead args = case args of
 
 cmdFile = mkEnsemble "file" [
     ("channels", file_channels),
+    ("size", file_size),
     pred_check "exists" (\fn -> liftM2 (||) (doesFileExist fn)
                                             (doesDirectoryExist fn)),
     pred_check "isfile" doesFileExist,
@@ -57,6 +64,14 @@ file_channels args = case args of
    [] -> namesChan >>= return . T.fromBList
    _  -> vArgErr "file channels"
 
+file_size args = case args of
+   [n] -> do 
+      let name = T.asStr n 
+      esiz <- io $ try (withFile name ReadMode hFileSize)
+      case esiz of
+        Left _ -> tclErr $ "could not read " ++ show name ++ ": no such file or directory"
+        Right siz -> return . T.fromInt . fromIntegral $ siz
+   _ -> vArgErr "file size name"
 
 cmdPuts args = case args of
                  [s] -> tPutLn stdout s
