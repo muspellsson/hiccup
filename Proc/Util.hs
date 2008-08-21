@@ -19,7 +19,7 @@ mkLambda fn = do
          [al,body] -> do 
            pr <- mkProc (pack "lambda") al body 
            nsr <- getCurrNS
-           return $ withProcScope (procArgs pr) nsr (procAction pr) 
+           return $ withProcScope (procArgs pr) nsr (procAction pr) (pack "lambda")
          _         -> fail "invalid lambda"
 
 useCompiledProcs = True

@@ -40,7 +40,8 @@ data TclFrame = TclFrame {
       frVars :: !VarMap, 
       upMap :: !UpMap,
       frNS :: NSRef,
-      frTag :: !Int  }
+      frTag :: !Int,
+      frInfo :: [T.TclObj] }
 
 type TclStack = [FrameRef]
 

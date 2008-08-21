@@ -122,13 +122,16 @@ cmdReturn args = case args of
        trampErr x = throwError (ErrTramp (fromCode x))
        handleCode c f val = do
          unless (T.asStr c == "-code") $ tclErr "invalid flag to return"
-         case T.asStr f of
-           "ok" -> throwVal EReturn val
-           "error" -> throwVal EReturn val -- TODO: This is not right
-           "break" -> trampErr EBreak
-           "continue" -> trampErr EContinue
-           "return"   -> trampErr EReturn
-           cv   -> throwError (eDie $ "bad completion val: " ++ show cv)
+         case T.asInt f of 
+           -- TODO: Extend this!
+           Just 0 -> throwVal EReturn val 
+           _ -> case T.asStr f of
+                   "ok" -> throwVal EReturn val
+                   "error" -> throwVal EReturn val -- TODO: This is not right
+                   "break" -> trampErr EBreak
+                   "continue" -> trampErr EContinue
+                   "return"   -> trampErr EReturn
+                   cv   -> throwError (eDie $ "bad completion val: " ++ show cv)
 
 cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s
@@ -190,7 +193,7 @@ info_level args = case args of
   [] -> liftM T.fromInt stackLevel
   [lev] -> do
        levn <- T.asInt lev
-       tclErr "\"info level number\" not supported yet"
+       uplevel levn (getFrameInfo >>= return . T.fromList)
   _   -> vArgErr "info level ?number?"
 
 info_exists args = case args of

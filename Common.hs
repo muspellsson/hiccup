@@ -18,6 +18,7 @@ module Common (TclM
        ,withProcScope
        ,withNS
        ,getCmd
+       ,getFrameInfo
        ,getProcInfo
        ,getCmdNS
        ,getCurrNS
@@ -113,7 +114,7 @@ applyTo !f args = do
      CmdCore c      -> c args
      p@(ProcCore _ _ c) -> case cmdOrigNS f of
                               Nothing -> error "can't find orig namespace"
-                              Just nsr -> withProcScope (procArgs p) nsr c args
+                              Just nsr -> withProcScope (procArgs p) nsr c (cmdName f) args
 {-# INLINE applyTo #-}
 
 mkCmdAlias nsr pn = do
@@ -306,6 +307,8 @@ upped !s !fr = getUpMap fr >>= \f -> return $! (let !sf = f in Map.lookup s sf)
 {-# INLINE upped #-}
 
 getCmd !pname = getCmdNS (parseProc pname)
+
+getFrameInfo = getFrame >>= (`refExtract` frInfo)
 
 getProcInfo !pname = do
   mcmd <- getCmd pname
@@ -645,10 +648,10 @@ forgetNS name = do
 
 setFrNS !frref !nsr = modifyIORef frref (\f -> f { frNS = nsr })
 
-withProcScope :: ParamList -> NSRef -> TclM T.TclObj -> [T.TclObj] -> TclM T.TclObj
-withProcScope pl !nsr f args = do
+withProcScope :: ParamList -> NSRef -> TclM T.TclObj -> BString -> [T.TclObj] -> TclM T.TclObj
+withProcScope pl !nsr f pn args = do
     vl <- bindArgs pl args
-    fr <- io $! createFrameWithNS nsr $! makeVarMap vl
+    fr <- io $! createFrameWithNS nsr ((T.fromBStr pn):args) $! makeVarMap vl
     withScope fr f
 {-# INLINE withProcScope #-}
 
@@ -674,7 +677,6 @@ withNS name f = do
 withExistingNS f !nsref = do
   fr <- getNSFrame nsref
   withScope fr f
-
 
 addToPathNS nst = do
   pns <- getNamespaceHere' nst
@@ -703,10 +705,11 @@ childrenNS nst = do
   (return . map (B.append prename) . Map.keys . nsChildren) ns
 
 
-createFrame !vref = createFrameWithNS undefined vref
-createFrameWithNS nsref !vref = do
+createFrame !vref = createFrameWithNS undefined [] vref
+createFrameWithNS nsref frinv !vref = do
    tag <- uniqueInt
-   newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = nsref }
+   newIORef $! TclFrame { frVars = vref, upMap = Map.empty, frTag = tag, frNS = nsref,
+                          frInfo = frinv }
  where uniqueInt = liftM hashUnique newUnique
 
 changeUpMap fr fun = fr .= (\f -> f { upMap = fun (upMap f) })
