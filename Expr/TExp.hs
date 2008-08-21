@@ -28,7 +28,7 @@ data Op = OpDiv | OpPlus | OpMinus | OpTimes | OpEql | OpNeql |
 
 data UnOp = OpNot | OpNeg deriving (Eq,Show)
 
-data CExpr c t = CApp2 !Op (CExpr c t) (CExpr c t) | CItem Atom 
+data CExpr c t = CApp2 !Op (CExpr c t) (CExpr c t) | CItem !Atom 
                | CApp !UnOp (CExpr c t)
                | CStrTok t
                | CTern (CExpr c t) (CExpr c t) (CExpr c t)

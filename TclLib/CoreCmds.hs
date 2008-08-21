@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
 module TclLib.CoreCmds (coreCmds) where
 import Common
 import Internal.Types (procArgs)
@@ -121,11 +122,11 @@ cmdReturn args = case args of
        returnVal v = throwError (Err e_RETURN (Just v))
        trampErr x = throwError (ErrTramp (fromCode x))
        handleCode c f val = do
-         unless (T.asStr c == "-code") $ tclErr "invalid flag to return"
+         unless (T.asBStr c == "-code") $ tclErr "invalid flag to return"
          case T.asInt f of 
            -- TODO: Extend this!
            Just 0 -> throwVal EReturn val 
-           _ -> case T.asStr f of
+           _ -> case T.asBStr f of
                    "ok" -> throwVal EReturn val
                    "error" -> throwVal EReturn val -- TODO: This is not right
                    "break" -> trampErr EBreak

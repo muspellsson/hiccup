@@ -53,7 +53,8 @@ trimcmd name f args = case args of
 
 string_op name op args = case args of
    [s] -> treturn . op . T.asBStr $ s
-   _   -> argErr $ "string " ++ name
+   _   -> vArgErr . pack $ "string " ++ name ++ " string ?first? ?last?"
+-- TODO: Implement the 'first' 'last' parts.
 
 string_length args = case args of
     [s] -> return . T.fromInt . B.length . T.asBStr $ s
@@ -83,7 +84,7 @@ string_compare args_ = do
    (cspec, args) <- parseArgs compSpecs (CompSpec False Nothing) args_
    case args of
      [s1,s2] -> specCompare cspec s1 s2 >>= return . ord2int 
-     _       -> argErr "string compare"
+     _       -> vArgErr "string compare ?-nocase? ?-length int? string1 string2"
  where ord2int o = case o of
             EQ -> T.fromInt 0
             LT -> T.fromInt (-1)
@@ -94,14 +95,14 @@ string_equal args_ = do
   (cspec, args) <- parseArgs compSpecs (CompSpec False Nothing) args_
   case args of
     [s1,s2] -> specCompare cspec s1 s2 >>= return . T.fromBool . (== EQ)
-    _       -> argErr "string equal"
+    _       -> vArgErr "string equal ?-nocase? ?-length int? string1 string2"
 
 matchNoCase = boolFlagSpec "nocase" 2
 string_match args_ = do
    (nocase,args) <- parseArgs matchNoCase False args_
    case args of
        [s1,s2]        -> domatch nocase (T.asBStr s1) (T.asBStr s2)
-       _              -> argErr "string match"
+       _              -> vArgErr "string match ?-nocase? pattern string"
  where domatch nocase a b = return (T.fromBool (match nocase a b))
 
 string_index args = case args of
@@ -111,7 +112,7 @@ string_index args = case args of
                                  if ind >= slen || ind < 0 
                                   then ret 
                                   else treturn $ B.take 1 (B.drop ind str)
-                     _   -> argErr "string index"
+                     _   -> vArgErr "string index string charIndex"
 
 
 string_map args = case args of
@@ -150,7 +151,7 @@ string_range args = case args of
        ind1 <- toIndex slen i1
        ind2 <- toIndex slen i2
        treturn $ B.drop ind1 (B.take (ind2+1) str)
-   _ -> argErr "string range"
+   _ -> vArgErr "string range string first last"
 
 cmdAppend args = case args of
             (v:vx) -> do val <- varGetNS (T.asVarName v) `ifFails` T.empty

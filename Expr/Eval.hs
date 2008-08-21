@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module Expr.Eval (runExpr, runCExpr, Callback, CBData(..), exprEvalTests) where
+module Expr.Eval ( runCExpr, Callback, CBData(..), exprEvalTests) where
 import Expr.TExp
 import Expr.Parse
 import Expr.Compile

@@ -26,7 +26,7 @@ newtype EventMgr a = EventMgr [Event a]
 
 
 emptyMgr = EventMgr []
-mgrInsert evt (EventMgr evts) = EventMgr (sortBy (comparing evtTime) (evt:evts))  
+mgrInsert evt (EventMgr evts) = EventMgr $! (sortBy (comparing evtTime) (evt:evts))  
 
 getNextID :: IO EvtID
 getNextID = do
@@ -53,7 +53,7 @@ nextDeadline (EventMgr evts) =
 
 getDue (EventMgr evts) = do
   currTime <- getCurrentTime
-  let (due,rest) = partition (notAfter currTime) evts
+  let (due,rest) = span (notAfter currTime) evts
   if null due 
       then do
         let (idles,others) = partition isIdle rest
