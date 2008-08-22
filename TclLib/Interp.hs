@@ -1,4 +1,4 @@
-module TclLib.Interp (mkInterp, mkInterpWithVars, interpEvalStr, interpCmds) where
+module TclLib.Interp ( mkInterp, interpEvalStr, interpCmds) where
 
 import Common
 import Util
@@ -102,8 +102,7 @@ createInterp safe vars cmds = do
    return (Interp stref)
  where icmds = if safe then onlySafe cmds else cmds
 
-mkInterp = mkInterpWithVars []
-mkInterpWithVars = createInterp False
+mkInterp = createInterp False
 
 interpEvalStr :: BString -> Interp -> IO (Either BString BString)
 interpEvalStr s i = runInterpStr (evalTcl (T.fromBStr s :: T.TclObj)) i

@@ -12,7 +12,7 @@ main = do args <- getArgs
           case args of
              []  -> mkMainInterp >>= runRepl
              (f:fs) -> do fdata <- B.readFile f 
-                          runTclWithArgs fdata (map B.pack fs) >>= (`unlessErr` (\_ -> return ()))
+                          runTclWithArgs (map B.pack fs) fdata >>= (`unlessErr` (\_ -> return ()))
  where unlessErr x f = either (\e -> B.putStrLn e) f x
        runRepl i = do mline <- readline "hiccup> "
                       case mline of
