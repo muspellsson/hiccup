@@ -147,6 +147,8 @@ test "string first" {
     checkthat [string first a 0a23456789abcdef 11] == -1
 }
 
-test "string match" {
+test "string map" {
     checkthat [string map { ab 1 bc 2 xp 3 } "ababbcaxp"] eq {112a3}
+    checkthat [string map -nocase { ab 1 BC 2 XP 3 } "ababbcaxp"] eq {112a3}
 }
+

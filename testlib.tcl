@@ -85,6 +85,9 @@ proc assert code {
 }
 
 proc test {name body} {
+  if [info exists ::testlib::tests($name)] {
+      puts stderr "WARNING: Already a test called \"$name\""
+  }
   set ::testlib::tests($name) $body
   set ::testlib::test_results($name) "not run"
 }

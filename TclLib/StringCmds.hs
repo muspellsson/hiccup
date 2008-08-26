@@ -29,7 +29,7 @@ cmdString = mkEnsemble "string" [
    ("map", string_map),
    ("tolower", string_op "tolower" (B.map toLower)),
    ("toupper", string_op "toupper" (B.map toUpper)),
-   ("reverse", string_op "reverse" B.reverse),
+   ("reverse", string_reverse),
    ("length", string_length), ("range", string_range),
    ("match", string_match), ("compare", string_compare),
    ("equal", string_equal), ("index", string_index)
@@ -50,6 +50,9 @@ trimcmd name f args = case args of
  where go pred = treturn . f pred . T.asBStr
        elemOf s = let bstr = T.asBStr s in (`B.elem` bstr)
   
+string_reverse args = case args of
+   [s] -> treturn $! (B.reverse (T.asBStr s))
+   _   -> vArgErr "string reverse string"
 
 string_op :: String -> (BString -> BString) -> [T.TclObj] -> TclM T.TclObj
 string_op name op args = case args of
@@ -110,9 +113,9 @@ string_equal args_ = do
     [s1,s2] -> specCompare cspec s1 s2 >>= return . T.fromBool . (== EQ)
     _       -> vArgErr "string equal ?-nocase? ?-length int? string1 string2"
 
-matchNoCase = boolFlagSpec "nocase" 2
+noCaseSpec = boolFlagSpec "nocase" 2
 string_match args_ = do
-   (nocase,args) <- parseArgs matchNoCase False args_
+   (nocase,args) <- parseArgs noCaseSpec False args_
    case args of
        [s1,s2]        -> domatch nocase (T.asBStr s1) (T.asBStr s2)
        _              -> vArgErr "string match ?-nocase? pattern string"
@@ -128,16 +131,21 @@ string_index args = case args of
                      _   -> vArgErr "string index string charIndex"
 
 
-string_map args = case args of
+string_map args_ = do
+  (nocase,args) <- parseArgs noCaseSpec False args_
+  case args of
    [tcm,s] -> do
     cm <- T.asList tcm >>= toPairs . map T.asBStr
-    return . T.fromBStr . mapReplace cm . T.asBStr $ s
+    return . T.fromBStr . mapReplace nocase cm . T.asBStr $ s
    _     -> vArgErr "string map charmap str"
  
 -- TODO: This is inefficiently implemented, but can be easily improved.
-mapReplace ml = go
-  where firstMatch ml str = listToMaybe [(k,v) | (k,v) <- ml, k `B.isPrefixOf` str]
-        go s = case firstMatch ml s of
+mapReplace nocase ml = go
+  where firstMatch str = let ncstr = downcase str
+                         in listToMaybe [(k,v) | (k,v) <- ncml, k `B.isPrefixOf` ncstr]
+        downcase = B.map toLower
+        ncml = if nocase then mapFst downcase ml else ml
+        go s = case firstMatch s of
                     Nothing -> case B.uncons s of
                                  Nothing -> s
                                  Just (c,r) -> B.cons c (go r)
@@ -174,7 +182,7 @@ cmdAppend args = case args of
  where oconcat = T.fromBStr . B.concat . map T.asBStr
 
 cmdSplit args = case args of
-        [str]       -> dosplit (T.asBStr str) (pack "\t\n ")
+        [str]       -> dosplit (T.asBStr str) "\t\n "
         [str,chars] -> let splitChars = T.asBStr chars 
                            bstr = T.asBStr str
                        in case B.length splitChars of
@@ -202,9 +210,11 @@ cmdRegexp args = case args of
 stringTests = TestList [ matchTests, toIndTests, mapReplaceTests ]
 
 mapReplaceTests = TestList [
-   ([("a","1"),("b","2")], "aabbca") `should_be` "1122c1"
-   ,([("a","1"),("b","2")], "bca") `should_be` "2c1"
-  ] where should_be (ml,s) b = b ~=?  mapReplace ml s
+   ([("a","1"),("b","2")], "aabbca", False) `should_be` "1122c1"
+   ,([("a","1"),("b","2")], "bca", False) `should_be` "2c1"
+   ,([("a","1"),("b","2")], "BCA", True) `should_be` "2C1"
+   ,([("A","1"),("B","2")], "bca", True) `should_be` "2c1"
+  ] where should_be (ml,s,nocase) b = b ~=?  mapReplace nocase ml s
 
 toIndTests = TestList [
      (someLen, "10") `should_be` 10
