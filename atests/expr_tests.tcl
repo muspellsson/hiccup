@@ -134,3 +134,8 @@ test "ternary if" {
 test "list expr" {
     checkthat [expr [list 1 + 1]] == 2
 }
+
+test "hex math" {
+    checkthat [expr 0xb + 0xb] == 22
+    checkthat [expr 1 + 0xA] == 11
+}

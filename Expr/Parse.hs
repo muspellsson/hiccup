@@ -12,6 +12,7 @@ import TclParse
 import VarName
 import Data.List (sortBy)
 import Data.Ord (comparing)
+import Data.Char (digitToInt,isHexDigit,isDigit)
 import Util
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
@@ -20,14 +21,20 @@ import Test.HUnit
 
 
 parseNum :: Parser TNum
-parseNum s = do
-   (i,r) <- parseInt s
-   (dubpart i) </> (emit (TInt i)) $ r
+parseNum = parseHex </> parseDec </> parseDoub 0
+parseDec s = do
+   (i,r) <- parseInt $ s
+   (parseDoub i) </> (emit (TInt i)) $ r
+
+parseDoub = dubpart 
  where dubpart i = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
-       dtail = (consumed (pchar '.' .>> digstring)) `wrapWith` B.unpack
-       digstring = getPred1 (`elem` "0123456789")  "digit"
+       dtail = (consumed (pchar '.' .>> digits)) `wrapWith` B.unpack
+       digits = getPred1 isDigit "digit"
 
-
+parseHex = hex_str `wrapWith` (TInt . h2d)
+ where hex_str = parseLit "0x" .>> getPred1 isHexDigit "hex digit"
+       h2d = B.foldl' (\a c -> a * 16 + (digitToInt c)) 0 
+                 
 
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
@@ -192,8 +199,13 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
   
   numTests = TestList [
       "44" `should_be` TInt 44
+      ,"0xa" `should_be` TInt 10
+      ,"0xB0" `should_be` TInt 176
       ,"44.8" `should_be` TDouble 44.8
+      ,".83" `should_be` TDouble 0.83
+      ,"0xb.44" `should_fail` ()
    ] where should_be dat res = Right (res,"") ~=? parseNum dat
+           should_fail dat () = ((parseNum `pass` parseEof) dat) `should_fail_` ()
 
   intTests = TestList [
        "44" `should_be` 44
