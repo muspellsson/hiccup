@@ -28,7 +28,7 @@ module TclObj (
  ,objconcat
  ,tclObjTests ) where
 
-import TclParse (parseList)
+import TclParse (parseList, parseInt)
 import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import RToken (asParsed, singleTok, Parseable, Cmd, makeParsed, RTokCmd,
@@ -61,9 +61,9 @@ fromBlock s p = TclBStr s (maybeInt s) p
 {-# INLINE fromBlock #-}
 
 
-maybeInt s = case BS.readInt (dropSpaces s) of
-                Nothing    -> Nothing
-                Just (i,r) -> if BS.null r || BS.null (dropSpaces r) then Just i else Nothing
+maybeInt s = case parseInt (dropSpaces s) of
+                Left _     -> Nothing
+                Right (i,r) -> if BS.null r || BS.null (dropSpaces r) then Just i else Nothing
 
 
 mkTclInt !i = TclInt i bsval
@@ -84,12 +84,11 @@ isEmpty v = case v of
 tclTrue = mkTclInt 1
 tclFalse = mkTclInt 0
 
-
 trim = BS.reverse . dropSpaces . BS.reverse . dropSpaces
 
-bstrAsInt bs = case BS.readInt bs of
-               Nothing    -> badInt bs
-               Just (i,r) -> if BS.null r then return i else badInt bs
+bstrAsInt bs = case maybeInt bs of
+               Nothing -> badInt bs
+               Just i  -> return i
 
 badInt bi = fail ("expected integer but got " ++ show bi)
 

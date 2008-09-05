@@ -10,7 +10,7 @@ import qualified TclObj as T
 import Data.Char (toLower,toUpper,isSpace)
 import Data.Maybe (listToMaybe)
 import TclLib.LibUtil
-import Text.Regex.Posix
+import Text.Regex.Posix hiding (match)
 import ArgParse
 
 import Test.HUnit
@@ -195,7 +195,7 @@ cmdSplit args = case args of
 cmdRegexp :: [T.TclObj] -> TclM T.TclObj
 cmdRegexp args = case args of
   [pat,str] -> regexp (T.asBStr str) (T.asBStr pat) >>= return . T.fromBool
-  [pat,str,matchVar] -> do m <- regexp (T.asBStr str) (T.asBStr pat)
+  [pat,str,matchVar] -> do AllTextMatches m <- regexp (T.asBStr str) (T.asBStr pat)
                            case m of
                               [] -> return (T.fromBool False)
                               (mv:_) -> do

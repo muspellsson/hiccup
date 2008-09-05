@@ -12,7 +12,7 @@ import TclParse
 import VarName
 import Data.List (sortBy)
 import Data.Ord (comparing)
-import Data.Char (digitToInt,isHexDigit,isDigit)
+import Data.Char (isDigit)
 import Util
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
@@ -21,20 +21,18 @@ import Test.HUnit
 
 
 parseNum :: Parser TNum
-parseNum = parseHex </> parseDec </> parseDoub 0
+parseNum = (parseHex `wrapWith` TInt) </> parseDec </> parseDoub 0
 parseDec s = do
-   (i,r) <- parseInt $ s
+   (i,r) <- parseDecInt $ s
    (parseDoub i) </> (emit (TInt i)) $ r
 
-parseDoub = dubpart 
- where dubpart i = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
+parseDoub i = dubpart </> exppart
+ where dubpart = dtail `wrapWith` (\v -> TDouble (fromIntegral i + (read ('0':v))))
        dtail = (consumed (pchar '.' .>> digits)) `wrapWith` B.unpack
        digits = getPred1 isDigit "digit"
-
-parseHex = hex_str `wrapWith` (TInt . h2d)
- where hex_str = parseLit "0x" .>> getPred1 isHexDigit "hex digit"
-       h2d = B.foldl' (\a c -> a * 16 + (digitToInt c)) 0 
+       exppart = parseExp `wrapWith` (\e -> TDouble ((fromIntegral i) * (10 ** (fromIntegral e))))
                  
+parseExp = pchar 'e' .>> parseDecInt
 
 operators = mkops [ 
                    [("||",OpOr), ("&&",OpAnd)]
@@ -203,6 +201,7 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
       ,"0xB0" `should_be` TInt 176
       ,"44.8" `should_be` TDouble 44.8
       ,".83" `should_be` TDouble 0.83
+      ,"1e3" `should_be` TDouble 1000.0
       ,"0xb.44" `should_fail` ()
    ] where should_be dat res = Right (res,"") ~=? parseNum dat
            should_fail dat () = ((parseNum `pass` parseEof) dat) `should_fail_` ()
@@ -211,6 +210,6 @@ bsExprTests = "BSExpr" ~: TestList [atomTests, numTests, intTests, itemTests, de
        "44" `should_be` 44
        ,"9" `should_be` 9
        ,"catfish" `should_fail` ()
-    ] where should_be dat res = Right (res,"") ~=? parseInt dat
-            should_fail dat () = (parseInt dat) `should_fail_` ()
+    ] where should_be dat res = Right (res,"") ~=? parseDecInt dat
+            should_fail dat () = (parseDecInt dat) `should_fail_` ()
 

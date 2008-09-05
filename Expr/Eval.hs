@@ -11,7 +11,9 @@ import qualified Data.Map as M
 import Expr.Util
 import Test.HUnit
 
-data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) | CmdEval [Cmd] | TokEval RTokCmd
+data CBData = VarRef (NSQual VarName) | FunRef (BString, [T.TclObj]) 
+            | CmdEval [Cmd] | TokEval RTokCmd
+
 type Callback m = (CBData -> m T.TclObj)
 
 

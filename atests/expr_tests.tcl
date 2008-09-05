@@ -139,3 +139,16 @@ test "hex math" {
     checkthat [expr 0xb + 0xb] == 22
     checkthat [expr 1 + 0xA] == 11
 }
+
+test "hex parse weird" {
+    set x 0xff
+    checkthat "[expr $x + $x]" eq {510}
+    checkthat "[expr { $x + $x }]" eq {510}
+}
+
+test "exponential notation" {
+    set foo 1e3
+    checkthat [expr { $foo + 2 }] == 1002.0
+    checkthat [expr { 1e3 + 2 }] == 1002.0
+    checkthat [expr 1e3 + 2 ] == 1002.0
+}

@@ -5,6 +5,8 @@ module TclParse ( TclWord(..)
                  ,parseList 
                  ,parseVar
                  ,parseRichStr
+                 ,parseHex
+                 ,parseInt
                  ,parseSub
                  ,TokCmd
                  ,SubCmd
@@ -21,6 +23,7 @@ module TclParse ( TclWord(..)
 import BSParse
 import Util 
 import qualified Data.ByteString.Char8 as B
+import Data.Char (digitToInt,isHexDigit)
 import Test.HUnit
 
 
@@ -121,6 +124,11 @@ listItemEnd s = inner 0 False where
                                   '\\' -> inner (i+1) True
                                   v  -> if isTerminal v then i else inner (i+1) False
 
+parseInt :: Parser Int
+parseInt = (checkStartsWith '0' .>> (parseHex </> parseDecInt)) </> parseDecInt
+parseHex = hex_str `wrapWith` h2d
+ where hex_str = parseLit "0x" .>> getPred1 isHexDigit "hex digit"
+       h2d = B.foldl' (\a c -> a * 16 + (digitToInt c)) 0 
 
 -- TODO: Is SEsc really useful? Escaped chars are probably always handled
 -- the same way, and could be done here.

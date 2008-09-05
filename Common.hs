@@ -770,27 +770,22 @@ emptyNS name frame = TclNS { nsName = name,
 
 runCheckResult :: TclM RetVal -> Either Err RetVal -> IO Bool
 runCheckResult t v =
-  do st <- mkEmptyState
-     retv <- liftM fst (runTclM t st)
+  do retv <- liftM fst $ evalClean t
      return (retv == v)
 
 errWithEnv :: TclM a -> IO (Either Err a)
-errWithEnv t =
+errWithEnv t = evalClean t >>= return . fst
+
+evalClean :: TclM a -> IO (Either Err a, TclStack)
+evalClean t =
     do st <- mkEmptyState
-       retv <- liftM fst (runTclM t st)
-       return retv
+       (retv, resStack) <- runTclM t st
+       return (retv, tclStack resStack)
 
 mkEmptyState = makeState False [] emptyCmdList
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   b = pack
-
-  evalWithEnv :: TclM a -> IO (Either Err a, TclStack)
-  evalWithEnv t =
-    do st <- mkEmptyState
-       (retv, resStack) <- runTclM t st
-       return (retv, tclStack resStack)
-
 
   checkErr a s = errWithEnv a >>= \v -> assertEqual "err match" (Left (eDie s)) v
   checkNoErr a = errWithEnv a >>= \v -> assertBool "err match" (isRight v)
@@ -814,7 +809,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
        ,"set exists2" ~: (varSetRaw (b "boogie") (int 1)) `checkExists` "boogie"
        ,"checkeq" ~: checkEq (varSetRaw name value) "varname" value
      ]
-    where evalGetHead a = evalWithEnv a >>= return . head . snd 
+    where evalGetHead a = evalClean a >>= return . head . snd 
           checkExists a n = evalGetHead a >>= vExists n
           checkEq a n val = evalGetHead a >>= \v -> vEq n v val
 
@@ -822,7 +817,7 @@ commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
       "with scope" ~: getVM (varSetRaw (b "x") (int 1)) (\m -> not (Map.null m))
     ]
    where getVM f c = do vmr <- createFrame emptyVarMap 
-                        (res,_) <- evalWithEnv (withScope vmr f)
+                        (res,_) <- evalClean (withScope vmr f)
                         case res of
                          Left e -> error (show e)
                          Right _ -> do vm <- readVars vmr

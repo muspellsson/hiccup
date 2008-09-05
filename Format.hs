@@ -8,7 +8,7 @@ import BSParse (pchar,(.>>),choose,emit,wrapWith,parseMany,parseLit
                 ,getPred1
                 ,(</>)
                 ,pass
-                ,parseInt)
+                ,parseDecInt)
 
 data Format = FInt | FStr | FChar deriving Show
 
@@ -45,4 +45,4 @@ parseFormat = pchar '%' .>> choose [fstr,fchar,fint]
        fchar = mk ('c',FChar)
        fstr = mk ('s', FStr)
        fint = mk ('d',FInt)
-       padding = parseInt </> emit 0
+       padding = parseDecInt </> emit 0

@@ -20,7 +20,6 @@ module VarName (parseVarName,
                 varNameTests) where
 import Util
 import qualified Data.ByteString.Char8 as B
-import Data.ByteString (findSubstrings)
 import Test.HUnit
 
 
@@ -116,20 +115,22 @@ nsTail (NS _ nsl) = last nsl
 nsTail_ x = nsTail (parseNSTag x)
 
 
-nsQualifiers str = case findSubstrings nsSep str of
-                      [] -> B.empty
-                      lst -> B.take (last lst) str
+nsQualifiers str = case findSubstringEnd nsSep str of
+                      Nothing -> B.empty
+                      Just i -> B.take i str
 
+findSubstringEnd pat hay = search (B.length hay) hay
+ where patlen = B.length pat 
+       search !n !s 
+        | n < patlen           = Nothing
+        | pat `B.isSuffixOf` s = Just (n - patlen)
+        | otherwise            = search (n-1) (B.take (n-1) s)
 
 splitWith :: BString -> BString -> [BString]
-splitWith str sep = 
-    case findSubstrings sep str of
-        []     -> [str]
-        il     -> extract il str
- where slen              = B.length sep 
-       extract [] !s     = [s]
-       extract (i:ix) !s = let (b,a) = B.splitAt i s 
-                           in b : extract (map (\v -> v - (i+slen)) ix) (B.drop slen a)
+splitWith str sep = splitter str
+ where slen        = B.length sep 
+       splitter !s = let (h,t) = B.breakSubstring sep s
+                    in if B.null t then [h] else h : splitter (B.drop slen t)
 {-# INLINE splitWith #-}
  
 varNameTests = TestList [splitWithTests, testArr, testParseVarName, testParseNS, testNSTail, 

@@ -46,6 +46,12 @@ test "lindex multi" {
     checkthat [lindex {{a b} {c d}} 1 1] eq "d"
 }
 
+test "lindex w/ hex" {
+    set lst [list 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16]
+    checkthat [lindex $lst 0xa] == 11
+    checkthat [lindex $lst 0xB] == 12
+}
+
 test "lappend" {
   set x {}
   lappend x 1
@@ -191,3 +197,4 @@ test "lmap" {
     checkthat [lmap $plus1 $start] eq [list 2 3 4 5]
     checkthat [lmap $plus1 [list]] eq {}
 }
+

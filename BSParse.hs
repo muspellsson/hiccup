@@ -2,6 +2,8 @@
 module BSParse where
 
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Unsafe as B
+import Data.ByteString.Internal (w2c)
 import Control.Monad (mplus)
 import Data.Ix
 import Util 
@@ -65,7 +67,7 @@ parseMany1 p = p `pcons` (parseMany p)
 
 parseLit :: BString -> Parser BString
 parseLit !w s = if w `B.isPrefixOf` s 
-                    then return (w, B.drop (B.length w) s) 
+                    then return (w, B.unsafeDrop (B.length w) s) 
                     else fail $ "didn't match " ++ show w
 {-# INLINE parseLit #-}
 
@@ -116,8 +118,14 @@ sepBy p sep = (p `sepBy1` sep) </> emit []
 commaSep :: Parser t -> Parser [t]
 commaSep = (`sepBy` (eatSpaces .>> pchar ','))
 
-
-safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (B.head s)
+checkStartsWith :: Char -> Parser ()
+checkStartsWith !c s = do
+  h <- safeHead (show c) s
+  if h == c then emit () s
+            else fail $ "expected " ++ show c ++ ", got " ++ show h
+{-# INLINE checkStartsWith #-}
+  
+safeHead r s = if B.null s then fail ("expected " ++ r ++ ", got eof") else return (w2c . B.unsafeHead $ s)
 {-# INLINE safeHead #-}
 
 between l r p = (l .>> p) `pass` r
@@ -134,11 +142,11 @@ parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = parseNoneOf "\"\\" "non-quote chars"
        inside = parseMany (noquotes </> escapedChar)
 
-parseInt :: Parser Int 
-parseInt s = case B.readInt s of
-                Just x -> return x
-                Nothing -> fail "expected int"
-{-# INLINE parseInt #-}
+parseDecInt :: Parser Int 
+parseDecInt s = case B.readInt s of
+                 Just x -> return x
+                 Nothing -> fail "expected int"
+{-# INLINE parseDecInt #-}
 
 escapedChar = chain [pchar '\\', parseAny]
 
