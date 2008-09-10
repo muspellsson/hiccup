@@ -16,7 +16,7 @@ type Result a = ParseMonad (a, BString)
 eatSpaces s = return ((), dropSpaces s)
 {-# INLINE eatSpaces #-}
 
-emit v s = return (v,s)
+emit v s = return $! (v,s)
 {-# INLINE emit #-}
 
 consumed :: Parser t -> Parser BString
@@ -80,7 +80,7 @@ parseLen !i = \s -> if B.length s < i
          
 parseOneOf !cl = parseCharPred (`elem` cl) ("one of " ++ show cl)
 
-parseNoneOf cl desc = getPred1 (`notElem` cl) desc
+parseNoneOf cl desc = getPred1 (`B.notElem` cl) desc
 
 pchar :: Char -> Parser BString
 pchar !c = parseCharPred (== c) (show c)
@@ -89,7 +89,7 @@ pchar !c = parseCharPred (== c) (show c)
 parseAny = parseCharPred (const True) "any char"
 parseCharPred pred exp s = case B.uncons s of
                             Nothing    -> failStr "eof"
-                            Just (h,t) -> if pred h then return (B.singleton h,t)
+                            Just (h,t) -> if pred h then return $! (B.singleton h,t)
                                                     else failStr (show h)
  where failStr what = fail $ "expected " ++ exp ++ ", got " ++ what
 {-# INLINE parseCharPred #-}
@@ -107,7 +107,7 @@ getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") els
 {-# INLINE getPred1 #-}
 
 parseEof s = if B.null s 
-               then return ([], s) 
+               then return ((), s) 
                else fail $ "expected eof, got " ++ show (B.take 20 s)
 
 sepBy1 :: Parser t -> Parser t2 -> Parser [t]

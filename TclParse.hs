@@ -83,7 +83,7 @@ handleEsc = line_continue </> esc_word
 trimmed = between tryWhite tryWhite
  where tryWhite = tryGet whiteSpace
 
-whiteSpace = getPred1 (`elem` " \t\n") "whitespace"
+whiteSpace = getPred1 (`B.elem` " \t\n") "whitespace"
 
 parseVar :: Parser BString
 parseVar = pchar '$' .>> parseVarBody

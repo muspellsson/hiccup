@@ -34,20 +34,21 @@ callProc pn args = getCmdNS pn >>= doCall (toBStr pn) args
 
 evalRTokens []     acc = return $! reverse acc
 evalRTokens (x:xs) acc = case x of
-            Lit s     -> nextWith (return $! T.fromBStr s) 
-            LitInt i  -> nextWith (return $! T.fromInt i) 
-            CmdTok t  -> nextWith (runCmds t)
-            VarRef vn -> nextWith (varGetNS vn)
-            Block s p -> nextWith (return $! T.fromBlock s p) 
+            Lit s     -> next $ T.fromBStr s 
+            LitInt i  -> next $ T.fromInt i
+            CmdTok t  -> runCmds t >>= next
+            VarRef vn -> varGetNS vn >>= next
+            Block s p -> next $ T.fromBlock s p
             ArrRef ns n i -> do
                  ni <- evalArgs [i] >>= return . T.asBStr . head
-                 nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalArgs l >>= return . T.fromBStr . B.concat . map T.asBStr) 
+                 varGetNS (NSQual ns (arrName n ni)) >>= next
+            CatLst l -> evalArgs l >>= next . T.fromBStr . B.concat . map T.asBStr
             ExpTok t -> do 
                  [rs] <- evalArgs [t]
                  l <- T.asList rs
                  evalRTokens xs ((reverse l) ++ acc)
-   where nextWith f = f >>= \(!r) -> evalRTokens xs (r:acc)
+   where next !r = evalRTokens xs (r:acc)
+         {-# INLINE next #-}
 
 evalArgs :: [RTokCmd] -> TclM [T.TclObj]
 evalArgs args = evalRTokens args []

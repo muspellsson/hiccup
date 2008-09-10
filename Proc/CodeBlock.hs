@@ -106,7 +106,7 @@ getCacheCmd (CmdCache carr) (CmdTag cind cn) = do
            liftIO $ writeArray carr cind (jact,cn)
            return jact
 
-evalCompC cc (CompCmd mct nargs c) = 
+evalCompCmd cc (CompCmd mct nargs c) = 
   case mct of
     Nothing -> evalTcl c
     Just ct -> do
@@ -119,26 +119,26 @@ evalCompC cc (CompCmd mct nargs c) =
                 Right al  -> evalCompArgs (evalThem cc) al
 
 evalCompArgs cmdFn al = evalCTokens al [] where
-    evalCTokens []     acc = return $! reverse acc
-    evalCTokens (x:xs) acc = case x of
-            Lit s     -> nextWith (return $! s) 
-            CmdTok t  -> nextWith (cmdFn t)
-            Block o   -> nextWith (return $! o)
-            VarRef vn -> nextWith (varGetNS vn)
+    evalCTokens []     !acc = return $ reverse acc
+    evalCTokens (x:xs) !acc = case x of
+            Lit s     -> next s 
+            CmdTok t  -> cmdFn t >>= next
+            Block o   -> next o
+            VarRef vn -> varGetNS vn >>= next
             ArrRef ns n i -> do
                  ni <- evalArgs_ [i] >>= return . T.asBStr . head
-                 nextWith (varGetNS (NSQual ns (arrName n ni))) 
-            CatLst l -> nextWith (evalArgs_ l >>= return . T.fromBStr . B.concat . map T.asBStr) 
+                 varGetNS (NSQual ns (arrName n ni)) >>= next
+            CatLst l -> evalArgs_ l >>= next . T.fromBStr . B.concat . map T.asBStr
             ExpTok t -> do 
                  [rs] <- evalArgs_ [t]
                  l <- T.asList rs
                  evalCTokens xs ((reverse l) ++ acc)
-     where nextWith f = f >>= \(!r) -> evalCTokens xs (r:acc)
-           {-# INLINE nextWith #-}
-           evalArgs_ args = {-# SCC "evalArgs_" #-} evalCTokens args []
+     where next !r = evalCTokens xs (r:acc)
+           {-# INLINE next #-}
+           evalArgs_ args = evalCTokens args []
 
 evalThem cc lst = go lst
- where run_eval = evalCompC cc 
+ where run_eval = evalCompCmd cc 
        go []     = ret
        go [x]    = run_eval x
        go (x:xs) = run_eval x >> go xs
