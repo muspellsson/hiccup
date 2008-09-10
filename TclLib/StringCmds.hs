@@ -137,7 +137,7 @@ string_map args_ = do
    [tcm,s] -> do
     cm <- T.asList tcm >>= toPairs . map T.asBStr
     return . T.fromBStr . mapReplace nocase cm . T.asBStr $ s
-   _     -> vArgErr "string map charmap str"
+   _     -> vArgErr "string map ?-nocase? charMap string"
  
 -- TODO: This is inefficiently implemented, but can be easily improved.
 mapReplace nocase ml = go
