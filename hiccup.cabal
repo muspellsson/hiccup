@@ -1,22 +1,22 @@
-Name:                hiccup
-Version:             0.49
-Description:         Interpreter for a subset of tcl
-License:             GPL
-License-file:        LICENSE
-Author:              Kyle Consalus
-Stability:           experimental
-Homepage:            http://hiccup.googlecode.com/
-Category:            Compilers/Interpreters
-Synopsis:            Relatively efficient Tcl interpreter with support for basic operations
-Maintainer:          consalus+hiccup@gmail.com
-Build-Depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring, 
+name:                hiccup
+version:             0.49
+description:         Interpreter for a subset of tcl
+license:             GPL
+license-file:        LICENSE
+author:              Kyle Consalus
+stability:           experimental
+homepage:            http://hiccup.googlecode.com/
+category:            Compilers/Interpreters
+synopsis:            Relatively efficient Tcl interpreter with support for basic operations
+maintainer:          consalus+hiccup@gmail.com
+build-depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring, 
                      containers, random, unix, array, regex-posix, directory
-Build-Type:          Simple
+build-type:          Simple
 data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
-Executable:          hiccup
-Other-Modules:       Hiccup, TObj, TclObj, VarName, Common, Internal.Types, Internal.Util, CmdList, Util, Core, 
+executable:          hiccup
+other-modules:       Hiccup, TObj, TclObj, VarName, Common, Internal.Types, Internal.Util, CmdList, Util, Core, 
                      RToken, BSParse, TclParse, EventMgr, TclChan, TclErr, MathOp, TclLib,
                      TclLib.IOCmds, TclLib.StringCmds, TclLib.ListCmds, TclLib.ArrayCmds, TclLib.NSCmds, 
                      TclLib.LibUtil, TclLib.CoreCmds, TclLib.ControlCmds, TclLib.UtilCmds, 
@@ -25,7 +25,7 @@ Other-Modules:       Hiccup, TObj, TclObj, VarName, Common, Internal.Types, Inte
                      Proc.Params, Proc.Util, Proc.Compiled, Proc.CodeBlock, 
                      Match, Format, ArgParse, Extend
 main-is:             Main.hs
-ghc-options:         -O2 -funbox-strict-fields -fvia-c -optc-O3 -W
+ghc-options:         -O2 -funbox-strict-fields -W -fglasgow-exts
 ghc-prof-options:    -auto-all -prof
-Extensions:          BangPatterns
+extensions:          BangPatterns
 
