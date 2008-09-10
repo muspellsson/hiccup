@@ -20,10 +20,9 @@ interpVars al = [("tcl_version" * (show hiccupVersion))] ++ processArgs al
 
 hiccupVersion = 0.49
 
-mkMainInterp = mkInterp (interpVars []) baseCmds
+mkMainInterp args cmds = mkInterp (interpVars args) (mergeCmdLists [baseCmds, makeCmdList cmds])
 
-runTcl v = mkMainInterp >>= interpEvalStr v
+runTcl v = mkMainInterp [] [] >>= interpEvalStr v
 
-runTclWithArgs args v = mkInterp mainVars baseCmds >>= interpEvalStr v
- where mainVars = interpVars args
+runTclWithArgs args cmds v = mkMainInterp args cmds >>= interpEvalStr v
 
