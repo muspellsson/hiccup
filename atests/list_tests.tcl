@@ -169,6 +169,11 @@ test "lsearch -exact/-glob" {
   checkthat [lsearch -glob [list AAA BBB CCC] C??] == 2
 }
 
+test "lsearch -start" {
+    checkthat [lsearch -start 3 [list X Y Y Y X] X] == 4
+    checkthat [lsearch -start 1000 [list X Y Y Y X] X] == -1
+}
+
 test "lrepeat" {
   checkthat [lrepeat 1 x] eq [list x]
   checkthat [lrepeat 3 x] eq [list x x x]

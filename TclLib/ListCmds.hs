@@ -88,18 +88,22 @@ cmdLappend args = case args of
 
 searchArgs = mkArgSpecs 2 [
      NoArg "exact" (setMatchType ExactMatch),
-     NoArg "glob" (setMatchType GlobMatch)
+     NoArg "glob" (setMatchType GlobMatch),
+     OneArg "start" setStart
    ]
- where setMatchType = const
+ where setMatchType mt (s,_) = (s,mt)
+       setStart s (_,mt)     = (s,mt)
 
 cmdLsearch args_ = do
-     (mtype,args) <- parseArgs searchArgs GlobMatch args_
+     ((start,mtype),args) <- parseArgs searchArgs (T.fromInt 0, GlobMatch) args_
      case args of
        [lsto,pat] -> do 
               let p = T.asBStr pat
-              ilst <- liftM (zip [0..]) (T.asList lsto)
+              lst <- T.asList lsto
+              sind <- toIndex (length lst) start
+              let ilst = drop sind $ zip [0..] lst
               return . T.fromInt $ findIt (matchFun mtype) p ilst
-       _         -> argErr "lsearch"
+       _         -> vArgErr "lsearch ?options? list pattern"
  where findIt _ _ []         = -1
        findIt f p ((i,e):xs) = if f p (T.asBStr e) then i else findIt f p xs
 
