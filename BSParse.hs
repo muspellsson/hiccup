@@ -87,11 +87,11 @@ pchar !c = parseCharPred (== c) (show c)
 {-# INLINE pchar #-}
 
 parseAny = parseCharPred (const True) "any char"
-parseCharPred pred exp s = case B.uncons s of
+parseCharPred pred desc s = case B.uncons s of
                             Nothing    -> failStr "eof"
                             Just (h,t) -> if pred h then return $! (B.singleton h,t)
                                                     else failStr (show h)
- where failStr what = fail $ "expected " ++ exp ++ ", got " ++ what
+ where failStr what = fail $ "expected " ++ desc ++ ", got " ++ what
 {-# INLINE parseCharPred #-}
 
 
@@ -102,8 +102,8 @@ getPred p s = return $! (w,n)
  where (w,n) = B.span p s
 
 -- TODO: slightly inaccuate error messages
-getPred1 p desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
- where (w,n) = B.span p s
+getPred1 pred desc s = if B.null w then fail ("wanted " ++ desc ++ ", got eof") else return $! (w,n)
+ where (w,n) = B.span pred s
 {-# INLINE getPred1 #-}
 
 parseEof s = if B.null s 

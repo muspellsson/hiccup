@@ -68,7 +68,7 @@ cmdLassign args = case args of
 cmdJoin args = case args of
    [lst]     -> dojoin lst (pack " ")
    [lst,sep] -> dojoin lst (T.asBStr sep)
-   _         -> argErr "join"
+   _         -> vArgErr "join list ?joinString?"
  where dojoin ll sep = do
          lst <- T.asList ll
          return $ T.fromBStr (joinWithBS (map T.asBStr lst) sep)
@@ -84,7 +84,7 @@ cmdLappend args = case args of
              let vn = T.asVarName n 
              items <- varGetNS vn >>= T.asSeq 
              varSetNS vn $ T.fromSeq (items >< (S.fromList news))
-        _        -> argErr "lappend"
+        _        -> vArgErr "lappend varName ?value value ...?"
 
 searchArgs = mkArgSpecs 2 [
      NoArg "exact" (setMatchType ExactMatch),
@@ -152,7 +152,7 @@ cmdLrepeat args = case args of
           i <- T.asInt ti 
           when (i <= 0) $ fail "must have a count of at least 1"
           return $ T.fromList (concat (replicate i (x:xs)))
-    _ -> argErr "lrepeat"
+    _ -> vArgErr "lrepeat positiveCount value ?value ...?"
 
 cmdLrange args = case args of
    [lst,beg,e] -> do 
@@ -161,11 +161,11 @@ cmdLrange args = case args of
           i1 <- toIndex ilen beg
           i2 <- toIndex ilen e
           return $ T.fromSeq (S.take (i2 - i1 + 1) (S.drop i1 items))
-   _           -> argErr "lrange"
+   _           -> vArgErr "lrange list first last"
 
 cmdLmap args = case args of
   [fun,lst] -> do
          fn <- mkLambda fun 
          T.asList lst >>= mapM (fn . box) >>= return . T.fromList 
-  _          -> argErr "map"
+  _          -> vArgErr "lmap lambda list"
  where box i = [i]   

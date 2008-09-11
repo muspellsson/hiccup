@@ -12,7 +12,6 @@ module TclParse ( TclWord(..)
                  ,SubCmd
                  ,parseSubst
                  ,parseSubstAll
-                 ,escapeChar
                  ,Subst(..)
                  ,SubstArgs(..)
                  ,allSubstArgs
@@ -130,10 +129,8 @@ parseHex = hex_str `wrapWith` h2d
  where hex_str = parseLit "0x" .>> getPred1 isHexDigit "hex digit"
        h2d = B.foldl' (\a c -> a * 16 + (digitToInt c)) 0 
 
--- TODO: Is SEsc really useful? Escaped chars are probably always handled
--- the same way, and could be done here.
-data Subst = SStr !BString | SEsc !Char | 
-             SVar !BString | SCmd SubCmd deriving (Eq,Show)
+data Subst = SStr !BString | SVar !BString | SCmd SubCmd 
+              deriving (Eq,Show)
 
 data SubstArgs = SubstArgs { s_vars :: Bool, s_esc :: Bool, s_cmds :: Bool } deriving Show
 
@@ -150,8 +147,8 @@ parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
                                   st parseAny])
        st x = x `wrapWith` SStr
        may b c f = if b then f `wrapWith` c else st (consumed f)
-       tryEsc = if esc then (escChar `wrapWith` SEsc) else (\_ -> fail "no esc") 
-       escChar = pchar '\\' .>> (parseAny `wrapWith` B.head)
+       tryEsc = if esc then (escChar `wrapWith` SStr) else (\_ -> fail "no esc") 
+       escChar = pchar '\\' .>> (parseAny `wrapWith` (escCharStr . B.head))
        sconcat [] = []
        sconcat (SStr s:xs) = let (sl,r) = spanStrs xs []
                              in SStr (B.concat (s:sl)) : sconcat r 
@@ -163,6 +160,7 @@ parseSubst (SubstArgs vars esc cmds) = inner `wrapWith` sconcat
                (SStr x:SStr y:xs) -> sreduce ((SStr (B.append x y)):xs)
                (x:xs) -> x : sreduce xs
 
+escCharStr = B.singleton . escapeChar
 {-# INLINE escapeChar #-}
 escapeChar c = case c of
           'n' -> '\n'
@@ -243,11 +241,13 @@ parseVarBodyTests = "parseVarBody" ~: TestList [
     ,"::big(3)$::boo(one)" ?=> ("::big(3)", "$::boo(one)")
     , "triple" ~: "::one::two::three" ?=> ("::one::two::three","")
     , "brace" ~: "::one::{t o}::three" ?=> ("::one::t o::three","")
+    , "brace2" ~: "{O M G!}" ?=> ("O M G!","")
+    , "nest brace" ~: "{a{nest}}" `should_fail` ()
     , "mid paren" ~: "::one::two(1)::three" ?=> ("::one::two(1)", "::three")
     , "\\( in index" ~: "x(\\()" ?=> ("x(\\()", "")
    ]
  where (?=>) str (p,r) = Right (p, r) ~=? parseVarBody str
-       should_fail a () = (parseVarBody a) `should_fail_` ()
+       should_fail a () = B.unpack a ~: (parseVarBody a) `should_fail_` ()
 
 parseListTests = "parseList" ~: TestList [
      " x " `should_be` ["x"]
@@ -295,9 +295,9 @@ parseSubstTests = "parseSubst" ~: TestList [
     (all_on, "A cat") `should_be` [SStr "A cat"]
     ,(all_on, "A $cat") `should_be` [SStr "A ", SVar "cat"]
     ,(no_var, "A $cat") `should_be` [SStr "A $cat"]
-    ,(all_on, "A \\cat") `should_be` [SStr "A ", SEsc 'c', SStr "at"]
+    ,(all_on, "A \\cat") `should_be` [SStr "A cat"]
     ,(no_esc, "A \\cat") `should_be` [SStr "A \\cat"]
-    ,(all_on, "\\[fish]") `should_be` [SEsc '[', SStr "fish]"]
+    ,(all_on, "\\[fish]") `should_be` [SStr "[fish]"]
     ,(all_on, "[fish face") `should_be` [SStr "[fish face"]
     ,(no_esc, "One \\n Two") `should_be` [SStr "One \\n Two"]
     ,(no_esc, " \\$fish ") `should_be` [SStr " \\", SVar "fish", SStr " "]

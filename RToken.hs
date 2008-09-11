@@ -6,7 +6,7 @@ module RToken (Cmd(..), CmdName(..), RToken(..), singleTok, Parseable, Parsed,
   asParsed, rtokenTests ) where
 
 import qualified Data.ByteString.Char8 as B
-import TclParse (TclWord(..), runParse, parseSubstAll, Subst(..), escapeChar, SubCmd)
+import TclParse (TclWord(..), runParse, parseSubstAll, Subst(..),  SubCmd)
 import Util (BString,pack)
 import VarName
 import Expr.Parse
@@ -49,7 +49,6 @@ compile str = clean . tconcat . map toTok . elift . parseSubstAll $ str
        toTok x = case x of
           SStr s -> litIfy s
           SCmd c -> compCmds c
-          SEsc c -> litIfy . B.singleton . escapeChar $ c
           SVar v -> case parseVarName v of 
                       NSQual ns (VarName n (Just ind)) -> ArrRef ns n (compile ind)
                       vn                               -> VarRef vn

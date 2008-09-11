@@ -4,7 +4,7 @@ module Core (doCond, evalExpr, evalArgs, subst, coreTests) where
 import Common
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
-import TclParse (parseSubst, Subst(..), SubstArgs, allSubstArgs, escapeChar)
+import TclParse (parseSubst, Subst(..), SubstArgs, allSubstArgs)
 import TclErr
 import Control.Monad.Error
 import RToken
@@ -112,7 +112,6 @@ subst sargs str = do
     f x = case x of
         SStr s -> return s
         SCmd c -> handleCmdErrs (runCmds (subCmdToCmds c)) >>= return . T.asBStr
-        SEsc c -> return . B.singleton . escapeChar $ c
         SVar v -> do 
            val <- case parseVarName v of 
                     NSQual ns (VarName n (Just ind)) -> 

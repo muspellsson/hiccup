@@ -59,7 +59,7 @@ cmdUnset args_ = do
 
 cmdRename args = case args of
     [old,new] -> renameCmd (T.asBStr old) (T.asBStr new) >> ret
-    _         -> argErr "rename"
+    _         -> vArgErr "rename oldName newName"
 
 cmdError [s] = tclErr (T.asStr s)
 cmdError _   = argErr "error"
@@ -78,7 +78,7 @@ cmdUplevel args = case args of
                                    let d = B.head str
                                    in when (isDigit d || d == '#') (fail $ "expected integer but got " ++ show str)
                   defaulted `orElse` (checkfirst >> uplevel 1 (cmdEval (si:p)))
-              _      -> argErr "uplevel"
+              _      -> vArgErr "uplevel ?level? command ?arg ...?"
 
 getLevel l = do
          let badlevel = tclErr $ "bad level " ++ show (T.asBStr l)
@@ -134,14 +134,15 @@ cmdReturn args = case args of
                    "return"   -> trampErr EReturn
                    cv   -> throwError (eDie $ "bad completion val: " ++ show cv)
 
+-- TODO: Allow multiple bindings
 cmdUpVar args = case args of
      [d,s]    -> doUp 1 d s
      [si,d,s] -> getLevel si >>= \i -> doUp i d s
-     _        -> argErr "upvar"
+     _        -> vArgErr "upvar ?level? otherVar localVar"
  where doUp i d s = upvar i (T.asBStr d) (T.asBStr s) >> ret
 
 cmdGlobal args = case args of
-      [] -> argErr "global"
+      [] -> vArgErr "global varName ?varName ...?"
       _  -> mapM_ (inner . T.asBStr) args >> ret
  where inner g = do len <- stackLevel
                     upvar len g g
