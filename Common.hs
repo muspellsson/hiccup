@@ -117,23 +117,20 @@ applyTo !f args = do
                               Just nsr -> withProcScope (procArgs p) nsr c (cmdName f) args
 {-# INLINE applyTo #-}
 
-mkCmdAlias nsr pn = do
-    mcr <- getCmdRef pn nsr
-    case mcr of
-      Nothing -> fail "trying to import proc that doesn't exist"
-      Just cr -> do 
-          newcmd <- do 
-            p <- readRef cr 
-            return $! p { cmdCore = (cmdCore p) `withAct` (inner cr), cmdParent = Just cr, cmdOrigNS = Nothing } 
-          let adder x = cr .= (\p -> p { cmdKids = x:(cmdKids p) })
-          return (newcmd, adder)
+
+mkCmdAlias cr adl = do
+    p <- readRef cr 
+    return $! p { cmdCore = (cmdCore p) `withAct` (inner cr), 
+                  cmdParent = Just cr, 
+                  cmdOrigNS = Nothing } 
  where inner cr args = do 
             p <- readRef cr
-            p `applyTo` args
+            p `applyTo` (adl ++ args)
        withAct core a = case core of
           CmdCore _ -> CmdCore a
           ProcCore n b c -> ProcCore n b c
   
+addKid cr k = cr .= (\p -> p { cmdKids = k:(cmdKids p) })
 
 
 toCmdObjs = mapM toTclCmdObj . unCmdList
@@ -611,20 +608,24 @@ exportNS clear name = do
 getExportsNS = 
   getCurrNS >>= (`refExtract` (reverse . nsExport))
 
+
 importNS :: Bool -> BString -> TclM T.TclObj
 importNS force name = do
     let (NSQual nst n) = parseProc name
     nsr <- getNamespaceHere nst
     exported <- getExports nsr n
-    mapM (importCmd nsr) exported
+    mapM_ (importCmd nsr) exported
     return . T.fromBList $ exported
  where importCmd nsr n = do
-            (np,add) <- mkCmdAlias nsr n 
-            when (not force) $ do
-                 oldp <- getCmdNS (NSQual Nothing n)
-                 whenJust oldp $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-            oldc <- registerCmdObj (NSQual Nothing n) np
-            add oldc
+            mcr <- getCmdRef n nsr
+            whenJust mcr $ \cr -> do
+              let dest_name = NSQual Nothing n
+              when (not force) $ do
+                 samename <- getCmdNS dest_name
+                 whenJust samename $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
+              np <- mkCmdAlias cr []
+              newc <- registerCmdObj dest_name np
+              addKid cr newc
 
 getExports nsr pat = do 
    ns <- readRef nsr
