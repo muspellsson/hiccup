@@ -106,6 +106,19 @@ test "simple variable" {
  }
 }
 
+test "multi variable" {
+  finalize { namespace foo } {
+    namespace eval foo {
+      variable wow 99 woz 55 x
+    }
+   checkthat $foo::wow == 99
+   checkthat $foo::woz == 55
+   variable ::foo::x
+   set x 11
+   checkthat $foo::x == 11
+ }
+}
+
 
 test "namespace varible array syntax" {
   finalize { ns temp } {

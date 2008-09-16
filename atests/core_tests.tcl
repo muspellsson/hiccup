@@ -307,3 +307,9 @@ test "weird trailing parse" {
         }
     }
 }
+
+test "nulti interpolation" {
+    set y 1
+    set x [incr y]::[incr y]
+    checkthat $x eq {2::3}
+}

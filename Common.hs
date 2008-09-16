@@ -156,7 +156,7 @@ setErrorInfo s = do
 
 makeVarMap = Map.fromList . mapSnd (\c -> (Nothing, ScalarVar c))
 
-makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
+makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
 makeState = makeState' C.baseChans
 
 runInterp t (Interp i) = do
@@ -215,12 +215,19 @@ deleteInterp path = case path of
  _ -> fail "invalid interp path"
 
 
-makeState' :: C.ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> IO TclState
-makeState' chans safe vlist cmdlst = do 
+baseInit cmdlst = do
+   exportAll "::tcl::mathop"
+   exportAll "::tcl::mathfunc"
+   setUnknownNS $ pack "::unknown"
+   toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
+ where exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
+
+makeState' :: C.ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
+makeState' chans safe vlist cmdlst inits = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
     st <- return $! mkState nsr fr
-    execTclM runRegister st
+    runInits st
  where mkState nsr fr = TclState { interpSafe = safe,
                                    tclChans = chans,
                                    tclInterps = Map.empty,
@@ -234,12 +241,7 @@ makeState' chans safe vlist cmdlst = do
            nsr <- globalNS fr
            setFrNS fr nsr
            return (fr, nsr)
-       exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
-       runRegister = do
-           exportAll "::tcl::mathop"
-           exportAll "::tcl::mathfunc"
-           setUnknownNS $ pack "::unknown"
-           toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
+       runInits = execTclM (sequence_ ((baseInit cmdlst):inits))
        globalNS fr = newIORef $ emptyNS nsSep fr
 
 
@@ -782,7 +784,7 @@ evalClean t =
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
-mkEmptyState = makeState False [] emptyCmdList
+mkEmptyState = makeState False [] emptyCmdList []
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   b = pack

@@ -6,7 +6,7 @@ import TclLib.Interp
 import TclLib.LibUtil
 import qualified TclObj as T
 
-import TclLib (libCmds)
+import TclLib (libCmds, libInits)
 
 
 baseCmds = mergeCmdLists [interpCmds, libCmds]
@@ -20,7 +20,7 @@ interpVars al = [("tcl_version" * (show hiccupVersion))] ++ processArgs al
 
 hiccupVersion = 0.49
 
-mkMainInterp args cmds = mkInterp (interpVars args) (mergeCmdLists [baseCmds, makeCmdList cmds])
+mkMainInterp args cmds = mkInterp (interpVars args) (mergeCmdLists [baseCmds, makeCmdList cmds]) libInits
 
 runTcl v = mkMainInterp [] [] >>= interpEvalStr v
 

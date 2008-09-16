@@ -26,13 +26,15 @@ cmdNamespace = mkEnsemble "namespace" [
      ("exists", ns_exists)]
 
 cmdVariable args = case args of
-       [n]   -> variableNS (T.asBStr n) Nothing  >> ret
-       [n,v] -> variableNS (T.asBStr n) (Just v) >> ret
-       _     -> argErr "variable"
+       []    -> vArgErr "variable ?name value...? name ?value?"
+       _     -> go args
+  where go (n:v:xs) = variableNS (T.asBStr n) (Just v) >> go xs
+        go [n]      = variableNS (T.asBStr n) Nothing >> ret
+        go []       = ret
 
 ns_current args = case args of
        [] -> currentNS >>= treturn
-       _  -> argErr "namespace current"
+       _  -> vArgErr "namespace current"
 
 ns_eval args = case args of
           [nsname, code] -> withNS (T.asBStr nsname) (evalTcl code)
@@ -41,7 +43,7 @@ ns_eval args = case args of
 ns_parent args = case args of
           [] -> parentNS Nothing >>= treturn
           [ns] -> parentNS (Just (parseNSTag (T.asBStr ns))) >>= treturn
-          _  -> argErr "namespace parent"
+          _  -> vArgErr "namespace parent ?namespace?"
 
 ns_export args = case map T.asBStr args of
        []     -> getExportsNS >>= return . T.fromList . map T.fromBStr
@@ -52,9 +54,7 @@ ns_import args = case map T.asBStr args of
       ("-force":rest) -> mapM_ (importNS True) rest >> ret
       al              -> mapM_ (importNS False) al >> ret
 
-ns_forget args = case map T.asBStr args of
-      [] -> argErr "namespace forget"
-      al -> mapM_ forgetNS al >> ret
+ns_forget args = mapM_ (forgetNS . T.asBStr) args >> ret
 
 ns_origin args = case args of
      [pn] -> do pr <- getCmd (T.asBStr pn)
@@ -72,14 +72,11 @@ ns_exists args = case args of
           [nsn] -> existsNS (T.asBStr nsn) >>= return . T.fromBool
           _     -> argErr "namespace exists"
 
-ns_delete args = case args of
-   []    -> argErr "namespace delete"
-   nsl   -> mapM_ (deleteNS . T.asBStr) nsl >> ret
+ns_delete args = mapM_ (deleteNS . T.asBStr) args >> ret
 
 ns_tail args = case args of
-   [s] -> case parseNSTag (T.asBStr s) of
-           v -> return . T.fromBStr $ (nsTail v)
-   _   -> argErr "namespace tail"
+   [s] -> treturn . nsTail . parseNSTag . T.asBStr $ s
+   _   -> vArgErr "namespace tail string"
 
 ns_path args = case args of
    [] -> getPathNS >>= return . T.fromList . map T.fromBStr
@@ -88,7 +85,7 @@ ns_path args = case args of
 
 ns_qualifiers args = case args of
    [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
-   _   -> argErr "namespace qualifiers"
+   _   -> vArgErr "namespace qualifiers string"
 
 ns_unknown args = case args of
    [] -> getUnknownNS >>= maybe ret treturn

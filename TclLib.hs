@@ -1,4 +1,4 @@
-module TclLib (libCmds) where
+module TclLib (libCmds, libInits) where
 
 import TclLib.LibUtil
 import TclLib.IOCmds
@@ -11,5 +11,6 @@ import TclLib.MathProcs (mathCmds)
 import TclLib.UtilCmds
 import TclLib.CoreCmds (coreCmds)
 
+libInits = [setupEnv]
 libCmds = mergeCmdLists [ controlCmds, mathCmds, coreCmds, nsCmds, 
                           ioCmds, listCmds, arrayCmds, stringCmds, utilCmds ]

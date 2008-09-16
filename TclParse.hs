@@ -59,7 +59,6 @@ parseToken str = do
    h <- safeHead "token" str
    case h of
      '{'  -> (parseExpand </> parseNoSub) str
-     '['  -> (parseSub `wrapWith` Subcommand) str
      '"'  -> (parseRichStr `wrapWith` Word) str
      '\\' -> handleEsc str
      _    -> (wordToken `wrapWith` Word) str
@@ -208,6 +207,7 @@ runParseTests = "runParse" ~: TestList [
      ,"expand" ~: ([(Word "incr", [Expand (Word "$boo")])], "") ?=? "incr {*}$boo"
      ,"no expand" ~: ([(Word "incr", [NoSub "*", Word "$boo"])], "") ?=? "incr {*} $boo"
      ,"with newline" ~: "puts HI;; \n ;" `should_be` ["puts", "HI"]
+     ,"subcmd starter" ~: "puts [nop]Cat" `should_be` ["puts", "[nop]Cat"]
   ]
  where should_fail str () = (runParse str) `should_fail_` ()
        should_be str res = Right (pr res) ~=? (runParse str)
@@ -221,6 +221,7 @@ wordTokenTests = "wordToken" ~: TestList [
      ,"Simple with bang" ~: ("whoa!", " ") ?=? "whoa! "
      ,"braced, then normal" ~: valid_word "${x}$x"
      ,"normal, then cmd" ~: ("fish[nop 5]", "") ?=? "fish[nop 5]"
+     ,"cmd, misc, then cmd" ~: ("[nop 2]::[nop 2]", "") ?=? "[nop 2]::[nop 2]"
      ,"non-var, then var" ~: ("**$x", "") ?=? "**$x"
      ,"non-var, then var w/ space" ~: valid_word "**${a b}"
      ,"escaped" ~: valid_word "x\\ y"

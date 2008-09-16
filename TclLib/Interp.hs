@@ -75,7 +75,7 @@ interp_create args_ = do
     _   -> argErr "interp create"
  where create safe n = do 
            path <- toPath n
-           ir <- io $ createInterp safe [] allCmds 
+           ir <- io $ createInterp safe [] allCmds []
            registerInterp path ir (interpEnsem n ir)
            return n
 
@@ -96,8 +96,8 @@ interpEval ir cmds = do
         _ -> throwError e
      Right v -> return v
 
-createInterp safe vars cmds = do
-   st <- makeState safe vars icmds
+createInterp safe vars cmds inits = do
+   st <- makeState safe vars icmds inits
    stref <- newIORef st
    return (Interp stref)
  where icmds = if safe then onlySafe cmds else cmds

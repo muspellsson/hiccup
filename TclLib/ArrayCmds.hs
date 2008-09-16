@@ -10,6 +10,7 @@ import TclLib.LibUtil
 import TclErr
 import qualified Data.Map as Map
 import VarName 
+import qualified Data.ByteString.Char8 as B
 import Text.Printf
 
 arrayCmds = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
@@ -17,10 +18,15 @@ arrayCmds = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
 cmdParray args = case args of
      [name] -> do let n = T.asBStr name 
                   arr <- getArray n `orElse` (tclErr ((show n) ++ " isn't an array"))
-                  mapM_ (showFun n) (Map.toList arr)
+                  let elts = Map.toList arr
+                  let max_keylen = maximum . map (B.length . fst) $ elts
+                  let maxlen = max_keylen + B.length n + 2
+                  mapM_ (showFun (unpack n) maxlen) elts
                   ret
      _      -> argErr "parray"
- where showFun n (a,b) = io (printf "%s(%s) = %s\n" (unpack n) (unpack a) (T.asStr b))
+ where showFun arrname maxlen (a,b) = do
+          let namestr = printf "%s(%s)" arrname (unpack a) :: String
+          io $ printf "%-*s = %s\n" maxlen namestr (T.asStr b)
 
 
 cmdArray = mkEnsemble "array" [

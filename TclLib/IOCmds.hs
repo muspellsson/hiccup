@@ -1,4 +1,5 @@
-module TclLib.IOCmds (ioCmds) where
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
+module TclLib.IOCmds (ioCmds, setupEnv) where
 import Common
 import Control.Monad (unless, liftM2)
 import System.IO
@@ -9,7 +10,9 @@ import System.Directory (getCurrentDirectory,
                          getPermissions,
                          Permissions(..))
 import Control.Exception (handle,try)
+import System.Environment (getEnvironment)
 import Core ()
+import VarName (arrNameNS)
 import qualified TclObj as T
 import qualified TclChan as T
 import qualified System.IO.Error as IOE 
@@ -17,6 +20,13 @@ import qualified Data.ByteString.Char8 as B
 import TclObj ((.==))
 import TclLib.LibUtil
 import Util
+
+setupEnv = do
+  env <- io $ getEnvironment
+  mapM_ (\(n,v) -> arrSet "env" (B.pack n) (T.fromStr v)) env
+  return ()
+ where arrSet n i v = varSetNS (arrNameNS n i) v
+
 
 ioCmds = nsCmdList "" $ safe ++ unsafe
  where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),
@@ -74,7 +84,7 @@ file_size args = case args of
    _ -> vArgErr "file size name"
 
 cmdPuts args = case args of
-                 [s] -> tPutLn stdout s
+                 [s] -> (io . B.putStrLn . T.asBStr) s >> ret
                  [a1,str] -> if a1 .== "-nonewline" then tPut stdout str
                                else do h <- getWritable a1
                                        tPutLn h str
@@ -108,11 +118,11 @@ cmdSource args = case args of
                      let fn = T.asStr s 
                      dat <- useFile fn (slurpFile fn)
                      evalTcl (T.fromBStr dat :: T.TclObj)
-                  _   -> argErr "source"
+                  _   -> vArgErr "source fileName"
 
 cmdPwd args = case args of
   [] -> io getCurrentDirectory >>= return . T.fromStr
-  _  -> argErr "pwd"
+  _  -> vArgErr "pwd"
 
 checkReadable c = do r <- io (hIsReadable c)
                      if r then return c else (tclErr "channel wasn't opened for reading")
@@ -150,20 +160,20 @@ cmdClose args = case args of
                     removeChan h
                     io (hClose (T.chanHandle h))
                     ret
-         _    -> argErr "close"
+         _    -> vArgErr "close channelId"
 
 cmdFlush args = case args of
      [ch] -> do h <- lookupChan (T.asBStr ch)
                 io (hFlush (T.chanHandle h))
                 ret
-     _    -> argErr "flush"
+     _    -> vArgErr "flush channelId"
 
 cmdExit args = case args of
             [] -> io (exitWith ExitSuccess)
             [i] -> do v <- T.asInt i
                       let ecode = if v == 0 then ExitSuccess else ExitFailure v
                       io (exitWith ecode)
-            _  -> argErr "exit"
+            _  -> vArgErr "exit ?returnCode?"
 
 
 lookupChan :: BString -> TclM T.TclChan
