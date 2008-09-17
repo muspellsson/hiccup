@@ -136,7 +136,9 @@ quotes = between (pchar '"') (pchar '"')
 
 wordChar !c = c /= ' ' && (inRange ('a','z') c || inRange ('A','Z') c || inRange ('0','9') c || c == '_')
 
-braceVar = parseBlock
+braceVar = between (pchar '{') (pchar '}') inner
+ where inner = consumed . parseMany $ choose [nobraces, escapedChar]
+       nobraces = parseNoneOf "}\\" "not } or \\"
 
 parseStr = quotes (inside `wrapWith` B.concat)
  where noquotes = parseNoneOf "\"\\" "non-quote chars"

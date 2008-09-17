@@ -237,18 +237,19 @@ parseVarBodyTests = "parseVarBody" ~: TestList [
      "empty string" ~: "" `should_fail` ()
     ,"standard" ~: "boo" ?=> ("boo", "")
     ,"global" ~: "::boo" ?=> ("::boo", "")
-    ,"arr1" ~: "boo(one) " ?=> ("boo(one)", " ")
-    ,"ns arr1" ~: "::big::boo(one) " ?=> ("::big::boo(one)", " ")
+    ,"arr1" ~: "boo(one)" ?=> ("boo(one)", "")
+    ,"ns arr1" ~: "::big::boo(one)" ?=> ("::big::boo(one)", "")
     ,"::big(3)$::boo(one)" ?=> ("::big(3)", "$::boo(one)")
     , "triple" ~: "::one::two::three" ?=> ("::one::two::three","")
     , "brace" ~: "::one::{t o}::three" ?=> ("::one::t o::three","")
     , "brace2" ~: "{O M G!}" ?=> ("O M G!","")
+    , "nest brace1" ~: "{a{nest}" ?=> ("a{nest","")
     , "nest brace" ~: "{a{nest}}" `should_fail` ()
     , "mid paren" ~: "::one::two(1)::three" ?=> ("::one::two(1)", "::three")
     , "\\( in index" ~: "x(\\()" ?=> ("x(\\()", "")
    ]
  where (?=>) str (p,r) = Right (p, r) ~=? parseVarBody str
-       should_fail a () = B.unpack a ~: (parseVarBody a) `should_fail_` ()
+       should_fail a () = B.unpack a ~: ((parseVarBody `pass` parseEof) a) `should_fail_` ()
 
 parseListTests = "parseList" ~: TestList [
      " x " `should_be` ["x"]
