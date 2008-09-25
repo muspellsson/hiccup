@@ -14,6 +14,7 @@ module Common (TclM
        ,getInterp
        ,getInterpNames
        ,deleteInterp
+       ,interpHide
        ,runCheckResult
        ,withProcScope
        ,withNS
@@ -214,24 +215,39 @@ deleteInterp path = case path of
    (deleteInterp nx) `inInterp` i
  _ -> fail "invalid interp path"
 
+interpHide path name = do
+  getInterp path >>= \i -> (hideCmd name) `inInterp` i
+
+hideCmd name = do
+  mpr <- getCmd name
+  case mpr of
+   Nothing -> tclErr $ "unknown command" ++ show name
+   Just pr -> do removeCmd pr
+                 pref <- io (newIORef pr)
+                 st <- get
+                 let nst = st { tclHidden = modmap (tclHidden st) (Map.insert name pref) }
+                 put nst
+ where modmap (CmdMap n m) f = CmdMap (n+1) (f m)
 
 baseInit cmdlst = do
    exportAll "::tcl::mathop"
    exportAll "::tcl::mathfunc"
    setUnknownNS $ pack "::unknown"
-   toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
+   (io . toCmdObjs) cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
  where exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
 
 makeState' :: InterpSpec -> IO TclState
 makeState' is = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
-    st <- return $! mkState nsr fr
+    hiddens <- toCmdObjs (ispecHidden is) >>= mapM toCmdRefs >>= return . CmdMap 0 . Map.fromList
+    st <- return $! mkState nsr hiddens fr
     runInits st
- where mkState nsr fr = TclState { interpSafe = ispecSafe is,
+ where mkState nsr hiddens fr = TclState { interpSafe = ispecSafe is,
                                    tclChans = ispecChans is,
                                    tclInterps = Map.empty,
                                    tclEvents = Evt.emptyMgr,
+                                   tclHidden = hiddens,
                                    tclStack = [fr],
                                    tclGlobalNS = nsr,
                                    tclCmdCount = 0,
@@ -244,6 +260,8 @@ makeState' is = do
        runInits = let initlist = baseInit (ispecCmds is) : (ispecInits is)
                   in execTclM .sequence_ $ initlist
        globalNS fr = newIORef $ emptyNS nsSep fr
+       toCmdRefs (a,b) = newIORef b >>= \br -> return (a,br)
+       
 
 
 getNsCmdMap :: NSRef -> TclM CmdMap
@@ -757,7 +775,6 @@ changeCmds nsr fun = nsr .= updateNS >> notifyWatchers
        updateNS ns = ns { nsCmds = update (nsCmds ns) }
 
 emptyCmdMap = CmdMap 0 Map.empty
-emptyCmdList = CmdList []
 emptyVarMap = Map.empty
 
 emptyCmd = TclCmdObj { 
@@ -791,7 +808,12 @@ evalClean t =
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
-mkEmptyState = makeState' (ISpec  False [] C.baseChans emptyCmdList [])
+mkEmptyState = makeState' (ISpec { ispecSafe = False,
+                                   ispecVars = [],
+                                   ispecChans = C.baseChans,
+                                   ispecCmds = emptyCmdList,
+                                   ispecHidden = emptyCmdList,
+                                   ispecInits = []})
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   b = pack

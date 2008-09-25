@@ -1,5 +1,6 @@
-{-# LANGUAGE BangPatterns #-}
-module Hiccup (runTcl, runTclWithArgs, mkMainInterp, interpEvalStr ) where
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+module Hiccup (runTcl, runTclWithArgs, mkMainInterp, 
+               interpEvalStr, hiccupTests ) where
 
 import Util
 import TclLib.Interp
@@ -8,6 +9,7 @@ import qualified TclObj as T
 
 import Internal.InterpSpec
 import TclLib (libCmds, libInits)
+import Test.HUnit
 
 
 baseCmds = mergeCmdLists [interpCmds, libCmds]
@@ -33,3 +35,8 @@ runTcl v = mkMainInterp [] [] >>= interpEvalStr v
 
 runTclWithArgs args cmds v = mkMainInterp args cmds >>= interpEvalStr v
 
+
+hiccupTests = TestList [
+    "stuff" ~: (runTcl "expr 3 + 4") `should_be` (Right "7")
+  ]
+  where should_be c v = c >>= \r -> assertEqual "" r v

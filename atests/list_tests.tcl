@@ -25,6 +25,10 @@ test "elts whitespace delimited" {
     # " end quote for bad stuff
 }
 
+test "list eval" {
+  checkthat [eval [list * 3 5]] == 15
+}
+
 test "lindex" {
   checkthat [lindex 4] == 4
   checkthat [lindex 4 {}] == 4

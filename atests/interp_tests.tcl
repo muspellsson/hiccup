@@ -120,3 +120,35 @@ test "interp code" {
     assert_err { candyxr eval { error "Eep" } }
     finalize { interp candyxr }
 }
+
+proc is_hidden { int pr } {
+    expr {$pr in [interp hidden $int]}
+}
+
+test "interp hidden" {
+    interp create -safe foo
+    checkthat [is_hidden foo "exit"] == 1
+    checkthat [is_hidden foo "incr"] == 0
+
+    checkthat [interp hidden] eq {}
+
+    checkthat [foo hidden] eq [interp hidden foo]
+    finalize { interp foo }
+}
+
+test "interp hide" {
+    interp create foo
+    checkthat [is_hidden foo "incr"] == 0
+    assert_noerr { foo eval { set x 4; incr x } }
+    interp hide foo incr
+    checkthat [is_hidden foo "incr"] == 1
+    assert_err { foo eval { set x 4; incr x } }
+    finalize { interp foo }
+}
+
+test "interp hide w/ ::" {
+    interp create foo
+    foo eval { namespace eval yo { proc nop {} {} } }
+    assert_err { interp hide foo yo::nop }
+    finalize { interp foo }
+}

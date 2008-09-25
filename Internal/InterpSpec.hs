@@ -11,6 +11,7 @@ data InterpSpec = ISpec { ispecSafe :: Bool,
                           ispecVars :: [(BString,T.TclObj)],
                           ispecChans :: ChanMap,
                           ispecCmds :: CmdList,
+                          ispecHidden :: CmdList,
                           ispecInits :: [TclM ()]
                         }
 
@@ -18,5 +19,6 @@ data InterpSpec = ISpec { ispecSafe :: Bool,
 emptyInterp = ISpec { ispecSafe = True,
                       ispecVars = [],
                       ispecChans = emptyChanMap,
-                      ispecCmds = (CmdList []),
+                      ispecCmds = emptyCmdList,
+                      ispecHidden = emptyCmdList,
                       ispecInits = [] }

@@ -8,6 +8,7 @@ module CmdList ( CmdSpec(..)
                 ,makeNsCmdList
                 ,onlySafe
                 ,onlyUnsafe
+                ,emptyCmdList
                 ) where
 import Internal.Types (TclCmd)
 
@@ -17,6 +18,7 @@ data CmdSpec = CmdSpec { cmdSpecName :: String,
 
 data CmdList = CmdList { unCmdList :: [CmdSpec] }
 
+emptyCmdList = CmdList []
 
 onlySafe (CmdList cl) = CmdList (filter cmdSpecSafe cl)
 onlyUnsafe (CmdList cl) = CmdList (filter (not . cmdSpecSafe) cl)

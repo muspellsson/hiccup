@@ -11,6 +11,7 @@ source atests/expr_tests.tcl
 source atests/ns_tests.tcl
 source atests/interp_tests.tcl
 source atests/event_tests.tcl
+source atests/ensemble_tests.tcl
 
 test "upvar" {
   proc uptest {var v} {
@@ -71,42 +72,6 @@ test "unevaluated blocks aren't parsed" {
 }
 
 
-test "unused args" {
-  proc addem {a b} {
-    return [+ $a $a]
-    return [+ $b $a]
-  }
-
-  checkthat [addem 5 "balloon"] == 10
-
-  finalize { proc addem }
-}
-
-test "incr test" {
-  set count 0
-
-  incr count
-  incr count
-  incr count
-  checkthat $count == 3
-
-  incr count 2
-  checkthat $count == 5
-
-  incr count -2
-  checkthat $count == 3
-
-  decr count
-  decr count
-  decr count
-  checkthat $count == 0
-}
-
-test "incr creates" {
-  checkthat [info exists fooz] == 0
-  assert_noerr { incr fooz }
-  checkthat $fooz == 1
-}
 
 test "math test" { 
   checkthat [pow 2 2] == 4
@@ -743,10 +708,10 @@ test "globally qualified proc in ns" {
     proc ::blah {} { return 4 }
   }
 
-  assertErr { ::foo::blah }
-  assertNoErr { ::blah; blah }
+  assert_err { ::foo::blah }
+  assert_noerr { ::blah; blah }
 
-  assertNoErr {
+  assert_noerr {
     namespace eval foo {
       rename ::blah {}
     }
@@ -755,9 +720,6 @@ test "globally qualified proc in ns" {
   finalize { ns foo } 
 }
 
-test "list eval" {
-  checkthat [eval [list * 3 5]] == 15
-}
 
 test "odd procs" {
   set one [+ 1 0]

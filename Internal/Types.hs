@@ -54,6 +54,7 @@ data TclState = TclState {
     tclInterps :: InterpMap,
     tclEvents :: Evt.EventMgr T.TclObj,
     tclStack :: !TclStack, 
+    tclHidden :: CmdMap,
     tclGlobalNS :: !NSRef,
     tclCmdCount :: !Int,
     tclCmdWatchers :: [IO ()] }

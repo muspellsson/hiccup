@@ -6,13 +6,17 @@ import Control.Monad.Error (throwError)
 import Data.IORef
 import TclErr
 import Internal.InterpSpec
+import qualified Data.Map as M
 import qualified TclObj as T
+import qualified Data.ByteString.Char8 as B
 import TclLib.LibUtil
 import TclLib (libCmds)
 import Core ()
 import ArgParse
-import Internal.Types (Interp(..),interpSafe)
+import Internal.Types (Interp(..),interpSafe,tclHidden, unCmdMap)
 import CmdList 
+import Control.Monad (when)
+import VarName (nsSep)
 
 import Data.Unique
 
@@ -28,19 +32,39 @@ cmdInterp = mkEnsemble "interp" [
     ,("exists", interp_exists)
     ,("slaves", interp_slaves)
     ,("delete", interp_delete)
+    ,("hidden", interp_hidden)
+    ,("hide", interp_hide)
   ]
 
 toPath i = T.asList i >>= return . map T.asBStr
+
+interp_hidden args = case args of
+  []  -> retHidden []
+  [p] -> toPath p >>= retHidden
+  _  -> argErr "interp hidden path"
+ where retHidden path = getInterp path >>= getHidden 
+
+getHidden (Interp i) = io (readIORef i) >>= return . T.fromBList . cmdMapKeys . tclHidden
+  where cmdMapKeys = M.keys . unCmdMap
+
+interp_hide args = case args of
+  [p,n] -> do 
+       let name = T.asBStr n
+       checkname name
+       toPath p >>= \path -> interpHide path name >> ret
+  _     -> argErr "interp hide"
+ where checkname n = when (nsSep `B.isInfixOf` n) $ 
+                       tclErr "Cannot use namespace qualifiers in hidden command token"
 
 interp_exists :: [T.TclObj] -> TclM T.TclObj
 interp_exists args = case args of
     [n] -> do 
      path <- toPath n
      (getInterp path >> return (T.fromBool True)) `orElse` (return $ T.fromBool False)
-    _   -> argErr "interp exists"
+    _   -> vArgErr "interp exists ?path?"
 
 interp_slaves args = case args of
-   [] -> getInterpNames >>= return . T.fromList . map T.fromBStr
+   [] -> getInterpNames >>= return . T.fromBList
    _  -> vArgErr "interp slaves ?path?"
 
 -- delete ?path ?...
@@ -54,7 +78,7 @@ interp_delete args = case args of
 interp_issafe args = case args of
   []  -> issafe []
   [n] -> toPath n >>= issafe
-  _   -> argErr "interp issafe"
+  _   -> vArgErr "interp issafe ?path?"
  where issafe lst = do
          ir <- getInterp lst >>= io . readIORef . interpState
          return (T.fromBool (interpSafe ir))
@@ -81,7 +105,13 @@ interp_create args_ = do
            registerInterp path ir (interpEnsem n ir)
            return n
 
-interpEnsem n ir = mkEnsemble (T.asStr n) [("eval", interpEval ir)]
+interpEnsem n ir = mkEnsemble (T.asStr n) [
+                     ("eval", interpEval ir)
+                     ,("hidden", slave_hidden ir)]
+
+slave_hidden ir args = case args of
+  [] -> getHidden ir
+  _  -> argErr "hidden"
 
 interp_eval args = case args of
    (n:xs) -> do
@@ -103,7 +133,8 @@ mkInterp spec = do
    stref <- newIORef st
    return (Interp stref)
  where fixCmds sp 
-        | ispecSafe sp = sp { ispecCmds = onlySafe (ispecCmds sp) }
+        | ispecSafe sp = sp { ispecCmds = onlySafe (ispecCmds sp),
+                              ispecHidden = onlyUnsafe (ispecCmds sp)}
         | otherwise    = sp
 
 interpEvalStr :: BString -> Interp -> IO (Either BString BString)

@@ -18,6 +18,7 @@ cmdNamespace = mkEnsemble "namespace" [
      ("tail", ns_tail),
      ("path", ns_path),
      ("export", ns_export),
+     ("ensemble", ns_ensemble),
      ("import", ns_import),
      ("unknown", ns_unknown),
      ("forget", ns_forget),
@@ -91,4 +92,22 @@ ns_unknown args = case args of
    [] -> getUnknownNS >>= maybe ret treturn
    [n] -> setUnknownNS (T.asBStr n) >> ret
    _   -> vArgErr "namespace unknown ?script?"
+
+ns_ensemble = mkEnsemble "namespace ensemble" [
+    ("exists", ensemble_exists)
+    ,("create", ensemble_create)]
    
+ensemble_exists args = case args of
+  [cn] -> do
+    cmd <- getCmd (T.asBStr cn)
+    return . T.fromBool $ case cmd of 
+                            Nothing -> False
+                            Just _  -> True
+  _    -> vArgErr "namespace ensemble exists command"
+
+ensemble_create args = case args of
+  [] -> do 
+    nsName <- currentNS
+    registerCmd nsName (\_ -> ret)
+    ret
+  _  -> argErr "namespace ensemble create"

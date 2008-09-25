@@ -35,6 +35,43 @@ test "whitespace delimiting" {
     # close quote "
 }
 
+test "unused args" {
+  proc addem {a b} {
+    return [+ $a $a]
+    return [+ $b $a]
+  }
+
+  checkthat [addem 5 "balloon"] == 10
+
+  finalize { proc addem }
+}
+
+test "incr test" {
+  set count 0
+
+  incr count
+  incr count
+  incr count
+  checkthat $count == 3
+
+  incr count 2
+  checkthat $count == 5
+
+  incr count -2
+  checkthat $count == 3
+
+  decr count
+  decr count
+  decr count
+  checkthat $count == 0
+}
+
+test "incr creates" {
+  checkthat [info exists fooz] == 0
+  assert_noerr { incr fooz }
+  checkthat $fooz == 1
+}
+
 test "apply" {
   set plus1 { x {+ $x 1}}
   checkthat [apply $plus1 3] == 4
