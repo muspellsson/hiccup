@@ -32,12 +32,17 @@ cmdParray args = case args of
 cmdArray = mkEnsemble "array" [
               ("get", array_get), ("size", array_size), 
               ("exists", array_exists), ("set", array_set), 
-              ("names", array_names), ("unset", array_unset)
+              ("names", array_names), ("unset", array_unset),
+              ("statistics", array_statistics)
     ]
 
 arrSet n i v = varSetNS (arrNameNS n i) v
 
 getOrEmpty name = getArray (T.asBStr name) `ifFails` Map.empty
+
+array_statistics args = case args of 
+  [_] -> io (putStrLn "no statistics available") >> ret
+  _   -> vArgErr "array statistics arrayName"
 
 array_get args = case args of
          [name] -> runGet name (const True)
@@ -81,7 +86,7 @@ array_unset args = case args of
                       let withInd i = (NSQual nst (VarName vn (Just i)))
                       mapM_ (\ind -> varUnsetNS (withInd ind)) (globMatches (T.asBStr pat) (Map.keys arr))
                       ret
-     _          -> argErr "array unset"
+     _          -> vArgErr "array unset arrayName ?pattern?"
 
 array_exists args = case args of
        [a2] -> do b <- (getArray (T.asBStr a2) >> return True) `ifFails` False

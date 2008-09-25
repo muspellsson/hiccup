@@ -78,7 +78,9 @@ empty = TclBStr BS.empty Nothing (Left "bad parse", Left "emtpy expr")
 isEmpty v = case v of
         TclInt _ _    -> False
         TclDouble _ _ -> False
+        TclBStr s _ _ -> BS.null s
         _ -> BS.null (asBStr v)
+{-# INLINE isEmpty #-}
 
 
 tclTrue = mkTclInt 1

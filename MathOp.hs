@@ -21,7 +21,7 @@ import qualified TObj as T
 import Data.Bits
 import Data.Foldable as F
 
-numop name iop dop !x !y = 
+numop name !iop !dop !x !y = 
    case (T.asInt x, T.asInt y) of
        (Just i1, Just i2) -> return $! T.fromInt (i1 `iop` i2)
        _ -> case (T.asDouble x, T.asDouble y) of

@@ -42,13 +42,15 @@ evalRTokens (x:xs) acc = case x of
             ArrRef ns n i -> do
                  ni <- evalArgs [i] >>= return . T.asBStr . head
                  varGetNS (NSQual ns (arrName n ni)) >>= next
-            CatLst l -> evalArgs l >>= next . T.fromBStr . B.concat . map T.asBStr
+            CatLst l -> evalArgs l >>= next . valConcat
             ExpTok t -> do 
                  [rs] <- evalArgs [t]
                  l <- T.asList rs
                  evalRTokens xs ((reverse l) ++ acc)
    where next !r = evalRTokens xs (r:acc)
          {-# INLINE next #-}
+
+valConcat = T.fromBStr . B.concat . map T.asBStr . filter (not . T.isEmpty)
 
 evalArgs :: [RTokCmd] -> TclM [T.TclObj]
 evalArgs args = evalRTokens args []
