@@ -5,6 +5,7 @@ import Util
 import Control.Monad.Error (throwError)
 import Data.IORef
 import TclErr
+import Internal.InterpSpec
 import qualified TclObj as T
 import TclLib.LibUtil
 import TclLib (libCmds)
@@ -72,10 +73,11 @@ interp_create args_ = do
    case args of
     [] -> io uniqueName >>= create safe . T.fromBStr
     [n] -> create safe n
-    _   -> argErr "interp create"
+    _   -> vArgErr "interp create ?-safe? ?--? ?path?"
  where create safe n = do 
            path <- toPath n
-           ir <- io $ createInterp safe [] allCmds []
+           ir <- io $ mkInterp (emptyInterp { ispecSafe = safe, 
+                                              ispecCmds = allCmds })
            registerInterp path ir (interpEnsem n ir)
            return n
 
@@ -96,13 +98,13 @@ interpEval ir cmds = do
         _ -> throwError e
      Right v -> return v
 
-createInterp safe vars cmds inits = do
-   st <- makeState safe vars icmds inits
+mkInterp spec = do
+   st <- makeState (fixCmds spec)
    stref <- newIORef st
    return (Interp stref)
- where icmds = if safe then onlySafe cmds else cmds
-
-mkInterp = createInterp False
+ where fixCmds sp 
+        | ispecSafe sp = sp { ispecCmds = onlySafe (ispecCmds sp) }
+        | otherwise    = sp
 
 interpEvalStr :: BString -> Interp -> IO (Either BString BString)
 interpEvalStr s i = runInterpStr (evalTcl (T.fromBStr s :: T.TclObj)) i

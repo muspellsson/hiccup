@@ -16,7 +16,8 @@ data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
 executable:          hiccup
-other-modules:       Hiccup, TObj, TclObj, VarName, Common, Internal.Types, Internal.Util, CmdList, Util, Core, 
+other-modules:       Hiccup, TObj, TclObj, VarName, Common, CmdList, Util, Core,
+                     Internal.Types, Internal.Util, Internal.InterpSpec, 
                      RToken, BSParse, TclParse, EventMgr, TclChan, TclErr, MathOp, TclLib,
                      TclLib.IOCmds, TclLib.StringCmds, TclLib.ListCmds, TclLib.ArrayCmds, TclLib.NSCmds, 
                      TclLib.LibUtil, TclLib.CoreCmds, TclLib.ControlCmds, TclLib.UtilCmds, 

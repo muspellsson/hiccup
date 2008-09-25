@@ -6,6 +6,7 @@ import TclLib.Interp
 import TclLib.LibUtil
 import qualified TclObj as T
 
+import Internal.InterpSpec
 import TclLib (libCmds, libInits)
 
 
@@ -20,7 +21,13 @@ interpVars al = [("tcl_version" * (show hiccupVersion))] ++ processArgs al
 
 hiccupVersion = 0.49
 
-mkMainInterp args cmds = mkInterp (interpVars args) (mergeCmdLists [baseCmds, makeCmdList cmds]) libInits
+mkMainInterp args cmds = mkInterp spec
+ where spec = emptyInterp {
+                 ispecSafe = False,
+                 ispecVars = interpVars args,
+                 ispecCmds = mergeCmdLists [baseCmds, makeCmdList cmds],
+                 ispecInits = libInits
+              }
 
 runTcl v = mkMainInterp [] [] >>= interpEvalStr v
 

@@ -78,10 +78,12 @@ import qualified Data.Map as Map
 import Data.IORef
 import Data.Unique
 
+
 import Proc.Params
 
 import Internal.Types
 import Internal.Util
+import Internal.InterpSpec
 
 import Match (globMatch, globMatches)
 import qualified EventMgr as Evt
@@ -153,8 +155,9 @@ setErrorInfo s = do
 
 makeVarMap = Map.fromList . mapSnd (\c -> (Nothing, ScalarVar c))
 
-makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
-makeState = makeState' C.baseChans
+-- makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
+makeState :: InterpSpec -> IO TclState
+makeState is = makeState'  (is { ispecChans = C.baseChans }) -- (ISpec s v C.baseChans c i)
 
 runInterp t (Interp i) = do
   bEnv <- readIORef i
@@ -219,14 +222,14 @@ baseInit cmdlst = do
    toCmdObjs cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
  where exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
 
-makeState' :: C.ChanMap -> Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
-makeState' chans safe vlist cmdlst inits = do 
+makeState' :: InterpSpec -> IO TclState
+makeState' is = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
     st <- return $! mkState nsr fr
     runInits st
- where mkState nsr fr = TclState { interpSafe = safe,
-                                   tclChans = chans,
+ where mkState nsr fr = TclState { interpSafe = ispecSafe is,
+                                   tclChans = ispecChans is,
                                    tclInterps = Map.empty,
                                    tclEvents = Evt.emptyMgr,
                                    tclStack = [fr],
@@ -234,11 +237,12 @@ makeState' chans safe vlist cmdlst inits = do
                                    tclCmdCount = 0,
                                    tclCmdWatchers = [] }
        makeGlobal = do 
-           fr <- createFrame (makeVarMap vlist) 
+           fr <- createFrame (makeVarMap (ispecVars is)) 
            nsr <- globalNS fr
            setFrNS fr nsr
            return (fr, nsr)
-       runInits = execTclM (sequence_ ((baseInit cmdlst):inits))
+       runInits = let initlist = baseInit (ispecCmds is) : (ispecInits is)
+                  in execTclM .sequence_ $ initlist
        globalNS fr = newIORef $ emptyNS nsSep fr
 
 
@@ -787,7 +791,7 @@ evalClean t =
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
-mkEmptyState = makeState False [] emptyCmdList []
+mkEmptyState = makeState' (ISpec  False [] C.baseChans emptyCmdList [])
 
 commonTests = TestList [ setTests, getTests, unsetTests, withScopeTests ] where
   b = pack
