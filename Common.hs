@@ -64,6 +64,7 @@ module Common (TclM
        ,setUnknownNS
        ,exportNS
        ,getExportsNS
+       ,getExportCmds
        ,importNS
        ,forgetNS
        ,addToPathNS
@@ -156,10 +157,6 @@ setErrorInfo s = do
 
 makeVarMap = Map.fromList . mapSnd (\c -> (Nothing, ScalarVar c))
 
--- makeState :: Bool -> [(BString,T.TclObj)] -> CmdList -> [TclM ()] -> IO TclState
-makeState :: InterpSpec -> IO TclState
-makeState is = makeState'  (is { ispecChans = C.baseChans }) -- (ISpec s v C.baseChans c i)
-
 runInterp t (Interp i) = do
   bEnv <- readIORef i
   (r,i') <- runTclM t bEnv
@@ -236,11 +233,11 @@ baseInit cmdlst = do
    (io . toCmdObjs) cmdlst >>= mapM_ (\(n,p) -> registerCmdObj (parseProc n) p)
  where exportAll ns = withNS (pack ns) (exportNS False (pack "*") >> ret)
 
-makeState' :: InterpSpec -> IO TclState
-makeState' is = do 
+makeState :: InterpSpec -> IO TclState
+makeState is = do 
     (fr,nsr) <- makeGlobal
     nsr `modifyIORef` (addChildNS (pack "") nsr)
-    hiddens <- toCmdObjs (ispecHidden is) >>= mapM toCmdRefs >>= return . CmdMap 0 . Map.fromList
+    hiddens <- cmdListToCmdMap (ispecHidden is)
     st <- return $! mkState nsr hiddens fr
     runInits st
  where mkState nsr hiddens fr = TclState { interpSafe = ispecSafe is,
@@ -261,6 +258,7 @@ makeState' is = do
                   in execTclM .sequence_ $ initlist
        globalNS fr = newIORef $ emptyNS nsSep fr
        toCmdRefs (a,b) = newIORef b >>= \br -> return (a,br)
+       cmdListToCmdMap cl = toCmdObjs cl >>= mapM toCmdRefs >>= return . CmdMap 0 . Map.fromList
        
 
 
@@ -651,6 +649,14 @@ importNS force name = do
               newc <- registerCmdObj dest_name np
               addKid cr newc
 
+getExportCmds = do
+   nsr <- getCurrNS
+   ns <- readRef nsr
+   let expats = nsExport ns
+   let nscmds = Map.toList (unCmdMap (nsCmds ns))
+   let is_exported v = or (map (`globMatch` v) expats)
+   return $ filter (\(k,_) -> is_exported k) nscmds
+
 getExports nsr pat = do 
    ns <- readRef nsr
    let expats = nsExport ns
@@ -808,7 +814,7 @@ evalClean t =
        (retv, resStack) <- runTclM t st
        return (retv, tclStack resStack)
 
-mkEmptyState = makeState' (ISpec { ispecSafe = False,
+mkEmptyState = makeState (ISpec { ispecSafe = False,
                                    ispecVars = [],
                                    ispecChans = C.baseChans,
                                    ispecCmds = emptyCmdList,

@@ -4,7 +4,7 @@ import Util
 import qualified TclObj as T
 import CmdList
 import Internal.Types
-import TclChan (ChanMap, emptyChanMap)
+import TclChan (ChanMap, baseChans)
 
 
 data InterpSpec = ISpec { ispecSafe :: Bool,
@@ -18,7 +18,7 @@ data InterpSpec = ISpec { ispecSafe :: Bool,
 
 emptyInterp = ISpec { ispecSafe = True,
                       ispecVars = [],
-                      ispecChans = emptyChanMap,
+                      ispecChans = baseChans,
                       ispecCmds = emptyCmdList,
                       ispecHidden = emptyCmdList,
                       ispecInits = [] }

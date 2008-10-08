@@ -3,8 +3,10 @@ module TclLib.NSCmds (nsCmds) where
 
 import Common
 import Core ()
+import Data.IORef (readIORef)
 import TclLib.LibUtil
 import VarName
+import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
 nsCmds = makeCmdList [("namespace", cmdNamespace), ("variable", cmdVariable)]
@@ -47,7 +49,7 @@ ns_parent args = case args of
           _  -> vArgErr "namespace parent ?namespace?"
 
 ns_export args = case map T.asBStr args of
-       []     -> getExportsNS >>= return . T.fromList . map T.fromBStr
+       []     -> getExportsNS >>= lreturn
        ("-clear":al) -> mapM_ (exportNS True) al >> ret
        al            -> mapM_ (exportNS False) al >> ret
           
@@ -65,8 +67,8 @@ ns_origin args = case args of
      _    -> argErr "namespace origin"
 
 ns_children args = case args of
-          [] -> childrenNS Nothing >>= return . T.fromList . map T.fromBStr
-          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= return . T.fromList . map T.fromBStr
+          [] -> childrenNS Nothing >>= lreturn
+          [nsn] -> childrenNS (Just (parseNSTag (T.asBStr nsn))) >>= lreturn
           _  -> argErr "namespace children"
 
 ns_exists args = case args of
@@ -80,12 +82,12 @@ ns_tail args = case args of
    _   -> vArgErr "namespace tail string"
 
 ns_path args = case args of
-   [] -> getPathNS >>= return . T.fromList . map T.fromBStr
+   [] -> getPathNS >>= lreturn
    [lst] -> T.asList lst >>= mapM_ (\n -> addToPathNS (parseNSTag (T.asBStr n))) >> ret
    _ -> vArgErr "namespace path ?pathList?"
 
 ns_qualifiers args = case args of
-   [s] -> return . T.fromBStr $ (nsQualifiers (T.asBStr s))
+   [s] -> treturn $ (nsQualifiers (T.asBStr s))
    _   -> vArgErr "namespace qualifiers string"
 
 ns_unknown args = case args of
@@ -108,6 +110,11 @@ ensemble_exists args = case args of
 ensemble_create args = case args of
   [] -> do 
     nsName <- currentNS
-    registerCmd nsName (\_ -> ret)
+    let clean (a,b) = do
+         b2 <- io $ readIORef b
+         return (B.unpack a, b2)
+    nscmds <- getExportCmds >>= mapM clean
+    registerCmd nsName (mkEnsemble (B.unpack nsName) [])
     ret
   _  -> argErr "namespace ensemble create"
+
