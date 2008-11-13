@@ -4,14 +4,14 @@ import System.Process
 import System.Posix.Files
 import Text.Printf
 import System
-import qualified Control.Exception as E
 
 main = do
   files <- getArgs
   putStrLn $ "Watching " ++ unwords files
-  E.catch (watcher files) print
+  catch (watcher files) print
 
 
+watcher :: [String] -> IO ()
 watcher files = watchLoop 0 where  
  watchLoop latest = do
   nlatest <- latestMod files

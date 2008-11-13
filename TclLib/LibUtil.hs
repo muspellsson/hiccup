@@ -19,6 +19,7 @@ import Util
 import qualified Data.Map as Map
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
+import Internal.Types (TclCmd)
 
 import CmdList
 
@@ -51,6 +52,7 @@ toIndex len i = case T.asInt i of
                                        _           -> badIndex
                               else badIndex
 
+mkEnsemble :: String -> [(String,TclCmd)] -> TclCmd
 mkEnsemble name subs = top
   where top args = 
            case args of

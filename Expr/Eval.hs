@@ -101,7 +101,7 @@ exprEvalTests = TestList [evalTests, varEvalTests] where
       ]
      where eql a b = (runExpr lu a) ~=? Just b
            table = M.fromList . mapFst pack $ [("boo", T.fromStr "bean"), ("num", T.fromInt 4)]
-           lu :: (Monad m) => Callback m
+           lu :: Callback Maybe
            lu (VarRef (NSQual _ (VarName v _)))  = M.lookup v table
            lu (FunRef _) = return $ T.fromStr "PROC"
            lu (TokEval _) = return $ T.fromStr "TOKSTR"

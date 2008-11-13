@@ -4,13 +4,13 @@ module TclLib.StringCmds (stringCmds, stringTests) where
 import Common
 import Util
 import Match (match, matchTests)
-import Control.Exception (try)
+import qualified System.IO.Error as IOE 
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 import Data.Char (toLower,toUpper,isSpace)
 import Data.Maybe (listToMaybe)
 import TclLib.LibUtil
-import Text.Regex.Posix hiding (match)
+import Text.Regex.Posix 
 import ArgParse
 
 import Test.HUnit
@@ -195,14 +195,14 @@ cmdSplit args = case args of
 cmdRegexp :: [T.TclObj] -> TclM T.TclObj
 cmdRegexp args = case args of
   [pat,str] -> regexp (T.asBStr str) (T.asBStr pat) >>= return . T.fromBool
-  [pat,str,matchVar] -> do AllTextMatches m <- regexp (T.asBStr str) (T.asBStr pat)
+  [pat,str,matchVar] -> do m <- regexp (T.asBStr str) (T.asBStr pat)
                            case m of
                               [] -> return (T.fromBool False)
                               (mv:_) -> do
                                varSetNS (T.asVarName matchVar) (T.fromBStr mv)
                                return (T.fromBool True)
   _         -> vArgErr "regexp exp string ?matchVar?"
- where regexp s pat = do r <- io $ try (return $! s =~ pat)
+ where regexp s pat = do r <- io $ IOE.try (return $! s =~ pat)
                          case r of
                            Left _ -> fail "invalid regex"
                            Right v -> return $! v

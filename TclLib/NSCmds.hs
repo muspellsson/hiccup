@@ -107,14 +107,15 @@ ensemble_exists args = case args of
                             Just _  -> True
   _    -> vArgErr "namespace ensemble exists command"
 
+cleanEx (a,b) = do
+         b2 <- io $ readIORef b
+         return (B.unpack a, applyTo b2)
+
 ensemble_create args = case args of
   [] -> do 
     nsName <- currentNS
-    let clean (a,b) = do
-         b2 <- io $ readIORef b
-         return (B.unpack a, b2)
-    nscmds <- getExportCmds >>= mapM clean
-    registerCmd nsName (mkEnsemble (B.unpack nsName) [])
+    nscmds <- getExportCmds >>= mapM cleanEx
+    registerCmd nsName (mkEnsemble (B.unpack nsName) nscmds)
     ret
   _  -> argErr "namespace ensemble create"
 

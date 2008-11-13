@@ -122,6 +122,8 @@ applyTo !f args = do
 {-# INLINE applyTo #-}
 
 
+
+mkCmdAlias :: CmdRef -> [T.TclObj] -> TclM TclCmdObj
 mkCmdAlias cr adl = do
     p <- readRef cr 
     return $! p { cmdCore = (cmdCore p) `withAct` (inner cr), 
@@ -645,9 +647,12 @@ importNS force name = do
               when (not force) $ do
                  samename <- getCmdNS dest_name
                  whenJust samename $ \_  -> tclErr $ "can't import command " ++ show n ++ ": already exists"
-              np <- mkCmdAlias cr []
-              newc <- registerCmdObj dest_name np
-              addKid cr newc
+              cmdLink cr dest_name
+
+cmdLink cr dest_name = do
+    np <- mkCmdAlias cr []
+    newc <- registerCmdObj dest_name np
+    addKid cr newc
 
 getExportCmds = do
    nsr <- getCurrNS

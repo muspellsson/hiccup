@@ -9,7 +9,6 @@ import System.Directory (getCurrentDirectory,
                          doesDirectoryExist,
                          getPermissions,
                          Permissions(..))
-import Control.Exception (handle,try)
 import System.Environment (getEnvironment)
 import Core ()
 import VarName (arrNameNS)
@@ -63,7 +62,7 @@ cmdFile = mkEnsemble "file" [
     permtest "executable" executable,
     permtest "writable" writable]
  where permtest n a = pred_check n (get_perm a)
-       get_perm a fn = handle (\_ -> return False) (getPermissions fn >>= return . a)
+       get_perm a fn = catch (getPermissions fn >>= return . a) (\_ -> return False)
        pred_check n p = 
         let cmd args = case args of
              [name] -> (io $ p (T.asStr name)) >>= return . T.fromBool
@@ -77,7 +76,7 @@ file_channels args = case args of
 file_size args = case args of
    [n] -> do 
       let name = T.asStr n 
-      esiz <- io $ try (withFile name ReadMode hFileSize)
+      esiz <- io $ IOE.try (withFile name ReadMode hFileSize)
       case esiz of
         Left _ -> tclErr $ "could not read " ++ show name ++ ": no such file or directory"
         Right siz -> return . T.fromInt . fromIntegral $ siz
