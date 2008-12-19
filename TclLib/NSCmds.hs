@@ -6,6 +6,7 @@ import Core ()
 import Data.IORef (readIORef)
 import TclLib.LibUtil
 import VarName
+import Internal.Types (cmdIsEnsem)
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
@@ -104,7 +105,7 @@ ensemble_exists args = case args of
     cmd <- getCmd (T.asBStr cn)
     return . T.fromBool $ case cmd of 
                             Nothing -> False
-                            Just _  -> True
+                            Just c  -> cmdIsEnsem c
   _    -> vArgErr "namespace ensemble exists command"
 
 cleanEx (a,b) = do
@@ -115,7 +116,7 @@ ensemble_create args = case args of
   [] -> do 
     nsName <- currentNS
     nscmds <- getExportCmds >>= mapM cleanEx
-    registerCmd nsName (mkEnsemble (B.unpack nsName) nscmds)
+    registerEnsem nsName (mkEnsemble (B.unpack nsName) nscmds)
     ret
   _  -> argErr "namespace ensemble create"
 

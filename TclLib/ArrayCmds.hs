@@ -1,4 +1,5 @@
-module TclLib.ArrayCmds (arrayCmds) where
+{-# LANGUAGE BangPatterns,OverloadedStrings #-}
+module TclLib.ArrayCmds (arrayCmds, arrayInits) where
 import Common
 
 import Util
@@ -13,7 +14,8 @@ import VarName
 import qualified Data.ByteString.Char8 as B
 import Text.Printf
 
-arrayCmds = makeCmdList [("array", cmdArray), ("parray", cmdParray)]
+arrayCmds = makeCmdList [("parray", cmdParray)]
+arrayInits = [registerEnsem "array" cmdArray]
 
 cmdParray args = case args of
      [name] -> do let n = T.asBStr name 

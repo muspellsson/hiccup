@@ -23,6 +23,7 @@ module Common (TclM
        ,getProcInfo
        ,getCmdNS
        ,getCurrNS
+       ,registerEnsem
        ,registerProc
        ,registerCmd
        ,varGetNS
@@ -116,6 +117,7 @@ applyTo !f args = do
    -- modify (\x -> let !r = x { tclCmdCount = (tclCmdCount x) + 1 } in r)
    case cmdCore f of
      CmdCore c      -> c args
+     e@(EnsemCore {})  -> (ensemCmd e) args
      p@(ProcCore _ _ c) -> case cmdOrigNS f of
                               Nothing -> error "can't find orig namespace"
                               Just nsr -> withProcScope (procArgs p) nsr c (cmdName f) args
@@ -134,6 +136,7 @@ mkCmdAlias cr adl = do
             p `applyTo` (adl ++ args)
        withAct core a = case core of
           CmdCore _ -> CmdCore a
+          EnsemCore {} -> error "ensemble alias unsupported!"
           ProcCore n b c -> ProcCore n b c
   
 addKid cr k = cr .= (\p -> p { cmdKids = k:(cmdKids p) })
@@ -336,8 +339,8 @@ getProcInfo !pname = do
   case mcmd of
    Nothing -> err
    Just cmd -> case cmdCore cmd of
-                  CmdCore _ -> err
-                  pi        -> return pi
+                  pi@(ProcCore {}) -> return pi
+                  _ -> err
  where err = tclErr $ show pname ++ " isn't a procedure"
 
 getCmdNS (NSQual nst n) =
@@ -402,6 +405,13 @@ registerCmdObj (NSQual nst k) newCmd = getNamespaceHere nst >>= regInNS
            newc <- io . newIORef $ newCmd { cmdOrigNS = Just nsr, cmdName = k }
            changeCmds nsr (Map.insert k newc)
            return newc
+
+registerEnsem :: BString -> TclCmd -> TclM ()
+registerEnsem name en = do
+   let pn@(NSQual _ n) = parseProc name
+   registerCmdObj pn (emptyCmd { cmdName = n,
+                                 cmdCore = EnsemCore n en })
+   return ()
 
 varSetRaw !n v = varSetNS (parseVarName n) v
 

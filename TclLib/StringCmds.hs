@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.StringCmds (stringCmds, stringTests) where
+module TclLib.StringCmds (stringCmds, 
+                          stringInits,
+                          stringTests) where
 
 import Common
 import Util
@@ -15,8 +17,8 @@ import ArgParse
 
 import Test.HUnit
 
+stringInits = [registerEnsem "string" cmdString]
 stringCmds = makeCmdList [
-    ("string", cmdString), 
     ("regexp", cmdRegexp),
     ("append", cmdAppend), ("split", cmdSplit)
   ]

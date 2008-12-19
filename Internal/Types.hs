@@ -74,11 +74,17 @@ cmdIsProc cmd = case cmdCore cmd of
                   ProcCore {} -> True
                   _        -> False
 
+cmdIsEnsem cmd = case cmdCore cmd of
+                  EnsemCore {} -> True
+                  _        -> False
+
 type ArgSpec = Either BString (BString,T.TclObj)
 type ArgList = [ArgSpec]
 newtype ParamList = ParamList (BString, Bool, ArgList)
 
 data CmdCore = CmdCore !TclCmd 
+             | EnsemCore { ensemName :: BString,
+                           ensemCmd :: TclCmd }
              | ProcCore { procBody :: BString, 
                           procArgs :: !ParamList,
                           procAction :: !(TclM T.TclObj) }

@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.IOCmds (ioCmds, setupEnv) where
+module TclLib.IOCmds (ioCmds, ioInits) where
 import Common
 import Control.Monad (unless, liftM2)
 import System.IO
@@ -20,12 +20,14 @@ import TclObj ((.==))
 import TclLib.LibUtil
 import Util
 
+
 setupEnv = do
   env <- io $ getEnvironment
   mapM_ (\(n,v) -> arrSet "env" (B.pack n) (T.fromStr v)) env
   return ()
  where arrSet n i v = varSetNS (arrNameNS n i) v
 
+ioInits = [setupEnv]
 
 ioCmds = nsCmdList "" $ safe ++ unsafe
  where safe = safeCmds [("puts",cmdPuts),("gets",cmdGets),("read",cmdRead),

@@ -350,3 +350,7 @@ test "nulti interpolation" {
     set x [incr y]::[incr y]
     checkthat $x eq {2::3}
 }
+
+test "info body fails on ensemble" {
+    assert_err { info body string }
+}

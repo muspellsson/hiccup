@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns,OverloadedStrings #-}
-module TclLib.CoreCmds (coreCmds) where
+module TclLib.CoreCmds (coreCmds, coreInits) where
 import Common
 import Internal.Types (procArgs)
 import Control.Monad.Error
@@ -18,6 +18,8 @@ import Core ()
 import qualified Data.ByteString.Char8 as B
 import qualified TclObj as T
 
+coreInits = [registerEnsem "info" cmdInfo]
+
 coreCmds = makeCmdList [
   ("proc", cmdProc),
   ("set", cmdSet),
@@ -31,7 +33,6 @@ coreCmds = makeCmdList [
   ("continue", cmdRetv EContinue),
   ("unset", cmdUnset),
   ("rename", cmdRename),
-  ("info", cmdInfo),
   ("apply", cmdApply),
   ("error", cmdError)]
 

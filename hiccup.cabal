@@ -9,7 +9,7 @@ homepage:            http://hiccup.googlecode.com/
 category:            Compilers/Interpreters
 synopsis:            Relatively efficient Tcl interpreter with support for basic operations
 maintainer:          consalus+hiccup@gmail.com
-build-depends:       base, HUnit, time, mtl, haskell98, readline, parsec, bytestring, 
+build-depends:       base, HUnit, time, mtl, haskell98, editline, parsec, bytestring, 
                      containers, random, unix, array, regex-posix, directory
 build-type:          Simple
 data-files:          README

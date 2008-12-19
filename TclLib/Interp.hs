@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import qualified TclObj as T
 import qualified Data.ByteString.Char8 as B
 import TclLib.LibUtil
-import TclLib (libCmds)
+import TclLib (libCmds, libInits)
 import Core ()
 import ArgParse
 import Internal.Types (Interp(..),interpSafe,tclHidden, unCmdMap)
@@ -101,7 +101,8 @@ interp_create args_ = do
  where create safe n = do 
            path <- toPath n
            ir <- io $ mkInterp (emptyInterp { ispecSafe = safe, 
-                                              ispecCmds = allCmds })
+                                              ispecCmds = allCmds,
+                                              ispecInits = libInits })
            registerInterp path ir (interpEnsem n ir)
            return n
 
