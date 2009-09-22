@@ -1,9 +1,10 @@
-{-# LANGUAGE BangPatterns,OverloadedStrings #-}
+{-# LANGUAGE BangPatterns,OverloadedStrings, FlexibleContexts #-}
 module TclLib.StringCmds (stringCmds, 
                           stringInits,
                           stringTests) where
 
 import Common
+import Control.Monad (liftM)
 import Util
 import Match (match, matchTests)
 import qualified System.IO.Error as IOE 
@@ -42,7 +43,7 @@ string_trimleft = trimcmd "trimleft" trimleft
 string_trimright = trimcmd "trimright" trimright
 string_trim = trimcmd "trim" trim
 trimleft pred = B.dropWhile pred
-trimright pred s = fst (B.spanEnd pred s)
+trimright pred = fst . B.spanEnd pred
 trim pred = trimright pred . trimleft pred
 
 trimcmd name f args = case args of
@@ -101,7 +102,7 @@ specCompare (CompSpec nocase len) s1 s2 = do
 string_compare args_ = do
    (cspec, args) <- parseArgs compSpecs (CompSpec False Nothing) args_
    case args of
-     [s1,s2] -> specCompare cspec s1 s2 >>= return . ord2int 
+     [s1,s2] -> liftM ord2int (specCompare cspec s1 s2)
      _       -> vArgErr "string compare ?-nocase? ?-length int? string1 string2"
  where ord2int o = case o of
             EQ -> T.fromInt 0
@@ -121,7 +122,7 @@ string_match args_ = do
    case args of
        [s1,s2]        -> domatch nocase (T.asBStr s1) (T.asBStr s2)
        _              -> vArgErr "string match ?-nocase? pattern string"
- where domatch nocase a b = return (T.fromBool (match nocase a b))
+ where domatch nocase a b = return (T.fromBool (Match.match nocase a b))
 
 string_index args = case args of
                      [s,i] -> do let str = T.asBStr s
@@ -163,9 +164,17 @@ string_first args = case args of
      go bs1 bs2 index
   _  -> vArgErr "string first needleString haystackString ?startIndex?"
  where go s1 s2 off = return . T.fromInt $ 
-              case B.findSubstring s1 (B.drop off s2) of
+              case findSubstring s1 (B.drop off s2) of
                       Nothing -> -1
                       Just i  -> off + i
+
+-- Copied from BS docs, since findSubstring is deprecated.
+findSubstring :: B.ByteString -> B.ByteString -> Maybe Int
+findSubstring s l 
+  | B.null s = Just 0
+  | otherwise = case B.breakSubstring s l of
+                       (x,y) | B.null y  -> Nothing
+                             | otherwise -> Just (B.length x)
 
 string_range args = case args of
    [s,i1,i2] -> do 
@@ -192,22 +201,22 @@ cmdSplit args = case args of
                             1 -> lreturn $! B.split (B.head splitChars) bstr
                             _ -> dosplit bstr splitChars
         _           -> vArgErr "split string ?splitChars?"
- where dosplit str chars = lreturn (B.splitWith (\v -> v `B.elem` chars) str)
+ where dosplit str chars = lreturn (B.splitWith (`B.elem` chars) str)
 
 cmdRegexp :: [T.TclObj] -> TclM T.TclObj
 cmdRegexp args = case args of
-  [pat,str] -> regexp (T.asBStr str) (T.asBStr pat) >>= return . T.fromBool
-  [pat,str,matchVar] -> do m <- regexp (T.asBStr str) (T.asBStr pat)
+  [pat,str] -> liftM T.fromBool (wrapRE (T.asBStr str =~ T.asBStr pat))
+  [pat,str,matchVar] -> do m <- wrapRE (T.asBStr str =~~ T.asBStr pat)
                            case m of
                               [] -> return (T.fromBool False)
                               (mv:_) -> do
                                varSetNS (T.asVarName matchVar) (T.fromBStr mv)
                                return (T.fromBool True)
   _         -> vArgErr "regexp exp string ?matchVar?"
- where regexp s pat = do r <- io $ IOE.try (return $! s =~ pat)
-                         case r of
-                           Left _ -> fail "invalid regex"
-                           Right v -> return $! v
+ where wrapRE f = do r <- io $ IOE.try (return $! f)
+                     case r of
+                        Left _ -> fail "invalid regex"
+                        Right v -> return $! v
 
 stringTests = TestList [ matchTests, toIndTests, mapReplaceTests ]
 
@@ -227,7 +236,7 @@ toIndTests = TestList [
      ,(someLen, "e-4") `should_fail` ()
      ,(someLen, "") `should_fail` ()
   ] where should_be p b = show p ~: go p  ~=? (Right b)
-          should_fail p@(_,s) _ =  show p ~: (Left ("bad index: " ++ show s)) ~=? go p
+          should_fail p@(_,s) _ =  show p ~: Left ("bad index: " ++ show s) ~=? go p
           go (l,i) = (toIndex l (T.fromStr i)) :: Either String Int
           someLen = 5
           lastInd = someLen - 1

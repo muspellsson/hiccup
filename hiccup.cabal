@@ -3,20 +3,25 @@ version:             0.49
 description:         Interpreter for a subset of tcl
 license:             GPL
 license-file:        LICENSE
+cabal-version:       >= 1.2
 author:              Kyle Consalus
 stability:           experimental
 homepage:            http://hiccup.googlecode.com/
 category:            Compilers/Interpreters
 synopsis:            Relatively efficient Tcl interpreter with support for basic operations
 maintainer:          consalus+hiccup@gmail.com
-build-depends:       base, HUnit, time, mtl, haskell98, editline, parsec, bytestring, 
-                     containers, random, unix, array, regex-posix, directory
 build-type:          Simple
 data-files:          README
 extra-source-files:  example.tcl atests.tcl include.tcl
 
-executable:          hiccup
-other-modules:       Hiccup, TObj, TclObj, VarName, Common, CmdList, Util, Core,
+Library
+    ghc-options:         -O2 -funbox-strict-fields -W -fglasgow-exts
+    ghc-prof-options:    -auto-all -prof
+    extensions:          BangPatterns
+    exposed-modules: Hiccup, TclObj, Extend
+    build-depends:   base, HUnit, time, mtl, haskell98, parsec, bytestring, 
+                     containers, random, unix, array, regex-posix, directory
+    other-modules:   TObj, VarName, Common, CmdList, Util, Core,
                      Internal.Types, Internal.Util, Internal.InterpSpec, 
                      RToken, BSParse, TclParse, EventMgr, TclChan, TclErr, MathOp, TclLib,
                      TclLib.IOCmds, TclLib.StringCmds, TclLib.ListCmds, TclLib.ArrayCmds, TclLib.NSCmds, 
@@ -24,9 +29,9 @@ other-modules:       Hiccup, TObj, TclObj, VarName, Common, CmdList, Util, Core,
                      TclLib.MathProcs, TclLib.Interp,
                      Expr, Expr.Parse, Expr.Eval, Expr.TExp, Expr.Util, Expr.Compile, 
                      Proc.Params, Proc.Util, Proc.Compiled, Proc.CodeBlock, 
-                     Match, Format, ArgParse, Extend
-main-is:             Main.hs
-ghc-options:         -O2 -funbox-strict-fields -W -fglasgow-exts
-ghc-prof-options:    -auto-all -prof
-extensions:          BangPatterns
+                     Match, Format, ArgParse 
+Executable hiccup
+    ghc-options:         -O2 -funbox-strict-fields -W -fglasgow-exts
+    build-depends:       editline
+    main-is:             Main.hs
 
