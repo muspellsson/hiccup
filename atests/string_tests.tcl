@@ -133,6 +133,11 @@ test "regexp match result" {
   checkthat $res eq 444
 }
 
+test "regexp multiple match result" {
+    checkthat [regexp {A+} "AAA AA AA AAA AA" res] == 1
+    checkthat $res eq "AAA"
+}
+
 test "bad regexp" {
     assert_err { regexp {[A-} "misc" }
     assert_err { regexp {[A-} "misc" res }
